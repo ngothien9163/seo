@@ -19,6 +19,7 @@ Ghi chú:
 """
 import json
 import os
+import sys
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import quote
@@ -324,3 +325,56 @@ def build_report(tail_spark: int = 8) -> str:
 
 def print_report():
     print(build_report())
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+def _explain_http_error(status: int) -> str:
+    """Thông điệp tiếng Việt cho các lỗi HTTP thường gặp của Search Console API."""
+    if status == 403:
+        return ("[GSC] Lỗi 403 PERMISSION_DENIED — email service account chưa được thêm vào "
+                "Search Console property (quyền 'Restricted' là đủ), hoặc Search Console API "
+                "chưa bật trong Google Cloud Console. Xem docs/SETUP_GSC.md bước 3 và 5.")
+    if status == 400:
+        return ("[GSC] Lỗi 400 BAD_REQUEST — kiểm tra GSC_SITE_URL trong config/settings.py: "
+                "phải đúng định dạng 'sc-domain:tenmien.com' hoặc 'https://...' và TRÙNG với "
+                "property đã verify trong Search Console.")
+    if status == 429:
+        return "[GSC] Lỗi 429 — hết quota API. Chờ vài phút rồi thử lại (quota mặc định 1200 req/phút)."
+    return f"[GSC] Lỗi HTTP {status} từ Search Console API — chi tiết xem response trong log trên."
+
+
+def run_gsc_fetch_cli():
+    """Entry CLI: rate limit → fetch → lưu snapshot → in báo cáo gộp."""
+    ok, reason = can_run_fetch()
+    if not ok:
+        print(f"[GSC] {reason}")
+        return
+
+    site = getattr(cfg, "GSC_SITE_URL", "?")
+    days = getattr(cfg, "GSC_LOOKBACK_DAYS", 28)
+    print(f"[GSC] Đang lấy dữ liệu Search Console: {site} ({days} ngày gần nhất)...")
+
+    try:
+        rows = fetch_search_analytics(days)
+    except GSCSetupError as e:
+        print(f"[GSC] ❌ {e}")
+        sys.exit(1)
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 0
+        print(_explain_http_error(status))
+        sys.exit(1)
+    except requests.RequestException as e:
+        print(f"[GSC] ❌ Lỗi mạng: {str(e)[:120]} — giữ dữ liệu cũ, thử lại sau.")
+        sys.exit(1)
+
+    n = len(rows)
+    total_clicks = sum(r["clicks"] for r in rows.values())
+    total_imps = sum(r["impressions"] for r in rows.values())
+    print(f"[GSC] ✅ Nhận {n} query | {total_clicks} clicks | {total_imps} impressions")
+
+    today = date.today().isoformat()
+    save_snapshot(rows, (date.today() - timedelta(days=days - 1)).isoformat(), today)
+    mark_fetch_run()
+    print()
+    print_report()

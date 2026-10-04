@@ -43,6 +43,10 @@ def show_strategy():
     print("  python main.py --plan      Xem content plan 30 ngay")
     print("  python main.py --keywords  Xem keyword research")
     print("  python main.py --backlinks Xem backlink strategy")
+    print("  python main.py --rank       Kiem tra vi tri tu khoa tren Google")
+    print("  python main.py --rank-report Xem bao cao xep hang da luu")
+    print("  python main.py --gsc        Lay du lieu Search Console (clicks/impressions)")
+    print("  python main.py --gsc-report Xem bao cao Search Console da luu")
     print("-" * 65)
 
 
@@ -96,6 +100,23 @@ if __name__ == "__main__":
     elif "--backlinks" in sys.argv:
         from backlinks.tracker import print_backlink_plan
         print_backlink_plan()
+
+    elif "--rank" in sys.argv:
+        import asyncio
+        from utils.rank_tracker import run_rank_check_cli
+        asyncio.run(run_rank_check_cli())
+
+    elif "--rank-report" in sys.argv:
+        from utils.rank_tracker import print_report
+        print_report()
+
+    elif "--gsc" in sys.argv:
+        from utils.gsc_client import run_gsc_fetch_cli
+        run_gsc_fetch_cli()
+
+    elif "--gsc-report" in sys.argv:
+        from utils.gsc_client import print_report
+        print_report()
 
     else:
         show_strategy()
