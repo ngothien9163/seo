@@ -195,3 +195,132 @@ def save_snapshot(rows: dict, start_date: str, end_date: str):
     for k in keys[:-MAX_SNAPSHOTS_KEPT]:
         del h["snapshots"][k]
     _save_history(h)
+
+
+# ─── MATCHING: query GSC ↔ từ khóa cấu hình ─────────────────────────────────
+
+def _fold(s: str) -> str:
+    """Fold Unicode: bỏ dấu tiếng Việt (NFD + loại ký tự combining), lowercase, gộp khoảng trắng.
+    'Nối Mi  Quận 2' → 'noi mi quan 2' — để 'noi mi quan 2' (không dấu) vẫn khớp keyword có dấu."""
+    import unicodedata
+    s = unicodedata.normalize("NFD", s or "")
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    return " ".join(s.lower().split())
+
+
+def _match_keywords(rows: dict, keywords: list) -> tuple[dict, dict]:
+    """
+    Gán mỗi query GSC vào đúng MỘT keyword cấu hình.
+    Exact (sau khi fold) ưu tiên; sau đó match 'chứa' 2 chiều, chọn keyword ngắn nhất
+    (trùng độ dài → theo thứ tự trong list). Keyword khớp nhiều query → giữ query có
+    impressions cao nhất làm đại diện.
+    Returns: (matched {kw: row}, unmatched {query: row})
+    """
+    folds = {kw: _fold(kw) for kw in keywords}
+    assign: dict = {}  # query -> kw
+    for q in rows:
+        qf = _fold(q)
+        exact = [kw for kw, kf in folds.items() if qf == kf]
+        if exact:
+            assign[q] = exact[0]
+            continue
+        cands = [kw for kw, kf in folds.items() if kf and (kf in qf or qf in kf)]
+        if cands:
+            assign[q] = min(cands, key=lambda k: (len(folds[k]), keywords.index(k)))
+
+    best: dict = {}  # kw -> row (imps cao nhất)
+    for q, kw in assign.items():
+        row = rows[q]
+        if kw not in best or row.get("impressions", 0) > best[kw].get("impressions", 0):
+            best[kw] = row
+
+    matched = {kw: best[kw] for kw in best}
+    unmatched = {q: rows[q] for q in rows if q not in assign}
+    return matched, unmatched
+
+
+# ─── BÁO CÁO GỘP ─────────────────────────────────────────────────────────────
+
+def build_report(tail_spark: int = 8) -> str:
+    """
+    Báo cáo gộp: GSC 28 ngày gần nhất (clicks/impressions/vị trí TB/CTR) × lần check
+    SERP mới nhất của rank_tracker (hạng + xu hướng).
+    """
+    from utils.rank_tracker import sparkline, delta_str  # import lười (tránh kéo playwright lúc load module)
+
+    gsc_h = _load_history()
+    snaps = gsc_h.get("snapshots", {})
+    if not snaps:
+        return "Chưa có dữ liệu Search Console. Chạy lần đầu: python main.py --gsc (setup: docs/SETUP_GSC.md)"
+
+    latest_key = sorted(snaps.keys())[-1]
+    snap = snaps[latest_key]
+    rows = snap.get("rows", {})
+    if not rows:
+        return (f"Property {gsc_h.get('site') or getattr(cfg, 'GSC_SITE_URL', '?')} chưa có dữ liệu "
+                f"(mới verify cần chờ vài ngày để tích lũy). Lần fetch gần nhất: {latest_key}")
+
+    keywords = list(getattr(cfg, "SEO_KEYWORDS", []))
+    depth = getattr(cfg, "RANK_CHECK_DEPTH", 100)
+    matched, unmatched = _match_keywords(rows, keywords)
+
+    # Rank history (có thể không tồn tại — cột SERP sẽ là '—')
+    rchecks: dict = {}
+    try:
+        from utils.rank_tracker import _load_history as _load_rank_history
+        rchecks = _load_rank_history().get("checks", {})
+    except Exception:
+        rchecks = {}
+    rkeys = sorted(rchecks.keys())
+    rank_latest = rchecks[rkeys[-1]] if rkeys else {}
+    rank_prev = rchecks[rkeys[-2]] if len(rkeys) >= 2 else {}
+
+    lines = []
+    site = gsc_h.get("site") or getattr(cfg, "GSC_SITE_URL", "?")
+    lines.append("=" * 104)
+    lines.append(f"  BÁO CÁO SEO GỘP — SERP + SEARCH CONSOLE — {site}")
+    lines.append(f"  Dữ liệu GSC: {snap.get('start_date')} → {snap.get('end_date')}"
+                 f"  (fetch: {snap.get('fetched_at', '?').replace('T', ' ')})"
+                 f"  | Lần check SERP: {rkeys[-1].replace('T', ' ') if rkeys else '—'}")
+    lines.append("=" * 104)
+    lines.append(f"  {'Từ khóa':<34}{'SERP':>6}  {'Δ':>5}  {'Xu hướng':<8}"
+                 f"{'Clicks':>7}{'Hiện':>7}{'Vị trí TB':>10}{'CTR':>7}")
+    lines.append("-" * 104)
+
+    def _serp_cols(kw: str) -> str:
+        cur = (rank_latest.get(kw) or {}).get("pos")
+        prv = (rank_prev.get(kw) or {}).get("pos")
+        trend = [(rchecks[k].get(kw) or {}).get("pos") for k in rkeys[-tail_spark:]]
+        pos = str(cur) if cur is not None else "—"
+        return f"{pos:>6}  {delta_str(cur, prv):>5}  {sparkline(trend) if trend else '—':<8}"
+
+    def _gsc_cols(row: dict) -> str:
+        return (f"{row.get('clicks', 0):>7}"
+                f"{row.get('impressions', 0):>7}"
+                f"{row.get('position', 0.0):>10.1f}"
+                f"{row.get('ctr', 0.0) * 100:>6.1f}%")
+
+    for kw in sorted(set(keywords) | set(matched.keys())):
+        row = matched.get(kw)
+        gsc_cols = _gsc_cols(row) if row else f"{'—':>7}{'—':>7}{'—':>10}{'—':>7}"
+        lines.append(f"  {kw[:34]:<34}{_serp_cols(kw)}{gsc_cols}")
+
+    if unmatched:
+        lines.append("-" * 104)
+        lines.append("  Query mới phát hiện (chưa theo dõi) — top theo impressions:")
+        top = sorted(unmatched.items(), key=lambda kv: kv[1].get("impressions", 0), reverse=True)[:15]
+        for q, r in top:
+            lines.append(f"    {q[:50]:<50}{r.get('impressions', 0):>7} hiện{r.get('clicks', 0):>7} clicks"
+                         f"  (vị trí TB {r.get('position', 0.0):.1f})")
+
+    lines.append("-" * 104)
+    total_clicks = sum(r.get("clicks", 0) for r in rows.values())
+    total_imps = sum(r.get("impressions", 0) for r in rows.values())
+    lines.append(f"  Tổng {getattr(cfg, 'GSC_LOOKBACK_DAYS', 28)} ngày (các query trong báo cáo): "
+                 f"{total_clicks} clicks | {total_imps} impressions")
+    lines.append("  Lưu ý: dữ liệu GSC thường trễ 2–3 ngày so với hiện tại.")
+    return "\n".join(lines)
+
+
+def print_report():
+    print(build_report())
