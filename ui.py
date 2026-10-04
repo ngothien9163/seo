@@ -51,6 +51,8 @@ class TrafficBotUI(ctk.CTk):
         self.stop_event = threading.Event()
         self._session_ok = 0
         self._session_err = 0
+        self._rank_running = False
+        self._gsc_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -143,6 +145,7 @@ class TrafficBotUI(ctk.CTk):
         self.tab_behavior = self.tabs.add("🎯 Hành Vi SEO")
         self.tab_ai       = self.tabs.add("🤖 AI Engine")
         self.tab_warmup   = self.tabs.add("🔥 Nuôi Nick")
+        self.tab_rank     = self.tabs.add("📈 Xếp Hạng")
 
         self._setup_tab_general()
         self._setup_tab_loop()
@@ -150,6 +153,7 @@ class TrafficBotUI(ctk.CTk):
         self._setup_tab_behavior()
         self._setup_tab_ai()
         self._setup_tab_warmup()
+        self._setup_tab_rank()
 
         # Log
         log_frame = ctk.CTkFrame(main)
@@ -446,6 +450,162 @@ class TrafficBotUI(ctk.CTk):
             ),
             text_color="gray", font=ctk.CTkFont(size=11), justify="left",
         ).grid(row=8, column=0, sticky="w", padx=20, pady=20)
+
+    # ═══════════════════════════════════════════════════════════════
+    # TAB: XẾP HẠNG (RANK TRACKER)
+    # ═══════════════════════════════════════════════════════════════
+
+    def _setup_tab_rank(self):
+        t = self.tab_rank
+        ctk.CTkLabel(
+            t, text="Kiểm tra vị trí từ khóa trên Google (kết quả organic, top 100).",
+            font=ctk.CTkFont(size=12), text_color="gray",
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(16, 4))
+
+        rf = ctk.CTkFrame(t, fg_color="transparent")
+        rf.grid(row=1, column=0, sticky="w", padx=20, pady=6)
+        self.btn_rank_check = ctk.CTkButton(
+            rf, text="🔄  KIỂM TRA XẾP HẠNG NGAY",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=38, width=250, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_rank_check_now,
+        )
+        self.btn_rank_check.pack(side="left")
+        self.btn_gsc = ctk.CTkButton(
+            rf, text="📊  LẤY DỮ LIỆU SEARCH CONSOLE",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_gsc_fetch_now,
+        )
+        self.btn_gsc.pack(side="left", padx=(16, 0))
+        self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
+        self.lbl_rank_last.pack(side="left", padx=16)
+
+        self.txt_rank = ctk.CTkTextbox(t, font=ctk.CTkFont(family="Consolas", size=12))
+        self.txt_rank.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        t.grid_rowconfigure(2, weight=1)
+        t.grid_columnconfigure(0, weight=1)
+
+        self._refresh_rank_report()
+
+    def _refresh_rank_report(self):
+        from utils.rank_tracker import build_report, _load_history
+        try:
+            report = build_report()
+        except Exception as e:
+            report = f"Lỗi đọc lịch sử xếp hạng: {e}"
+        self.txt_rank.delete("0.0", "end")
+        self.txt_rank.insert("0.0", report)
+        try:
+            checks = _load_history().get("checks", {})
+            if checks:
+                self.lbl_rank_last.configure(
+                    text=f"Lần check gần nhất: {sorted(checks.keys())[-1].replace('T', ' ')}")
+            else:
+                self.lbl_rank_last.configure(text="Chưa check lần nào")
+        except Exception:
+            pass
+
+    def run_rank_check_now(self):
+        if self.is_running:
+            print("[Rank] ⚠️ Bot đang chạy — không check xếp hạng song song (tránh CAPTCHA).")
+            return
+        if self._rank_running:
+            return
+        self._rank_running = True
+        self.btn_rank_check.configure(state="disabled", text="⏳ Đang kiểm tra...")
+        threading.Thread(target=self._rank_check_worker, daemon=True).start()
+
+    def _rank_check_worker(self):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self._rank_check_async())
+            loop.close()
+        except Exception as e:
+            print(f"[Rank] Lỗi: {e}")
+        finally:
+            self._rank_running = False
+            self.after(0, lambda: self.btn_rank_check.configure(
+                state="normal", text="🔄  KIỂM TRA XẾP HẠNG NGAY"))
+            self.after(0, self._refresh_rank_report)
+
+    async def _rank_check_async(self):
+        from utils.rank_tracker import can_run_check, mark_check_run, run_rank_check
+        ok, reason = can_run_check()
+        if not ok:
+            print(f"[Rank] {reason}")
+            return
+        from core.browser_manager import BrowserManager
+        manager = BrowserManager()
+        try:
+            # Dùng proxy đầu tiên trong ô Proxy (nếu có) — IP sạch giúp tránh CAPTCHA
+            proxies = [p.strip() for p in self.txt_proxy.get("0.0", "end").strip().split("\n") if p.strip()]
+            proxy = proxies[0] if proxies else None
+            if proxy:
+                print(f"[Rank] Dùng proxy: {proxy}")
+            browser = await manager.launch_browser()
+            page = await manager.create_context(browser, proxy_info=proxy, profile_id="rank_tracker")
+            await run_rank_check(page, on_captcha=self._rank_solve_captcha)
+            mark_check_run()
+        finally:
+            await manager.close()
+
+    def _rank_solve_captcha(self, page) -> bool:
+        """Dialog chờ người dùng giải CAPTCHA trong cửa sổ browser đang mở."""
+        done = threading.Event()
+        result = {"ok": False}
+
+        def ask():
+            import tkinter.messagebox as mb
+            result["ok"] = mb.askretrycancel(
+                "CAPTCHA phát hiện",
+                "Google hiện CAPTCHA trong cửa sổ trình duyệt.\n\n"
+                "Giải CAPTCHA xong → bấm 'Retry' để tiếp tục check.\n"
+                "Bấm 'Cancel' để dừng và lưu kết quả một phần.")
+            done.set()
+
+        self.after(0, ask)
+        done.wait()
+        return result["ok"]
+
+    # ─── SEARCH CONSOLE (thuần HTTP — không browser, không CAPTCHA) ──────
+
+    def run_gsc_fetch_now(self):
+        if self.is_running:
+            print("[GSC] ⚠️ Bot đang chạy — không lấy dữ liệu Search Console song song.")
+            return
+        if self._gsc_running:
+            return
+        self._gsc_running = True
+        self.btn_gsc.configure(state="disabled", text="⏳ Đang lấy...")
+        threading.Thread(target=self._gsc_fetch_worker, daemon=True).start()
+
+    def _gsc_fetch_sync(self):
+        from utils.gsc_client import (
+            can_run_fetch, mark_fetch_run, fetch_search_analytics, save_snapshot,
+        )
+        ok, reason = can_run_fetch()
+        if not ok:
+            print(f"[GSC] {reason}")
+            return
+        days = getattr(cfg, "GSC_LOOKBACK_DAYS", 28)
+        rows = fetch_search_analytics(days)
+        today = date.today()
+        save_snapshot(rows, (today - timedelta(days=days - 1)).isoformat(), today.isoformat())
+        mark_fetch_run()
+        print(f"[GSC] ✅ Đã lưu {len(rows)} query — báo cáo gộp đã cập nhật.")
+
+    def _gsc_fetch_worker(self):
+        try:
+            self._gsc_fetch_sync()
+        except Exception as e:
+            print(f"[GSC] Lỗi: {e}")
+        finally:
+            self._gsc_running = False
+            self.after(0, lambda: self.btn_gsc.configure(
+                state="normal", text="📊  LẤY DỮ LIỆU SEARCH CONSOLE"))
+            self.after(0, self._refresh_rank_report)
 
     # ═══════════════════════════════════════════════════════════════
     # OLLAMA TEST CONNECTION
