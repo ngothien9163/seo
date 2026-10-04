@@ -201,10 +201,12 @@ def save_snapshot(rows: dict, start_date: str, end_date: str):
 # ─── MATCHING: query GSC ↔ từ khóa cấu hình ─────────────────────────────────
 
 def _fold(s: str) -> str:
-    """Fold Unicode: bỏ dấu tiếng Việt (NFD + loại ký tự combining), lowercase, gộp khoảng trắng.
-    'Nối Mi  Quận 2' → 'noi mi quan 2' — để 'noi mi quan 2' (không dấu) vẫn khớp keyword có dấu."""
+    """Fold Unicode: đ/Đ→d/D (không phải combining mark nên NFD không tách được),
+    bỏ dấu tiếng Việt (NFD + loại ký tự combining), lowercase, gộp khoảng trắng.
+    'Nối Mi Thủ Đức' → 'noi mi thu duc' — khớp cả kiểu gõ không dấu đ→d của người Việt."""
     import unicodedata
-    s = unicodedata.normalize("NFD", s or "")
+    s = (s or "").replace("đ", "d").replace("Đ", "D")
+    s = unicodedata.normalize("NFD", s)
     s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     return " ".join(s.lower().split())
 
@@ -252,7 +254,11 @@ def build_report(tail_spark: int = 8) -> str:
     gsc_h = _load_history()
     snaps = gsc_h.get("snapshots", {})
     if not snaps:
-        return "Chưa có dữ liệu Search Console. Chạy lần đầu: python main.py --gsc (setup: docs/SETUP_GSC.md)"
+        # Chưa có dữ liệu GSC → fallback báo cáo xếp hạng + ghi chú hướng dẫn
+        from utils.rank_tracker import build_report as rank_report
+        return (rank_report()
+                + "\n\n  [Search Console] Chưa có dữ liệu GSC — setup: docs/SETUP_GSC.md"
+                  " | Lấy lần đầu: python main.py --gsc")
 
     latest_key = sorted(snaps.keys())[-1]
     snap = snaps[latest_key]

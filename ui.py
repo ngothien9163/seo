@@ -8,6 +8,7 @@ import uuid
 import itertools
 import traceback
 import requests
+from datetime import date, timedelta
 from tkinter import END
 
 from core.browser_manager import BrowserManager
@@ -489,9 +490,11 @@ class TrafficBotUI(ctk.CTk):
         self._refresh_rank_report()
 
     def _refresh_rank_report(self):
-        from utils.rank_tracker import build_report, _load_history
+        from utils.gsc_client import build_report as build_merged_report
+        from utils.rank_tracker import _load_history
         try:
-            report = build_report()
+            # Báo cáo gộp SERP + GSC (tự fallback báo cáo rank khi chưa có dữ liệu GSC)
+            report = build_merged_report()
         except Exception as e:
             report = f"Lỗi đọc lịch sử xếp hạng: {e}"
         self.txt_rank.delete("0.0", "end")
