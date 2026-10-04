@@ -117,3 +117,20 @@ WARMUP_SEARCH_ENABLE = True        # B?T warmup search — traffic t? search
 KEYWORD_VARIATION_ENABLE = True     # B?T keyword variation
 THIRD_PAGE_ENABLE = False           # T?T third page — d? b? phát hi?n
 THIRD_PAGE_CHANCE = 0
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN D: RANK TRACKING — theo dõi vị trí từ khóa trên Google
+# ────────────────────────────────────────────────────────────────────────────
+RANK_CHECK_DEPTH = 100            # Tìm domain trong top N kết quả (num=100)
+RANK_CHECK_MAX_PER_DAY = 3        # Số lần check đầy đủ tối đa mỗi ngày
+RANK_CHECK_MIN_INTERVAL = 3600    # Giây tối thiểu giữa 2 lần check
+RANK_KEYWORD_DELAY_MIN = 8        # Giây nghỉ giữa 2 từ khóa (giả lập người)
+RANK_KEYWORD_DELAY_MAX = 20
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN E: GOOGLE SEARCH CONSOLE — dữ liệu SEO thật qua API (không scrape)
+# ────────────────────────────────────────────────────────────────────────────
+GSC_SITE_URL = "sc-domain:nankybeauty.com"  # Property URL (sc-domain:... hoặc https://...)
+GSC_CREDENTIALS_FILE = "config/gsc_service_account.json"  # JSON key service account (docs/SETUP_GSC.md)
+GSC_LOOKBACK_DAYS = 28            # Lấy dữ liệu 28 ngày gần nhất
+GSC_MAX_FETCH_PER_DAY = 4         # Số lần fetch tối đa/ngày (quota API 1200/phút — chỉ để tránh gọi thừa)

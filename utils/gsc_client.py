@@ -1,0 +1,197 @@
+"""
+utils/gsc_client.py — Google Search Console API client (dữ liệu SEO thật, không scrape).
+
+Luồng:
+1. Đọc service account JSON key từ config/gsc_service_account.json (xem docs/SETUP_GSC.md)
+2. Lấy access token bằng google-auth (scope webmasters.readonly, tự refresh)
+3. POST searchAnalytics/query: clicks/impressions/position/CTR theo query
+4. Lưu snapshot/ngày vào gsc_history.json (giữ 90 ngày) + rate limit riêng
+
+Chạy:
+    python main.py --gsc          # Fetch + in báo cáo gộp
+    python main.py --gsc-report   # Chỉ xem báo cáo đã lưu
+    GUI: tab "📈 Xếp Hạng" → nút "📊 Lấy Dữ Liệu Search Console"
+
+Ghi chú:
+- Đồng bộ thuần HTTP (requests) — KHÔNG dùng Playwright/browser, không CAPTCHA.
+- google-auth import lười (trong hàm) — module vẫn load được khi chưa cài thư viện.
+- Token chỉ nằm trong bộ nhớ, không in ra console.
+"""
+import json
+import os
+import time
+from datetime import date, datetime, timedelta
+from urllib.parse import quote
+
+import requests
+
+import config.settings as cfg
+
+HISTORY_FILE = DATA_FILE = os.path.join(os.path.dirname(__file__), "..", "gsc_history.json")
+
+GSC_API_BASE = "https://searchconsole.googleapis.com/webmasters/v3/sites"
+SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
+MAX_SNAPSHOTS_KEPT = 90  # Số ngày snapshot lưu lại tối đa
+
+_CREDENTIALS = None  # cache credentials trong suốt phiên (token tự quản refresh)
+
+
+class GSCSetupError(Exception):
+    """Thiếu/sai credentials — cần làm docs/SETUP_GSC.md."""
+
+
+# ─── LỊCH SỬ: đọc / ghi ──────────────────────────────────────────────────────
+
+def _load_history() -> dict:
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"site": "", "snapshots": {}, "state": {"date": "", "count": 0, "last_fetch": 0}}
+
+
+def _save_history(data: dict):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+# ─── CREDENTIALS ─────────────────────────────────────────────────────────────
+
+def _resolve_path(p: str) -> str:
+    """Path tương đối trong config → resolve theo thư mục gốc project."""
+    if os.path.isabs(p):
+        return p
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", p))
+
+
+def _setup_guide_msg() -> str:
+    return (
+        "Chưa có credentials Google Search Console.\n"
+        "Hướng dẫn setup từng bước: docs/SETUP_GSC.md\n"
+        f"Tóm tắt: đặt service account JSON key vào '{_resolve_path(getattr(cfg, 'GSC_CREDENTIALS_FILE', ''))}' "
+        "rồi thêm email service account vào Search Console property (quyền Restricted là đủ)."
+    )
+
+
+def load_credentials():
+    """Đọc service account JSON key → credentials object (scope readonly)."""
+    global _CREDENTIALS
+    if _CREDENTIALS is not None:
+        return _CREDENTIALS
+
+    path = _resolve_path(getattr(cfg, "GSC_CREDENTIALS_FILE", ""))
+    if not path or not os.path.exists(path):
+        raise GSCSetupError(_setup_guide_msg())
+
+    from google.oauth2 import service_account  # import lười — không chặn module
+    try:
+        _CREDENTIALS = service_account.Credentials.from_service_account_file(path, scopes=[SCOPE])
+    except Exception as e:
+        raise GSCSetupError(f"File credentials '{path}' lỗi: {e}\n{_setup_guide_msg()}")
+    return _CREDENTIALS
+
+
+def _get_token(creds, force_refresh: bool = False) -> str:
+    """Access token Bearer từ credentials (refresh nếu chưa có / hết hạn / ép)."""
+    if force_refresh or not creds.token:
+        from google.auth.transport.requests import Request  # import lười
+        creds.refresh(Request())
+    return creds.token
+
+
+# ─── RATE LIMIT (tách riêng khỏi rate_limiter traffic bot) ──────────────────
+
+def can_run_fetch() -> tuple[bool, str]:
+    state = _load_history().get("state", {})
+    today = date.today().isoformat()
+    max_per_day = getattr(cfg, "GSC_MAX_FETCH_PER_DAY", 4)
+
+    if state.get("date") != today:
+        return True, ""
+    if state.get("count", 0) >= max_per_day:
+        return False, f"Đã đạt giới hạn {max_per_day} lần fetch Search Console/ngày. Dữ liệu hôm nay đã được lưu — dùng --gsc-report."
+    return True, ""
+
+
+def mark_fetch_run():
+    h = _load_history()
+    today = date.today().isoformat()
+    state = h.get("state", {})
+    if state.get("date") != today:
+        state = {"date": today, "count": 0, "last_fetch": 0}
+    state["count"] = state.get("count", 0) + 1
+    state["last_fetch"] = time.time()
+    h["state"] = state
+    _save_history(h)
+
+
+# ─── GỌI API ─────────────────────────────────────────────────────────────────
+
+def parse_api_response(payload: dict) -> dict:
+    """JSON response của searchAnalytics/query → {query: {clicks, impressions, position, ctr}}."""
+    out: dict = {}
+    for row in (payload or {}).get("rows") or []:
+        keys = row.get("keys") or []
+        if not keys:
+            continue
+        q = str(keys[0])
+        out[q] = {
+            "clicks": int(row.get("clicks") or 0),
+            "impressions": int(row.get("impressions") or 0),
+            "position": float(row.get("position") or 0.0),
+            "ctr": float(row.get("ctr") or 0.0),
+        }
+    return out
+
+
+def _query_url() -> str:
+    site = quote(getattr(cfg, "GSC_SITE_URL", ""), safe="")
+    return f"{GSC_API_BASE}/{site}/searchAnalytics/query"
+
+
+def fetch_search_analytics(days: int = None) -> dict:
+    """
+    Gọi Search Analytics API lấy dữ liệu `days` ngày gần nhất theo query.
+    Đồng bộ. Raise GSCSetupError (thiếu credentials) / requests.HTTPError (lỗi API).
+    401 → refresh token 1 lần rồi thử lại.
+    """
+    if days is None:
+        days = getattr(cfg, "GSC_LOOKBACK_DAYS", 28)
+
+    creds = load_credentials()
+    body = {
+        "startDate": (date.today() - timedelta(days=days - 1)).isoformat(),
+        "endDate": date.today().isoformat(),
+        "dimensions": ["query"],
+        "rowLimit": 250,
+        "dataState": "all",
+    }
+
+    headers = {"Authorization": f"Bearer {_get_token(creds)}"}
+    resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
+    if resp.status_code == 401:  # token hết hạn — refresh 1 lần rồi thử lại
+        headers = {"Authorization": f"Bearer {_get_token(creds, force_refresh=True)}"}
+        resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
+    resp.raise_for_status()
+    return parse_api_response(resp.json())
+
+
+# ─── LƯU SNAPSHOT ────────────────────────────────────────────────────────────
+
+def save_snapshot(rows: dict, start_date: str, end_date: str):
+    """Lưu 1 snapshot/ngày (key = ngày fetch). Ghi đè snapshot cùng ngày. Prune quá 90 ngày."""
+    h = _load_history()
+    h["site"] = getattr(cfg, "GSC_SITE_URL", "")
+    h.setdefault("snapshots", {})
+    h["snapshots"][date.today().isoformat()] = {
+        "fetched_at": datetime.now().isoformat(timespec="seconds"),
+        "start_date": start_date,
+        "end_date": end_date,
+        "rows": rows,
+    }
+    keys = sorted(h["snapshots"].keys())
+    for k in keys[:-MAX_SNAPSHOTS_KEPT]:
+        del h["snapshots"][k]
+    _save_history(h)

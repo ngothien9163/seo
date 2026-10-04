@@ -10,5 +10,8 @@ venv/
 # Generated
 profiles/
 session_state.json
+rank_history.json
+gsc_history.json
+config/gsc_service_account.json
 *.log
-_quick_test.py
+_quick_*.py

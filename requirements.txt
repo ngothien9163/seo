@@ -3,3 +3,4 @@ playwright-stealth
 customtkinter
 requests
 fake-useragent
+google-auth
