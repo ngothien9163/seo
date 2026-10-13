@@ -13,5 +13,7 @@ session_state.json
 rank_history.json
 gsc_history.json
 config/gsc_service_account.json
+reports/
+_test_*
 *.log
 _quick_*.py

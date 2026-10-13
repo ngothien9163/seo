@@ -59,17 +59,17 @@
 - `export_rank() -> tuple[str, int]`, `export_gsc() -> tuple[str, int]` — serialize + ghi, trả `(đường dẫn, số dòng)`.
 - `export_all() -> list[tuple[str, int]]`
 
-- [ ] **Step 1 — Test fail trước:** `_quick_export_test.py` (pattern `check(name, fn)` của `_quick_gsc_test.py`), trỏ `rt.HISTORY_FILE` sang `_test_rank_history.json`, `ex.REPORTS_DIR` sang `_test_reports/`, kết thúc xóa sạch:
+- [x] **Step 1 — Test fail trước:** `_quick_export_test.py` (pattern `check(name, fn)` của `_quick_gsc_test.py`), trỏ `rt.HISTORY_FILE` sang `_test_rank_history.json`, `ex.REPORTS_DIR` sang `_test_reports/`, kết thúc xóa sạch:
   - `rank_rows()` với history `{checkA: {"kw1": {"pos": 5, "url": "u"}}, checkB: {"kw1": {"pos": 3}}}` → header 4 cột, 2 dòng, dòng đầu `["<checkA>", "kw1", "5", "u"]`, dòng hai ô URL **rỗng**.
   - History rỗng (`{"checks": {}}`) → `rank_rows()` = `(header, [])`; file không tồn tại → cũng `(header, [])`.
   - `pos` là `None` → ô rỗng, không phải `"None"`.
   - `_write_csv` → byte đầu file là `b"\xef\xbb\xbf"`; dòng đầu decode = header; số dòng = `1 + len(rows)`.
   - `export_rank()` trên history rỗng → file tồn tại, 1 dòng (chỉ header), trả `(path, 0)`.
   - `_unique_path("rank")` gọi 2 lần khi file thứ nhất đã ghi → 2 đường dẫn khác nhau, không ghi đè.
-- [ ] **Step 2 — Chạy:** `python _quick_export_test.py` → FAIL (`ModuleNotFoundError: utils.exporter`).
-- [ ] **Step 3 — Viết `utils/exporter.py`** (docstring + constants + `rank_rows` + `_unique_path` + `_write_csv` + `export_rank`; `gsc_rows`/`export_gsc` để Task 2).
-- [ ] **Step 4 — Chạy test → ALL PASS**, cộng `python -m py_compile utils/exporter.py`.
-- [ ] **Step 5 — Commit:** `feat: F1 export CSV — loi exporter + rank history (BOM, khong ghi de)`
+- [x] **Step 2 — Chạy:** `python _quick_export_test.py` → FAIL (`ModuleNotFoundError: utils.exporter`).
+- [x] **Step 3 — Viết `utils/exporter.py`** (docstring + constants + `rank_rows` + `_unique_path` + `_write_csv` + `export_rank`; `gsc_rows`/`export_gsc` để Task 2).
+- [x] **Step 4 — Chạy test → ALL PASS**, cộng `python -m py_compile utils/exporter.py`.
+- [x] **Step 5 — Commit:** `feat: F1 export CSV — loi exporter + rank history (BOM, khong ghi de)`
 
 ### Task 2: GSC snapshot → CSV, `export_all`, export không phụ thuộc `google-auth`
 
