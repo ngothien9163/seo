@@ -85,6 +85,9 @@
 
 ## F4 — Scheduler tự động
 
+**Trạng thái: ✅ XONG 2026-10-13 (code) — còn 2 bước phía owner:** `utils/scheduler.py` + `utils/automation.py`, plan `2026-10-13-f4-scheduler.md`, test `_quick_scheduler_test.py` (40 test, không mở browser). (1) Chủ máy tự đăng ký task Windows theo `docs/SETUP_SCHEDULER.md` — code **chưa tạo task nào** trên máy này; (2) muốn traffic tự chạy mới bật `SCHEDULER_TRAFFIC_ENABLE` (mặc định TẮT, đúng quyết định đã duyệt).
+**Lệch so với card gốc:** thay vì process riêng `python main.py --schedule` tự tính `next_run` (phương án a), spec chốt đồng hồ thật là **Windows Task Scheduler** gọi `--run-job` (phương án A) → không có vòng lặp chờ, state không lưu `next_run`; ba ý còn lại của card (lock file chống song song, tái dùng `can_run_*` thay vì tự giới hạn, GUI read-only) giữ nguyên.
+
 **Mục tiêu:** rank check 3 lần/ngày, GSC fetch 4 lần/ngày, traffic session vào peak hours — chạy nền không cần mở GUI; GUI (nếu mở) chỉ xem trạng thái.
 
 **Tính chất: architectural** — cần spec ngắn trước (state scheduler, lock chống chạy song song, hành vi khi máy tắt). Phần còn lại của Phase 2 là bounded.

@@ -506,7 +506,7 @@ class TrafficBotUI(ctk.CTk):
         t.grid_columnconfigure(0, weight=1)
 
         sf = ctk.CTkFrame(t)
-        sf.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        sf.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 4))
         head = ctk.CTkFrame(sf, fg_color="transparent")
         head.pack(fill="x", padx=8, pady=(6, 2))
         ctk.CTkLabel(head, text="Từ khóa đề xuất từ Search Console (chưa theo dõi)",
@@ -522,8 +522,37 @@ class TrafficBotUI(ctk.CTk):
         self.kw_suggest_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self._kw_suggest_note("Chưa có danh sách — bấm '💡 TỪ KHÓA ĐỀ XUẤT' (cần dữ liệu Search Console).")
 
+        sch = ctk.CTkFrame(t)
+        sch.grid(row=4, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        sch_head = ctk.CTkFrame(sch, fg_color="transparent")
+        sch_head.pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(sch_head, text="🗓  LỊCH TỰ ĐỘNG — do Windows Task Scheduler điều khiển",
+                     font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+        self.btn_scheduler_refresh = ctk.CTkButton(
+            sch_head, text="🧾  LOAD TRẠNG THÁI", width=180, height=28,
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.refresh_scheduler_status,
+        )
+        self.btn_scheduler_refresh.pack(side="right")
+        self.txt_scheduler = ctk.CTkTextbox(
+            sch, height=140, font=ctk.CTkFont(family="Consolas", size=11))
+        self.txt_scheduler.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
         self._refresh_alert_mode_label()
         self._refresh_rank_report()
+        self.refresh_scheduler_status()
+
+    def refresh_scheduler_status(self):
+        """Đọc data/scheduler_state.json — GUI là process khác nên không thấy gì in-process.
+        Chỉ xem, không bấm: job chạy từ GUI sẽ không có log của Task Scheduler."""
+        from utils.scheduler import format_status
+        try:
+            lines = format_status()
+        except Exception as e:
+            lines = [f"[Scheduler] Không đọc được trạng thái: {type(e).__name__}: {e}"]
+        self.txt_scheduler.delete("0.0", "end")
+        self.txt_scheduler.insert("0.0", "\n".join(lines))
 
     def _refresh_alert_mode_label(self):
         from utils.alerts import delivery_mode

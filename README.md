@@ -93,6 +93,18 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 11. Lịch chạy tự động — Windows Task Scheduler (F4)
+
+- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`.
+- **Không tự nới giới hạn.** Job `rank` vẫn bị `RANK_CHECK_MAX_PER_DAY`/`RANK_CHECK_MIN_INTERVAL` chặn, `gsc` vẫn bị `GSC_MAX_FETCH_PER_DAY`, `traffic` vẫn bị rate limiter — scheduler gọi lại đúng hàm check của module gốc chứ không đếm riêng.
+- **Traffic mặc định TẮT tự chạy** (`SCHEDULER_TRAFFIC_ENABLE = False`): bật lên là quyết định của bạn, vì chạy lúc không có ai nhìn thì lỗi tích âm thầm.
+- **Không chạy bù**: máy tắt đúng giờ thì mất lượt trong ngày — không gom nhiều lần check một lúc cho đỡ "phí".
+- **Chạy nền không ngồi chờ**: job `rank` gặp CAPTCHA thì bỏ qua từ khóa đó (khác với bấm `--rank` trong GUI, có ô hỏi người giải).
+- Xem lại: `python main.py --scheduler-status` (job nào chạy lúc nào, exit code, lỗi cuối, 5 lần gần nhất) hoặc khung **🗓 LỊCH TỰ ĐỘNG** trong tab 📈 Xếp Hạng. GUI cố ý **không** có nút chạy job — muốn chạy tay thì dùng CLI để log nằm đúng chỗ.
+- Đăng ký lịch từng bước (4 lệnh `schtasks`): **[`docs/SETUP_SCHEDULER.md`](docs/SETUP_SCHEDULER.md)**.
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -155,6 +167,8 @@ python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Conso
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
 python main.py --export rank|gsc|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
+python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
+python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -185,6 +199,9 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `RANK_ALERT_TOP10_FALL` | `True` | Cảnh báo: đang trong Top 10 mà rớt ra ngoài thì báo |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | `""` | Cảnh báo: nên để ở **biến môi trường** (thắng settings.py) — xem `docs/SETUP_ALERTS.md` |
 | `ALERTS_STATE_DIR` | `data` | Nơi lưu `alerts_state.json` (state chống spam 1 tin/ngày/từ khóa) |
+| `SCHEDULER_RANK_HOURS` / `SCHEDULER_GSC_HOURS` | `[7, 13, 19]` / `[9]` | Lịch **mong muốn** — chỉ để in ra status; giờ thật phải sửa trên Windows Task Scheduler |
+| `SCHEDULER_TRAFFIC_ENABLE` | `False` | Cho phép lịch tự chạy session traffic — mặc định TẮT, bật là quyết định của owner |
+| `SCHEDULER_LOCK_STALE` | `1200` | Giây không heartbeat thì lock bị coi là đã chết, job khác giành quyền chạy |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
@@ -216,6 +233,8 @@ seo-by-Tung/
 │   ├── keywords.py          # Đọc/ghi/add từ khóa (config/keywords.json)
 │   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console
 │   ├── alerts.py            # Cảnh báo tụt hạng: rules engine + chống spam + Telegram sender
+│   ├── scheduler.py         # Lịch tự động: bảng job + lock + state (đồng hồ ở Windows Task Scheduler)
+│   ├── automation.py        # 1 session traffic — main.py --auto và scheduler dùng chung
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
 │   ├── test_search_flow.py  # Search flow: Google → SERP → click target
@@ -227,7 +246,7 @@ seo-by-Tung/
 │   └── tracker.py           # Backlink 3 tier + guest post targets
 ├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
 ├── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
-└── data/                    # (sinh ra khi chạy) alerts_state.json — cảnh báo đã gửi hôm nay
+└── data/                    # (sinh ra khi chạy) alerts_state.json + scheduler_state.json/scheduler.lock
 ```
 
 ## Xử lý sự cố

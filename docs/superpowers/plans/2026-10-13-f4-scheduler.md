@@ -90,15 +90,15 @@
 
 ### Task 4: GUI trạng thái + tài liệu lịch
 
-**Files:** Modify `ui.py`, `README.md`, Create `docs/SETUP_SCHEDULER.md`.
+**Files:** Modify `ui.py`, `README.md`, `docs/superpowers/plans/2026-10-06-roadmap-10-tinh-nang.md`, Create `docs/SETUP_SCHEDULER.md`, Modify `_quick_scheduler_test.py`.
 
-- [ ] Step 1 — Test fail trước: `ui.py` có method `refresh_scheduler_status` (AST, tên resolve được); README chứa `--run-job`, `SCHEDULER_TRAFFIC_ENABLE`, `SETUP_SCHEDULER`.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement: khung "Lịch tự động" trong tab 📈 Xếp Hạng — bảng job (bật/tắt, lần cuối, kết quả) + nút "🧾 LOAD TRẠNG THÁI"; **không** có nút chạy job từ GUI (chạy từ GUI sẽ không có Task Scheduler log, và GUI không phải nơi bấm — nếu cần bấm thì dùng CLI).
-- [ ] Step 4 — `docs/SETUP_SCHEDULER.md`: 3 lệnh `schtasks /create` (rank 07:00/13:00/19:00, gsc 09:00, logon trigger), cách kiểm tra `/run`, cách xóa `/delete`, và mục "máy phải bật đúng giờ".
-- [ ] Step 5 — README: mục "### 11. Lịch chạy tự động" + bảng PHẦN G + cây project (`utils/scheduler.py`, `docs/SETUP_SCHEDULER.md`).
-- [ ] Step 6 — **Verify GUI thật**: probe `TrafficBotUI()`, gọi `refresh_scheduler_status()`, đọc text widget xác nhận có dòng job rank/gsc, không raise.
-- [ ] Step 7 — Commit: `feat: F4 bang trang thai scheduler trong GUI + docs SETUP_SCHEDULER (schtasks)`
+- [x] Step 1 — Test fail trước: `ui.py` có method `refresh_scheduler_status` + widget `btn_scheduler_refresh`/`txt_scheduler` + `command=self.refresh_scheduler_status`, **không có chuỗi `run_job` trong ui.py** (cấm nút chạy job); mọi `Name` trong method resolve được (helper `_resolve_ui_method` — tên import trong hàm + tên gán cục bộ + builtins); `docs/SETUP_SCHEDULER.md` có ≥4 `schtasks /Create`, `/Run`, `/Query`, `/Delete`, trỏ thẳng `venv\Scripts\python.exe main.py`, nói chỗ xem log + "bật đúng giờ"; README có `--run-job`, `--scheduler-status`, 3 biến PHẦN G, `utils/scheduler.py`, mục "Lịch chạy tự động".
+- [x] Step 2 — Chạy → FAIL: 4 FAIL (đúng 4 test mới).
+- [x] Step 3 — Implement: khung **🗓 LỊCH TỰ ĐỘNG** = `CTkFrame` row 4 của tab Xếp Hạng, label đầu + nút 🧾 + `CTkTextbox` 140px Consolas; `refresh_scheduler_status()` gọi `format_status()` **trên main thread** (chỉ đọc file, không IO dài) và bọc `try/except` để GUI không bao giờ chết vì state hỏng. **Không** có nút chạy job: `run_job` không xuất hiện trong `ui.py` (test) — GUI là nơi xem, CLI là nơi bấm.
+- [x] Step 4 — `docs/SETUP_SCHEDULER.md`: 4 lệnh `/Create` (rank 07:00/13:00/19:00 + gsc 09:00, mỗi task một `/ST` vì `schtasks` chỉ nhận một giờ — đã đọc `schtasks /Create /?` để xác nhận cờ `/SC /ST /TN /TR /RL /F /SC ONLOGON`), task ONLOGON bắt kịp trong ngày, mục 3 trả lời thẳng "đổi giờ thì đổi trên Windows, sửa `SCHEDULER_RANK_HOURS` không làm Windows đổi lịch", `/Query /V /FO LIST` + `/Run` + `/Delete`, log `data\scheduler.log`, 5 lỗi thường gặp, mục giới hạn.
+- [x] Step 5 — README: mục **"### 11. Lịch chạy tự động — Windows Task Scheduler (F4)"** (đồng hồ không ở trong code / không tự nới giới hạn / traffic TẮT / không chạy bù / job nền không ngồi chờ CAPTCHA / GUI không có nút chạy job), 2 dòng CLI mới, 3 dòng bảng cấu hình PHẦN G, cây project thêm `utils/scheduler.py` + `utils/automation.py` và `data/` giờ có `scheduler_state.json`/`scheduler.lock`.
+- [x] Step 6 — **Verify GUI thật** (`_probe_f4_gui.py`, đã xóa sau khi chạy): khởi tạo `TrafficBotUI()`, state giả 2 job + lock PID 999999 do `rank` giữ → panel render `rank 07:00, 13:00, 19:00 lần cuối ... → ok (exit 0) — đang chạy`, `gsc ... → error (exit 1)` kèm dòng `lỗi: Job kết thúc sớm bằng sys.exit(1)`, `traffic không tự chạy chưa chạy lần nào`, mục "Gần đây" 2 dòng theo thứ tự mới nhất trước; `btn_scheduler_refresh.invoke()` không raise; label "LỊCH TỰ ĐỘNG" tìm thấy trong tab; 2 lỗi của chính probe (bắt `LỊCH` trong textbox, cấm mọi dòng "chưa chạy") đã sửa thành assertion đúng trước khi kết luận PASS. `[F4-GUI-PROBE] PASS`.
+- [x] Step 7 — Commit: `feat: F4 bang trang thai scheduler trong GUI + docs SETUP_SCHEDULER (schtasks)` — kèm dòng **Trạng thái** của card F4 trong roadmap (ghi rõ lệch phương án A so với card gốc).
 
 ## Tiêu chí hoàn thành (của card F4)
 
@@ -116,3 +116,5 @@
 - Lock chỉ có hiệu lực trong một máy/một bản checkout — hai bản song song không thấy nhau.
 - `schtasks` là Windows; chủ máy Linux/VPS cần tự viết cron (spec 2.1 phương án B) — chưa làm vì owner chạy Windows.
 - Việc "bật traffic tự động" là quyết định của owner, code mặc định tắt và plan không tự bật.
+- **Lệnh `schtasks` trong `docs/SETUP_SCHEDULER.md` chưa đăng ký thật** trên máy này: chỉ kiểm tra cờ hợp lệ bằng `schtasks /Create /?`, còn tạo task = sửa lịch của máy owner nên để owner chạy. Hệ quả: chưa có bằng chứng "job chạy đúng giờ lúc không có ai"; mới chỉ có bằng chứng `--run-job`/`--scheduler-status` chạy đúng khi gọi tay.
+- Panel GUI đọc state **lúc mở tab và lúc bấm 🧾** — không tự refresh; mở GUI suốt ngày thì số liệu trên màn hình có thể cũ hơn `data/scheduler_state.json`.
