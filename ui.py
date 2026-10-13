@@ -492,9 +492,26 @@ class TrafficBotUI(ctk.CTk):
         self.lbl_rank_last.pack(side="left", padx=16)
 
         self.txt_rank = ctk.CTkTextbox(t, font=ctk.CTkFont(family="Consolas", size=12))
-        self.txt_rank.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        self.txt_rank.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
         t.grid_rowconfigure(2, weight=1)
         t.grid_columnconfigure(0, weight=1)
+
+        sf = ctk.CTkFrame(t)
+        sf.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        head = ctk.CTkFrame(sf, fg_color="transparent")
+        head.pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(head, text="Từ khóa đề xuất từ Search Console (chưa theo dõi)",
+                     font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+        self.btn_kw_suggest = ctk.CTkButton(
+            head, text="💡  TỪ KHÓA ĐỀ XUẤT", width=180, height=28,
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.refresh_keyword_suggestions,
+        )
+        self.btn_kw_suggest.pack(side="right")
+        self.kw_suggest_frame = ctk.CTkScrollableFrame(sf, height=160, fg_color="transparent")
+        self.kw_suggest_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self._kw_suggest_note("Chưa có danh sách — bấm '💡 TỪ KHÓA ĐỀ XUẤT' (cần dữ liệu Search Console).")
 
         self._refresh_rank_report()
 
@@ -618,6 +635,7 @@ class TrafficBotUI(ctk.CTk):
             self.after(0, lambda: self.btn_gsc.configure(
                 state="normal", text="📊  LẤY DỮ LIỆU SEARCH CONSOLE"))
             self.after(0, self._refresh_rank_report)
+            self.after(0, self.refresh_keyword_suggestions)
 
     # ─── EXPORT CSV (chỉ đọc file state — không browser, không network) ──────
 
@@ -633,6 +651,65 @@ class TrafficBotUI(ctk.CTk):
             print(f"[Export] ✅ Đã lưu {path} ({n} dòng {label})")
             if n == 0:
                 print(f"[Export]    Chưa có dữ liệu {label} — file chỉ có tiêu đề.")
+
+    # ═══════════════════════════════════════════════════════════════
+    # TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE (F2)
+    # ═══════════════════════════════════════════════════════════════
+
+    def _kw_suggest_note(self, text: str):
+        for w in self.kw_suggest_frame.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(self.kw_suggest_frame, text=text, text_color="gray",
+                     font=ctk.CTkFont(size=12), anchor="w", justify="left",
+                     ).pack(anchor="w", padx=4, pady=6)
+
+    def refresh_keyword_suggestions(self):
+        """Liệt kê query Search Console chưa theo dõi, mỗi dòng có nút + Thêm."""
+        from utils.gsc_client import latest_gsc_rows, suggest_keywords
+        from utils.keywords import load_keywords
+        try:
+            rows = latest_gsc_rows()
+        except Exception as e:
+            print(f"[Keyword] Lỗi đọc dữ liệu Search Console: {e}")
+            self._kw_suggest_note("Không đọc được dữ liệu Search Console.")
+            return
+        if not rows:
+            self._kw_suggest_note("Chưa có dữ liệu Search Console — bấm '📊 LẤY DỮ LIỆU SEARCH CONSOLE' trước.")
+            return
+
+        items = suggest_keywords(rows, load_keywords(),
+                                 limit=getattr(cfg, "KEYWORD_SUGGEST_LIMIT", 20))
+        if not items:
+            self._kw_suggest_note(
+                f"Không còn query nào chưa theo dõi có impressions ≥ "
+                f"{getattr(cfg, 'KEYWORD_SUGGEST_MIN_IMPRESSIONS', 30)}.")
+            return
+
+        for w in self.kw_suggest_frame.winfo_children():
+            w.destroy()
+        for d in items:
+            row = ctk.CTkFrame(self.kw_suggest_frame, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+            ctk.CTkLabel(
+                row,
+                text=f"{d['query'][:56]:<56}  {d['impressions']:>6} hiện  "
+                     f"{d['clicks']:>5} clicks  (TB {d['position']:.1f})",
+                font=ctk.CTkFont(family="Consolas", size=12),
+            ).pack(side="left")
+            ctk.CTkButton(
+                row, text="+ Thêm", width=76, height=24,
+                fg_color="#3a6b35", hover_color="#4a8544",
+                command=lambda q=d["query"]: self.add_suggested_keyword(q),
+            ).pack(side="right")
+
+    def add_suggested_keyword(self, query: str):
+        """Thêm một query đề xuất vào danh sách theo dõi (chống trùng, ghi file luôn)."""
+        from utils.keywords import add_keyword
+        added, msg = add_keyword(query)
+        print(f"[Keyword] {'✅' if added else '⚠️'} {msg}")
+        if added:
+            self.txt_keywords.insert(END, "\n" + query)
+            self.refresh_keyword_suggestions()
 
     # ═══════════════════════════════════════════════════════════════
     # OLLAMA TEST CONNECTION

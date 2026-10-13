@@ -122,11 +122,11 @@
 - Modify: `ui.py` (`_setup_tab_rank` + 2 method mới)
 - Modify: `README.md`
 
-- [ ] **Step 1 — Test fail trước (AST):** `ui.py` có method `refresh_keyword_suggestions` và `add_suggested_keyword`, cả hai không có Name chưa resolve (pattern `test_ui_gsc_methods_no_unresolved_names`).
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement:** nút "💡 TỪ KHÓA ĐỀ XUẤT" đặt cạnh các nút đang có trong hàng nút; khung `CTkScrollableFrame` liệt kê tối đa 20 dòng `[query]  123 hiện  —  [+ Thêm]`; bấm + → `add_keyword()` → log `[Keyword] ✅ Đã thêm ...`, dòng đó đổi nhãn nút thành "✅ Đang theo dõi" và disable; list rỗng → ghi chú "Chưa có dữ liệu Search Console — bấm nút Lấy dữ liệu trước."
-- [ ] **Step 4 — Verify:** launch GUI bằng script (instantiate `TrafficBotUI`, gọi `refresh_keyword_suggestions()`, `add_suggested_keyword("...")`, screenshot nếu cửa sổ hiện được). Nếu môi trường không cho phép mở cửa sổ, nói rõ chưa verify GUI.
-- [ ] **Step 5 — Commit:** `feat: F2 khung de xuat tu khoa + nut them vao theo doi trong tab Xep Hang`
+- [x] **Step 1 — Test fail trước (AST):** `ui.py` có method `refresh_keyword_suggestions` và `add_suggested_keyword`, cả hai không có Name chưa resolve (pattern `test_ui_gsc_methods_no_unresolved_names`).
+- [x] **Step 2 — Chạy → FAIL.**
+- [x] **Step 3 — Implement:** nút "💡 TỪ KHÓA ĐỀ XUẤT" đặt cạnh các nút đang có trong hàng nút; khung `CTkScrollableFrame` liệt kê tối đa 20 dòng `[query]  123 hiện  —  [+ Thêm]`; bấm + → `add_keyword()` → log `[Keyword] ✅ Đã thêm ...`, dòng đó đổi nhãn nút thành "✅ Đang theo dõi" và disable; list rỗng → ghi chú "Chưa có dữ liệu Search Console — bấm nút Lấy dữ liệu trước."
+- [x] **Step 4 — Verify:** launch GUI bằng script (instantiate `TrafficBotUI`, gọi `refresh_keyword_suggestions()`, `add_suggested_keyword("...")`, screenshot nếu cửa sổ hiện được). Nếu môi trường không cho phép mở cửa sổ, nói rõ chưa verify GUI.
+- [x] **Step 5 — Commit:** `feat: F2 khung de xuat tu khoa + nut them vao theo doi trong tab Xep Hang`
 
 ## Tiêu chí hoàn thành (của card F2)
 

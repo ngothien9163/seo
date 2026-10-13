@@ -78,7 +78,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 ### 9. Từ khóa đề xuất từ Search Console — danh sách biết tự lớn
 
 - Query người dùng thực sự tìm mà bạn **chưa theo dõi**, có impressions ≥ `KEYWORD_SUGGEST_MIN_IMPRESSIONS`, được liệt kê theo `--gsc-keywords` (kèm impressions/clicks/vị trí trung bình).
-- Thêm bằng `python main.py --gsc-add-keyword "..."` (có bước xác nhận, `--yes` cho script). Chống trùng theo dấu tiếng Việt: "noi mi quan 2" và "nối mi quận 2" là một.
+- Thêm bằng `python main.py --gsc-add-keyword "..."` (có bước xác nhận, `--yes` cho script) hoặc nút **+ Thêm** trong khung "Từ khóa đề xuất" ở tab 📈 Xếp Hạng (nút **💡 TỪ KHÓA ĐỀ XUẤT** nạp danh sách, tự làm mới sau mỗi lần lấy dữ liệu Search Console). Chống trùng theo dấu tiếng Việt: "noi mi quan 2" và "nối mi quận 2" là một.
 - Danh sách từ khóa nằm trong **`config/keywords.json`** (`{"site", "keywords"}`), không còn hardcode trong settings.py — thêm từ khóa xong, lần `--rank` kế tiếp check luôn.
 - Bảng "Query mới phát hiện" trong báo cáo gộp cũng trỏ thẳng tới lệnh này.
 
@@ -125,7 +125,7 @@ Giao diện CustomTkinter dark mode với 7 tab cấu hình:
 | 🎯 Hành Vi SEO | Thời gian onsite min/max, pogo-stick, third page, warm-up search |
 | 🤖 AI Engine | URL Ollama, chọn model, kiểm tra kết nối |
 | 🔥 Nuôi Nick | Bật/tắt từng kênh warm-up (YouTube, báo, wiki, shopping, FB, IG) |
-| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV |
+| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, khung từ khóa đề xuất |
 
 Sidebar hiển thị: đếm session ✅/❌, đồng hồ đếm ngược treo máy, trạng thái Ollama.
 
