@@ -99,13 +99,13 @@
 
 **Interfaces (Consumes):** `utils.exporter.export_rank/export_gsc/export_all`.
 
-- [ ] **Step 1 — Test fail trước:** thêm vào `_quick_export_test.py` một assert dùng AST (tái dùng pattern `test_ui_gsc_methods_no_unresolved_names`): hàm `export_csv_now` trong `ui.py` phải tồn tại và **không có Name chưa resolve**; `main.py` phải chứa nhánh `--export`.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement CLI:** `--export` thiếu loại → mặc định `all`; loại không hợp lệ → in danh sách hợp lệ, không traceback; in `[Export] ✅ Đã lưu <path> (<n> dòng)`.
-- [ ] **Step 4 — Implement GUI:** nút gọi `export_all()` (sync, nhanh, không cần thread), in đường dẫn ra console; không đổi state `is_running`.
-- [ ] **Step 5 — Chạy kiểm chứng thật:** `python main.py --export all` trên máy chưa có history → 2 file header-only trong `reports/`, exit 0. `python -m py_compile main.py ui.py`. `python _quick_gsc_test.py` vẫn ALL PASS (không vỡ test GSC cũ).
-- [ ] **Step 6 — README:** thêm `python main.py --export rank|gsc|all` vào bảng CLI + mô tả F1.
-- [ ] **Step 7 — Commit:** `feat: F1 nut Export CSV trong tab Xep Hang + cli --export, docs README`
+- [x] **Step 1 — Test fail trước:** thêm vào `_quick_export_test.py` một assert dùng AST (tái dùng pattern `test_ui_gsc_methods_no_unresolved_names`): hàm `export_csv_now` trong `ui.py` phải tồn tại và **không có Name chưa resolve**; `main.py` phải chứa nhánh `--export`.
+- [x] **Step 2 — Chạy → FAIL.**
+- [x] **Step 3 — Implement CLI:** `--export` thiếu loại → mặc định `all`; loại không hợp lệ → in danh sách hợp lệ, không traceback; in `[Export] ✅ Đã lưu <path> (<n> dòng)`.
+- [x] **Step 4 — Implement GUI:** nút gọi `export_all()` (sync, nhanh, không cần thread), in đường dẫn ra console; không đổi state `is_running`.
+- [x] **Step 5 — Chạy kiểm chứng thật:** `python main.py --export all` trên máy chưa có history → 2 file header-only trong `reports/`, exit 0. `python -m py_compile main.py ui.py`. `python _quick_gsc_test.py` vẫn ALL PASS (không vỡ test GSC cũ).
+- [x] **Step 6 — README:** thêm `python main.py --export rank|gsc|all` vào bảng CLI + mô tả F1.
+- [x] **Step 7 — Commit:** `feat: F1 nut Export CSV trong tab Xep Hang + cli --export, docs README`
 
 ## Tiêu chí hoàn thành ( của card F1 )
 

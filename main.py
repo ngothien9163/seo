@@ -47,6 +47,7 @@ def show_strategy():
     print("  python main.py --rank-report Xem bao cao xep hang da luu")
     print("  python main.py --gsc        Lay du lieu Search Console (clicks/impressions)")
     print("  python main.py --gsc-report Xem bao cao Search Console da luu")
+    print("  python main.py --export rank|gsc|all  Xuat bao cao CSV mo bang Excel")
     print("-" * 65)
 
 
@@ -117,6 +118,13 @@ if __name__ == "__main__":
     elif "--gsc-report" in sys.argv:
         from utils.gsc_client import print_report
         print_report()
+
+    elif "--export" in sys.argv:
+        from utils.exporter import run_export_cli
+        i = sys.argv.index("--export")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        kind = nxt if nxt and not nxt.startswith("-") else "all"
+        sys.exit(run_export_cli(kind))
 
     else:
         show_strategy()

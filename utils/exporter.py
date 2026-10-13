@@ -138,3 +138,31 @@ def export_gsc() -> tuple[str, int]:
 def export_all() -> list[tuple[str, int]]:
     """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống)."""
     return [export_rank(), export_gsc()]
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+KINDS = ("rank", "gsc", "all")
+
+_LABELS = {"rank": "xếp hạng", "gsc": "Search Console"}
+
+
+def run_export_cli(kind: str = "all") -> int:
+    """Entry `--export`: xuất CSV theo loại, in đường dẫn từng file. Trả exit code."""
+    kind = (kind or "all").strip().lower()
+    if kind not in KINDS:
+        print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: rank | gsc | all")
+        return 2
+
+    selected = [("rank", export_rank), ("gsc", export_gsc)] if kind == "all" else \
+               [("gsc", export_gsc)] if kind == "gsc" else \
+               [("rank", export_rank)]
+
+    for label, fn in selected:
+        path, n = fn()
+        print(f"[Export] ✅ Đã lưu {path} ({n} dòng {_LABELS[label]})")
+        if n == 0:
+            cmd = "--rank" if label == "rank" else "--gsc"
+            print(f"[Export]    Chưa có dữ liệu {_LABELS[label]} — file chỉ có tiêu đề."
+                  f" Lấy dữ liệu: python main.py {cmd}")
+    return 0

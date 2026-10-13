@@ -479,6 +479,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_gsc_fetch_now,
         )
         self.btn_gsc.pack(side="left", padx=(16, 0))
+        self.btn_export = ctk.CTkButton(
+            rf, text="📤  XUẤT CSV",
+            fg_color="#3a6b35", hover_color="#4a8544",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.export_csv_now,
+        )
+        self.btn_export.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
 
@@ -609,6 +616,21 @@ class TrafficBotUI(ctk.CTk):
             self.after(0, lambda: self.btn_gsc.configure(
                 state="normal", text="📊  LẤY DỮ LIỆU SEARCH CONSOLE"))
             self.after(0, self._refresh_rank_report)
+
+    # ─── EXPORT CSV (chỉ đọc file state — không browser, không network) ──────
+
+    def export_csv_now(self):
+        """Xuất lịch sử xếp hạng + snapshot Search Console ra CSV trong reports/."""
+        from utils.exporter import export_gsc, export_rank
+        for label, fn in (("xếp hạng", export_rank), ("Search Console", export_gsc)):
+            try:
+                path, n = fn()
+            except Exception as e:
+                print(f"[Export] ❌ Lỗi xuất dữ liệu {label}: {e}")
+                continue
+            print(f"[Export] ✅ Đã lưu {path} ({n} dòng {label})")
+            if n == 0:
+                print(f"[Export]    Chưa có dữ liệu {label} — file chỉ có tiêu đề.")
 
     # ═══════════════════════════════════════════════════════════════
     # OLLAMA TEST CONNECTION

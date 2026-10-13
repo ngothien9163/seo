@@ -68,6 +68,13 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Snapshot lưu `gsc_history.json` (giữ 90 ngày), tối đa 4 lần fetch/ngày, xem lại không tốn quota.
 - Setup service account Google ~10 phút, làm 1 lần: xem **[docs/SETUP_GSC.md](docs/SETUP_GSC.md)**.
 
+### 8. Xuất báo cáo CSV — mang dữ liệu đi nơi khác
+
+- `--export rank` xuất **toàn bộ lịch sử xếp hạng** (một dòng mỗi lần check × mỗi từ khóa), `--export gsc` xuất các query của snapshot Search Console mới nhất, `--export all` (mặc định) ra cả hai file.
+- Mã **UTF-8 có BOM** → mở trực tiếp bằng Excel bản tiếng Việt không lỗi dấu; CTR xuất dạng số đã ×100 (không kèm ký hiệu `%`) để Excel còn tính toán được.
+- File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
+- GUI: tab **📈 Xếp Hạng** → nút **📤 XUẤT CSV** (in đường dẫn file ra log).
+
 ---
 
 ## Cài đặt
@@ -101,7 +108,7 @@ ollama pull qwen3:30b-a3b
 python ui.py
 ```
 
-Giao diện CustomTkinter dark mode với 6 tab cấu hình:
+Giao diện CustomTkinter dark mode với 7 tab cấu hình:
 
 | Tab | Cấu hình |
 |---|---|
@@ -111,6 +118,7 @@ Giao diện CustomTkinter dark mode với 6 tab cấu hình:
 | 🎯 Hành Vi SEO | Thời gian onsite min/max, pogo-stick, third page, warm-up search |
 | 🤖 AI Engine | URL Ollama, chọn model, kiểm tra kết nối |
 | 🔥 Nuôi Nick | Bật/tắt từng kênh warm-up (YouTube, báo, wiki, shopping, FB, IG) |
+| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV |
 
 Sidebar hiển thị: đếm session ✅/❌, đồng hồ đếm ngược treo máy, trạng thái Ollama.
 
@@ -127,6 +135,7 @@ python main.py --rank       # Kiểm tra vị trí từ khóa trên Google (+ l�
 python main.py --rank-report # Xem báo cáo xếp hạng đã lưu
 python main.py --gsc        # Lấy dữ liệu Search Console (clicks/impressions)
 python main.py --gsc-report # Xem báo cáo Search Console đã lưu
+python main.py --export rank|gsc|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -157,7 +166,7 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 ```
 seo-by-Tung/
 ├── main.py                  # CLI entry point
-├── ui.py                    # GUI (CustomTkinter, 6 tab)
+├── ui.py                    # GUI (CustomTkinter, 7 tab)
 ├── fix_encoding.py          # Tool sửa lỗi encoding tiếng Việt trong source
 ├── config/
 │   └── settings.py          # Toàn bộ cấu hình
@@ -173,6 +182,7 @@ seo-by-Tung/
 │   ├── onsite_interactions.py # CTA, tabs, gallery, form, search onsite
 │   ├── rank_tracker.py      # Theo dõi vị trí từ khóa trên Google
 │   ├── gsc_client.py        # Google Search Console API client + báo cáo gộp
+│   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
 │   ├── test_search_flow.py  # Search flow: Google → SERP → click target
@@ -182,7 +192,8 @@ seo-by-Tung/
 │   └── keyword_research.py  # Volume/difficulty/intent + funnel
 ├── backlinks/
 │   └── tracker.py           # Backlink 3 tier + guest post targets
-└── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
+├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
+└── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
 ```
 
 ## Xử lý sự cố
