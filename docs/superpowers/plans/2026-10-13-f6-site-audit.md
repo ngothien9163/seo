@@ -58,11 +58,12 @@ CLI/GUI/CSV. `utils/pagespeed.py` là nhánh riêng: gọi API Google, thất b�
 
 **Interfaces (Produces):** `probe(html: str) -> dict` với keys: `title` (str, đã normalize whitespace, `""` nếu thiếu), `meta_description`, `canonical`, `h1` (list[str]), `headings` (list[(level:int, text)] theo đúng thứ tự xuất hiện), `images` (list[{"src","alt"}] — alt `None` khi **không có attribute**, `""` khi alt rỗng có chủ ý), `links` (list[{"href","text","rel"}]), `noindex` (bool), `charset`, `lang`, `word_count`. Tất cả là string/None, không raise với HTML hỏng.
 
-- [ ] Step 1 — Test fail trước: HTML đủ/ thiếu từng thành phần; `<img src=a>` không nháy; `<IMG ALT="">` hoa; title có tag lồng `<title>A <span>B</span></title>` → "A B"; heading nhảy cấp `h1→h3`; 2 `<h1>`; `rel="nofollow"` parse từ attribute có nhiều giá trị; `<meta name="robots" content="noindex, nofollow">`; `meta description` viết `NAME=` hoa; self-closing `<br/>` không làm loạn parser; HTML cụt (`"<div><p>x"`) vẫn trả dict.
-- [ ] Step 2 — Chạy → FAIL (`ModuleNotFoundError`).
-- [ ] Step 3 — Implement `HTMLParser` subclass: dùng `handle_starttag`/`handle_startendtag`/`handle_data`, một stack cho text của heading/title; `converted_charrefs=True`.
-- [ ] Step 4 — Test → ALL PASS.
-- [ ] Step 5 — Commit: `feat: F6 html probe (html.parser stdlib, khong them dependency)`
+- [x] Step 1 — Test fail trước: HTML đủ/ thiếu từng thành phần; `<img src=a>` không nháy; `<IMG ALT="">` hoa; `<title>` chứa tag lồng; heading nhảy cấp `h1→h3`; 2 `<h1>`; `rel="nofollow noopener"` nhiều giá trị; `<meta name="robots" content="noindex, nofollow">`; `NAME=`/`CONTENT=` viết hoa; self-closing `<br/>`; HTML cụt (`"<div><p>x"`) vẫn trả dict; AST cấm import `requests/socket/urllib/http` và cấm gọi `open()`.
+- [x] Step 2 — Chạy → FAIL (`ModuleNotFoundError: No module named 'utils.html_probe'`).
+- [x] Step 3 — Implement `_Probe(HTMLParser)` với `convert_charrefs=True`: stack buffer cho title/heading, buffer riêng cho text của `<a>` (nên `Đi <b>xem</b>` → "Đi xem"), `_hidden` counter cho script/style/noscript/template, `_attr`/`_has_attr` phân biệt **thiếu alt** (`None`) với **alt rỗng chủ ý** (`""`), charset lấy từ `<meta charset>` lẫn `http-equiv=Content-Type`, `feed`/`close` bọc `try/except` (HTML hỏng = một finding, không phải crash).
+- [x] Step 3b — **Test ban đầu sai về HTML, đã sửa test chứ không sửa code:** `<title>A <span>B</span></title>` — `HTMLParser` đối xử với `title` như **RCDATA**, nên `<span>` ở lại nguyên văn (đúng như browser hiểu và đúng như Google sẽ hiển thị). Test cũ đòi "A B" → đổi thành `test_probe_title_is_rcdata_so_nested_tags_stay_literal` + thêm `test_probe_heading_text_joins_nested_tags` cho trường hợp lồng tag **có** thật (`<h1>A <span>B</span> C</h1>` → "A B C"). Audit không tự "dẹp" markup lỗi hộ chủ site.
+- [x] Step 4 — Test → **ALL PASS (15)**; **5/5 mutation CAUGHT** (bỏ `_HIDDEN_TEXT_TAGS`, gộp alt thiếu với alt rỗng, nhận mọi `<link>` là canonical, bỏ `<meta charset>`, sort headings theo cấp thay vì theo thứ tự tài liệu); CJK scan `utils/html_probe.py` = 0; `_quick_test`/`_quick_alert_test`/`_quick_scheduler_test` và 3 suite còn lại vẫn PASS (không đổi file dùng chung nào).
+- [x] Step 5 — Commit: `feat: F6 html probe (html.parser stdlib, khong them dependency)`
 
 ### Task 2: `utils/site_auditor.py` — rules + crawler
 
