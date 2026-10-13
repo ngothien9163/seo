@@ -130,12 +130,12 @@
 **Files:**
 - Modify: `main.py`, `ui.py`, `README.md`
 
-- [ ] **Step 1 — Test fail trước:** `main.py` chứa `'"--alerts"'`; `ui.py` có method `run_alert_preview` không có Name chưa resolve; README có dòng `--alerts` + bảng cấu hình có `ALERTS_ENABLE`/`TELEGRAM_*`.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement:** CLI `--alerts` in danh sách + mode; GUI: nút "🧪 GỬI THỬ BÁO ĐỘNG" trong tab Xếp Hạng → gửi một tin test nếu đã cấu hình (in hướng dẫn nếu chưa), và label nhỏ "Alerts: Telegram / Console".
-- [ ] **Step 4 — Verify thật:** `python main.py --alerts` trên máy chưa cấu hình → in console mode, exit 0; GUI probe: instantiate `TrafficBotUI()`, invoke `run_alert_preview()`, xác nhận không raise và log in ra.
-- [ ] **Step 5 — README:** mục "### 10. Cảnh báo tụt hạng (Telegram)"; bảng cấu hình thêm 4 biến; link `docs/SETUP_ALERTS.md`.
-- [ ] **Step 6 — Commit:** `feat: F3 cli --alerts + nut gui thu bao dong trong tab Xep Hang, docs SETUP_ALERTS`
+- [x] **Step 1 — Test fail trước:** `main.py` chứa `'"--alerts"'` + help line; `ui.py` có `run_alert_preview`/`_refresh_alert_mode_label`, widget `btn_alert_test` + `lbl_alert_mode`, và mọi Name trong `run_alert_preview` resolve được (AST, chỉ tính Load context + tên có ở module level); README phải có `--alerts`, `ALERTS_ENABLE`, `TELEGRAM_BOT_TOKEN`, `RANK_ALERT_DROP`, `SETUP_ALERTS`, `GỬI THỬ BÁO ĐỘNG`.
+- [x] **Step 2 — Chạy → FAIL** (4 test FAIL/ERROR).
+- [x] **Step 3 — Implement:** CLI `--alerts` in danh sách + kênh; GUI nút "🧪 GỬI THỬ BÁO ĐỘNG" chạy trong thread (`_alert_preview_worker`) + label "Cảnh báo: Telegram/console".
+- [x] **Step 4 — Verify thật:** `python main.py --alerts` trên máy chưa cấu hình → `Kênh giao hàng: console`, exit 0, help có dòng `--alerts`. GUI probe: `TrafficBotUI()` → tìm thấy nút đúng text, `lbl_alert_mode` = `Cảnh báo: console` trước/sau khi bấm, `run_alert_preview()` không raise, tin `[Alert] …docs/SETUP_ALERTS.md` in ra (probe không chạy mainloop nên `RedirectText` rơi vào nhánh stderr fallback — hành vi có sẵn của app, không phải bug mới).
+- [x] **Step 5 — README:** mục "### 10. Cảnh báo tụt hạng — Telegram (hoặc console)"; bảng cấu hình thêm 5 dòng PHẦN F; cây project có `utils/alerts.py` + `data/`; lệnh CLI `--alerts`.
+- [x] **Step 6 — Commit:** `feat: F3 cli --alerts + nut gui thu bao dong (probe that) + README muc 10`
 
 ## Tiêu chí hoàn thành (của card F3)
 

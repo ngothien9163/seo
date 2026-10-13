@@ -488,8 +488,17 @@ class TrafficBotUI(ctk.CTk):
             command=self.export_csv_now,
         )
         self.btn_export.pack(side="left", padx=(16, 0))
+        self.btn_alert_test = ctk.CTkButton(
+            rf, text="🧪  GỬI THỬ BÁO ĐỘNG",
+            fg_color="#6a4a8a", hover_color="#7d5aa3",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_alert_preview,
+        )
+        self.btn_alert_test.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
+        self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
+        self.lbl_alert_mode.pack(side="left", padx=(0, 16))
 
         self.txt_rank = ctk.CTkTextbox(t, font=ctk.CTkFont(family="Consolas", size=12))
         self.txt_rank.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
@@ -513,7 +522,35 @@ class TrafficBotUI(ctk.CTk):
         self.kw_suggest_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self._kw_suggest_note("Chưa có danh sách — bấm '💡 TỪ KHÓA ĐỀ XUẤT' (cần dữ liệu Search Console).")
 
+        self._refresh_alert_mode_label()
         self._refresh_rank_report()
+
+    def _refresh_alert_mode_label(self):
+        from utils.alerts import delivery_mode
+        try:
+            mode = delivery_mode()
+        except Exception as e:
+            mode = f"console (lỗi đọc cấu hình: {e})"
+        self.lbl_alert_mode.configure(
+            text="Cảnh báo: Telegram" if mode == "telegram" else "Cảnh báo: console")
+
+    def run_alert_preview(self):
+        """Nút 🧪: gửi một tin thử qua kênh đang cấu hình, không đụng state cảnh báo thật."""
+        threading.Thread(target=self._alert_preview_worker, daemon=True).start()
+
+    def _alert_preview_worker(self):
+        from utils.alerts import delivery_mode, is_configured, send
+        mode = delivery_mode()
+        if mode != "telegram":
+            print(f"[Alert] Kênh hiện tại: console — {is_configured()[1]}")
+        try:
+            ok = send("🧪 Tin thử từ SEO Bot: kênh cảnh báo tụt hạng đang hoạt động.")
+        except Exception as e:
+            print(f"[Alert] ❌ Sender raise ngoài dự kiến: {type(e).__name__}: {e}")
+            ok = False
+        print("[Alert] ✅ Tin thử đã được thông báo." if ok
+              else "[Alert] ❌ Tin thử thất bại — xem mô tả ở trên.")
+        self.after(0, self._refresh_alert_mode_label)
 
     def _refresh_rank_report(self):
         from utils.gsc_client import build_report as build_merged_report

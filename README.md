@@ -82,6 +82,15 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Danh sách từ khóa nằm trong **`config/keywords.json`** (`{"site", "keywords"}`), không còn hardcode trong settings.py — thêm từ khóa xong, lần `--rank` kế tiếp check luôn.
 - Bảng "Query mới phát hiện" trong báo cáo gộp cũng trỏ thẳng tới lệnh này.
 
+### 10. Cảnh báo tụt hạng — Telegram (hoặc console)
+
+- Sau mỗi lần check xếp hạng, bộ cảnh báo so **2 lần check gần nhất**: hạng rơi **≥ `RANK_ALERT_DROP`** (mặc định 5) hoặc đang trong **Top 10 mà rớt ra ngoài** → một tin nhắn. Mỗi từ khóa **tối đa 1 tin/ngày**, dù bạn check 3 lần (`data/alerts_state.json`).
+- Chạy **tự động** trong `--rank` và trong GUI (tab 📈 Xếp Hạng); `--gsc` chỉ nhắc "có N cảnh báo đang chờ" chứ không gửi trùng. Muốn xem chủ động: `python main.py --alerts`.
+- Mặc định `ALERTS_ENABLE = False` → **không gửi đi đâu cả**, tin chỉ in ra console để bạn thấy thứ đáng lẽ đã gửi. Bật Telegram theo **[`docs/SETUP_ALERTS.md`](docs/SETUP_ALERTS.md)** (~5 phút, không cần server).
+- Token nên để ở biến môi trường `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (thắng giá trị trong settings.py) khỏi phải commit bí mật.
+- Telegram sập / sai token / hết mạng → chỉ in cảnh báo lỗi, **rank check không chết theo**, và tin chưa gửi sẽ được thử lại ở lần check sau.
+- GUI có nút **🧪 GỬI THỬ BÁO ĐỘNG** để xác nhận tin tới điện thoại, kèm nhãn "Cảnh báo: Telegram/console".
+
 ---
 
 ## Cài đặt
@@ -145,6 +154,7 @@ python main.py --gsc-report # Xem báo cáo Search Console đã lưu
 python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Console (chưa theo dõi)
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
 python main.py --export rank|gsc|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console
+python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -170,6 +180,11 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `GSC_MAX_FETCH_PER_DAY` | `4` | Search Console: số lần fetch tối đa mỗi ngày |
 | `KEYWORD_SUGGEST_MIN_IMPRESSIONS` | `30` | Search Console: ngưỡng impressions để một query được đề xuất làm từ khóa mới |
 | `KEYWORD_SUGGEST_LIMIT` | `20` | Số từ khóa đề xuất hiển thị tối đa mỗi lần |
+| `ALERTS_ENABLE` | `False` | Cảnh báo: bật mới gửi Telegram; tắt thì chỉ in console |
+| `RANK_ALERT_DROP` | `5` | Cảnh báo: hạng rơi ≥ N vị trí so với lần check liền trước thì báo |
+| `RANK_ALERT_TOP10_FALL` | `True` | Cảnh báo: đang trong Top 10 mà rớt ra ngoài thì báo |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | `""` | Cảnh báo: nên để ở **biến môi trường** (thắng settings.py) — xem `docs/SETUP_ALERTS.md` |
+| `ALERTS_STATE_DIR` | `data` | Nơi lưu `alerts_state.json` (state chống spam 1 tin/ngày/từ khóa) |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
@@ -200,6 +215,7 @@ seo-by-Tung/
 │   ├── gsc_client.py        # Google Search Console API client + báo cáo gộp
 │   ├── keywords.py          # Đọc/ghi/add từ khóa (config/keywords.json)
 │   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console
+│   ├── alerts.py            # Cảnh báo tụt hạng: rules engine + chống spam + Telegram sender
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
 │   ├── test_search_flow.py  # Search flow: Google → SERP → click target
@@ -210,7 +226,8 @@ seo-by-Tung/
 ├── backlinks/
 │   └── tracker.py           # Backlink 3 tier + guest post targets
 ├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
-└── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
+├── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
+└── data/                    # (sinh ra khi chạy) alerts_state.json — cảnh báo đã gửi hôm nay
 ```
 
 ## Xử lý sự cố

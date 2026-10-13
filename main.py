@@ -50,6 +50,7 @@ def show_strategy():
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
     print("  python main.py --export rank|gsc|all  Xuat bao cao CSV mo bang Excel")
+    print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("-" * 65)
 
 
@@ -138,6 +139,10 @@ if __name__ == "__main__":
         nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
         kind = nxt if nxt and not nxt.startswith("-") else "all"
         sys.exit(run_export_cli(kind))
+
+    elif "--alerts" in sys.argv:
+        from utils.alerts import run_alert_check_cli
+        sys.exit(run_alert_check_cli())
 
     else:
         show_strategy()
