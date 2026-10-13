@@ -382,7 +382,8 @@ async def _cli_solve_captcha(page: Page) -> bool:
         return False
 
 
-async def run_rank_check_cli():
+async def run_rank_check_cli(interactive: bool = True):
+    """interactive=False cho lịch tự chạy: gặp CAPTCHA thì bỏ qua, không gọi input()."""
     ok, reason = can_run_check()
     if not ok:
         print(f"[Rank] {reason}")
@@ -399,7 +400,8 @@ async def run_rank_check_cli():
     try:
         browser = await manager.launch_browser()
         page = await manager.create_context(browser, proxy_info=proxy, profile_id="rank_tracker")
-        await run_rank_check(page, on_captcha=_cli_solve_captcha)
+        await run_rank_check(page,
+                             on_captcha=_cli_solve_captcha if interactive else None)
         mark_check_run()
         print()
         print_report()

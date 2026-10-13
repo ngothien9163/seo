@@ -61,15 +61,19 @@
 
 ### Task 2: Bảng job + run_job (tái dùng guard cũ)
 
-**Files:** Modify `utils/scheduler.py`, `utils/rank_tracker.py` (thêm `interactive: bool = True` cho `run_rank_check_cli`), Modify `_quick_scheduler_test.py`.
+**Files:** Modify `utils/scheduler.py`, `utils/rank_tracker.py` (thêm `interactive: bool = True` cho `run_rank_check_cli`), Create `utils/automation.py` (tách flow `--auto` khỏi `main.py` — xem ghi chú Step 3), Modify `main.py`, Modify `_quick_scheduler_test.py`.
 
-**Interfaces:** `JOBS`, `run_job(name) -> int`, `_run_rank()`, `_run_gsc()`, `_run_traffic()`, `describe_job(name) -> str`.
+**Interfaces:** `JOBS`, `run_job(name) -> int`, `_run_rank()`, `_run_gsc()`, `_run_traffic()`, `describe_jobs() -> list[str]` (plan ban đầu ghi `describe_job(name) -> str`; bản test đã viết từ trước cần dạng list nhiều dòng cho CLI in danh sách → chốt `describe_jobs()`), `HEARTBEAT_INTERVAL`, `SCHEDULER_TRAFFIC_ENABLE`, `utils/automation.py::run_one_session(use_search=True) -> int`.
 
-- [ ] Step 1 — Test fail trước (monkeypatch `_run_*` bằng counter): job bị `can_run_check`/`can_run_fetch` chặn → exit 0, reason in ra, **không** `record_run(last_run)`, `_run_*` không được gọi. `_run_gsc` raise `SystemExit(1)` → `run_job` trả 1 + state `last_error` có mô tả, không lan exception. `_run_traffic` bật mặc định tắt → 0 lần gọi. Job raise RuntimeError → trả 1, lock vẫn nhả (`os.path.exists(LOCK_FILE)` False). AST: `scheduler.py` chứa `can_run_check`+`can_run_fetch`+`can_run_session`, và không chứa `max_per_day`/`count` tự khai.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement (rank: `asyncio.run(run_rank_check_cli(interactive=False))`; gsc: `run_gsc_fetch_cli()`; traffic: import-lười flow `--auto`, chỉ khi `SCHEDULER_TRAFFIC_ENABLE`).
-- [ ] Step 4 — Test → ALL PASS + 5 suite cũ PASS.
-- [ ] Step 5 — Commit: `feat: F4 job table + run_job (dung lai guard can_run cua module goc, not raise)`
+- [x] Step 1 — Test fail trước (monkeypatch `_run_*` bằng counter): job bị `can_run_check`/`can_run_fetch` chặn → exit 0, reason in ra, **không** `record_run(last_run)`, `_run_*` không được gọi. `_run_gsc` raise `SystemExit(1)` → `run_job` trả 1 + state `last_error` có mô tả, không lan exception. `_run_traffic` bật mặc định tắt → 0 lần gọi. Job raise RuntimeError → trả 1, lock vẫn nhả (`os.path.exists(LOCK_FILE)` False). AST: `scheduler.py` chứa `can_run_check`+`can_run_fetch`+`can_run_session`, và không chứa `max_per_day`/`count` tự khai.
+- [x] Step 2 — Chạy → FAIL: 11 FAIL (`run_job`/`_guard_*`/`describe_jobs`/`HEARTBEAT_INTERVAL`/`SCHEDULER_TRAFFIC_ENABLE` chưa tồn tại + ràng buộc gọi guard gốc).
+- [x] Step 3 — Implement: rank `asyncio.run(run_rank_check_cli(interactive=False))`; gsc `run_gsc_fetch_cli()` (tự `sys.exit(1)` khi thiếu credential → `run_job` bắt `SystemExit` riêng vì nó là `BaseException`); traffic `_run_traffic` → `automation.run_one_session(use_search=True)`.
+  Ba chi tiết lệch plan nhưng có lý do, giữ lại:
+  1. **`utils/automation.py` mới**: flow browser của `--auto` nằm inline trong `main.py`; scheduler mà copy lần 2 là có 2 chỗ phải sửa khi flow đổi. `main.py --auto|--search` giờ chỉ gọi `run_one_session()` (giữ nguyên exit 1 khi bị rate limit). `run_one_session` không raise, và `mark_session_run()` chỉ chạy khi session xong — session nổ giữa chừng không bị đếm oan.
+  2. **`JOBS` lưu TÊN hàm** (`"guard": "_guard_rank"`), `run_job` resolve qua `globals()`: nếu lưu object thì monkeypatch `sc._run_rank` trong test không có tác dụng, và test sẽ thật sự mở browser.
+  3. **`_write_lock` ghi nguyên tử** (tmp + `os.replace`): watchdog ghi heartbeat song song với runner đọc lock; ghi trực tiếp có cửa đọc phải file cụt.
+- [x] Step 4 — Test → **ALL PASS (29 test)**; 5 suite cũ PASS (`LOGIC TEST PASS`, `[GSC-TEST]`, `[EXPORT-TEST]`, `[KEYWORD-TEST]`, `[ALERT-TEST] 59`); **6/6 mutation CAUGHT** (bỏ `can_run_session`, bỏ `release_lock`, `except BaseException`→`ValueError`, `interactive=True`, bỏ guard, bỏ `mark_session_run`). Live: `run_job("saymax")` → exit 2 + in 3 job; `run_job("traffic")` → exit 0 + "đang TẮT theo quyết định của owner"; `read_state()` vẫn `{"jobs": {}, "runs": []}` và không còn lock. Scan CJK trên 5 file touched: 0.
+- [x] Step 5 — Commit: `feat: F4 job table + run_job (dung lai guard can_run cua module goc, not raise)`
 
 ### Task 3: Cấu hình PHẦN G + CLI
 
@@ -101,6 +105,9 @@
 - Traffic **không** tự chạy khi `SCHEDULER_TRAFFIC_ENABLE=False` (mặc định).
 
 ## Known limitations (ghi nhận, không sửa trong plan này)
+
+- **`cfg.MAX_SESSIONS_PER_DAY` vẫn bị bỏ qua** (pre-existing, không do F4 tạo ra): `can_run_session(max_per_day=25, min_interval=300)` nhận tham số nhưng cả `utils/automation.py` (flow `--auto` cũ) lẫn `_guard_traffic` đều gọi với mặc định; `rate_limiter.get_today_summary()` còn hardcode `25 - count` ở 2 chỗ. Sửa đúng gốc phải sửa cả `get_today_summary` (liên quan GUI + `session_state.json`), nằm ngoài F4 → ghi vào code-health. Scheduler cố ý KHÔNG truyền giới hạn riêng: AST test cấm chuỗi `max_per_day`/`MAX_SESSIONS` xuất hiện trong `scheduler.py` để không ai nhân bản bộ đếm ở đây.
+- Job `rank`/`gsc` mà module gốc từ chối (đã đạt giới hạn) thì `run_job` trả 0 và in lý do — Task Scheduler coi là "chạy thành công". Đúng ý (không có gì để chạy) nhưng log `schtasks` sẽ không phân biệt được "bỏ qua" và "xong việc".
 
 - Máy tắt đúng giờ thì không chạy; không chạy bù qua ngày (quyết định 2.3).
 - Lock chỉ có hiệu lực trong một máy/một bản checkout — hai bản song song không thấy nhau.

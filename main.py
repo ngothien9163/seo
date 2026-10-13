@@ -56,42 +56,10 @@ def show_strategy():
 
 if __name__ == "__main__":
     if "--auto" in sys.argv or "--search" in sys.argv:
-        # 20% Automation — gi?i h?n 25 session/ngày
-        from utils.rate_limiter import can_run_session, mark_session_run, get_today_summary
-        import asyncio
-
-        summary = get_today_summary()
-        print(f"[RateLimit] H�m nay ch?y: {summary['ran']}/{summary['ran'] + summary['remaining']} session")
-
-        allowed, reason = can_run_session()
-        if not allowed:
-            print(f"[RateLimit] {reason}")
-            sys.exit(1)
-
-        # M?c d?nh dùng search flow (traffic t? Google) — t? nhi�n h?n direct
-        use_search = "--search" in sys.argv or not "--direct" in sys.argv
-        mode = "SEARCH (Google)" if use_search else "DIRECT"
-        print(f"Ch?y automation mode — Traffic: {mode} (gi?i h?n 25 session/ngày)")
-
-        from core.browser_manager import BrowserManager
-
-        async def run_limited():
-            mgr = BrowserManager()
-            browser = await mgr.launch_browser()
-            page = await mgr.create_context(browser)
-
-            if use_search:
-                from tests.test_search_flow import run_search_flow
-                await run_search_flow(page)
-            else:
-                from tests.test_direct_access import run_deep_session
-                await run_deep_session(page)
-
-            await mgr.close()
-
-        asyncio.run(run_limited())
-        mark_session_run()
-        print(f"[RateLimit] D? xong. Còn {get_today_summary()['remaining']} session h�m nay.")
+        # 20% Automation — 1 session, giới hạn phiên vẫn do utils/rate_limiter.py quyết
+        from utils.automation import run_one_session
+        use_search = "--search" in sys.argv or "--direct" not in sys.argv
+        sys.exit(run_one_session(use_search))
 
     elif "--plan" in sys.argv:
         from content.planner import print_plan
