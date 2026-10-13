@@ -53,11 +53,11 @@
 
 **Interfaces (Produces):** `_state_path()`, `_lock_path()`, `STATE_FILE`, `LOCK_FILE`, `read_state() -> dict`, `record_run(name, status, exit_code, error="")`, `acquire_lock(job) -> tuple[bool, str]`, `release_lock()`, `touch_lock()`, `status() -> dict`, `recent_runs(limit=10) -> list[dict]`.
 
-- [ ] Step 1 — Test fail trước: state rỗng → `read_state()` = `{"jobs": {}, "runs": []}`; file hỏng JSON → như rỗng, không raise. `record_run` tạo `data/`, giữ ≤50 runs. `acquire_lock("rank")` → True; acquire lần 2 (PID khác, heartbeat mới) → False + reason chứa PID đang giữ; heartbeat cũ 25 phút → True (giành); `release_lock` xóa file và **chỉ xóa lock của mình** (PID khác ghi đè thì không xóa).
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement.
-- [ ] Step 4 — Test → ALL PASS + `py_compile`.
-- [ ] Step 5 — Commit: `feat: F4 scheduler state + file lock (pid heartbeat, stale 20 phut)`
+- [x] Step 1 — Test fail trước: state rỗng → `read_state()` = `{"jobs": {}, "runs": []}`; file hỏng JSON → như rỗng, không raise. `record_run` tạo `data/`, giữ ≤50 runs. `acquire_lock("rank")` → True; acquire lần 2 (PID khác, heartbeat mới) → False + reason chứa PID đang giữ; heartbeat cũ 25 phút → True (giành); `release_lock` xóa file và **chỉ xóa lock của mình** (PID khác ghi đè thì không xóa).
+- [x] Step 2 — Chạy → FAIL (`ModuleNotFoundError: No module named 'utils.scheduler'`).
+- [x] Step 3 — Implement `utils/scheduler.py` (paths + state + lock + `status`/`recent_runs`/`lock_holder`).
+- [x] Step 4 — Test → ALL PASS (14 test) + `py_compile`; verify path thật: `data/scheduler_state.json`, `data/scheduler.lock`, `status()` trên máy chưa chạy gì → `{'jobs': {}, 'runs': [], 'running': None}`. `.gitignore` đã có `data/` từ F3 → không sửa.
+- [x] Step 5 — Commit: `feat: F4 scheduler state + file lock (pid heartbeat, stale 20 phut)`
 
 ### Task 2: Bảng job + run_job (tái dùng guard cũ)
 
