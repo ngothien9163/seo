@@ -100,6 +100,8 @@
 
 ## F5 — Proxy pool + health check
 
+**Trạng thái: ⛔ KHÔNG LÀM (2026-10-13).** Lý do: mục tiêu của card là "giảm CAPTCHA trực tiếp", tức trọng tâm là né phát hiện bot — đúng lớp anti-detect/hành-vi-giả-người mà tôi đã tuyên bố không tối ưu từ đầu phiên 2026-10-13 (không làm đường chuột/Bézier "coherent" hơn, không đụng flag `--disable-web-security`/`AutomationControlled`); owner đọc thứ tự F1→F10 và không phản đối giới hạn đó, nhưng **chưa ai chốt lại bằng lời** rằng F5 bỏ — xác nhận của owner vẫn cần trước khi coi như quyết định cuối. Làm pool proxy + health check mà không đụng lớp đó thì không đạt mục tiêu của card; làm tới nơi tới chốn thì thành công cụ né phát hiện. Cái còn dùng được và **đã** làm trong phạm vi an toàn: `PROXY_LIST` hiện có vẫn được rank tracker dùng, và F4 scheduler không tự nới giới hạn session. Nếu owner muốn giảm CAPTCHA bằng hướng khác (giảm `MAX_SESSIONS_PER_DAY`, đổi footprint `vi-VN` sang một ngách từ khóa ít soi hơn, hoặc chuyển sang dữ liệu GSC/API thay vì SERP scrape) thì đó là card mới, bàn riêng.
+
 **Mục tiêu:** danh sách proxy xoay vòng theo session, tự đánh dấu proxy chết, ưu tiên IP VN — giảm CAPTCHA trực tiếp (pain số 1 theo README).
 
 **Phạm vi:** pool class (xoay vòng, cooldown, hồi phục), health check nhẹ, tích hợp vào browser_manager + rank_tracker, ô nhập list proxy + hiển thị trạng thái trong GUI. **Ngoài phạm vi:** mua/quản lý proxy tự động, proxy xoay từng request (chỉ xoay theo session).
