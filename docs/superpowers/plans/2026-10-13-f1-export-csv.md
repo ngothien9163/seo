@@ -79,16 +79,16 @@
 
 **Interfaces (Produces):** `gsc_rows()`, `export_gsc()`, `export_all()` (đã khai ở Task 1, hoàn thiện tại đây).
 
-- [ ] **Step 1 — Test fail trước:**
+- [x] **Step 1 — Test fail trước:**
   - Trỏ `gsc.DATA_FILE` sang `_test_gsc_history.json`; snapshot 1 ngày với 2 rows → `gsc_rows()` trả đúng số dòng, mỗi dòng `[query, clicks, impressions, position, ctr%, start_date→end_date, fetched_at]`; `ctr` 0.0245 → `"2.45"` (đã ×100, làm tròn 2 số, **không** có dấu `%` trong ô số để Excel còn tính được).
   - `gsc_history.json` không tồn tại → `(header, [])`, `export_gsc()` vẫn ghi file header-only.
   - Snapshot có `rows: {}` → `(header, [])`.
   - `export_all()` với cả 2 history rỗng → 2 tuple, 2 file tồn tại, không exception.
   - Import module: `python -c "import utils.exporter"` chạy được trong môi trường chưa setup credentials (không đọc file key ở import time).
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement** `gsc_rows` / `export_gsc` / `export_all`; đọc GSC qua `gsc_client._load_history()` import **trong hàm** (giữ module không phụ thuộc thứ tự import).
-- [ ] **Step 4 — Chạy test → ALL PASS.**
-- [ ] **Step 5 — Commit:** `feat: F1 export CSV — GSC snapshot + export all`
+- [x] **Step 2 — Chạy → FAIL.**
+- [x] **Step 3 — Implement** `gsc_rows` / `export_gsc` / `export_all`; đọc GSC qua `gsc_client._load_history()` import **trong hàm** (giữ module không phụ thuộc thứ tự import).
+- [x] **Step 4 — Chạy test → ALL PASS.**
+- [x] **Step 5 — Commit:** `feat: F1 export CSV — GSC snapshot + export all`
 
 ### Task 3: Wire CLI `--export` + nút GUI + tài liệu
 

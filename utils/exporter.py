@@ -58,6 +58,43 @@ def rank_rows() -> tuple[list[str], list[list[str]]]:
     return list(RANK_HEADER), rows
 
 
+# ─── SERIALIZE: GSC snapshot ────────────────────────────────────────────────
+
+def gsc_rows() -> tuple[list[str], list[list[str]]]:
+    """Các query của snapshot Search Console mới nhất → (header, rows).
+
+    CTR xuất dạng đã ×100 làm tròn 2 số, KHÔNG kèm ký hiệu % trong ô số — để Excel
+    còn tính toán được (định dạng % làm ở đầu Excel).
+    """
+    from utils.gsc_client import _load_history  # import lười (đọc file key chỉ lúc cần)
+
+    snaps = _load_history().get("snapshots", {}) or {}
+    if not snaps:
+        return list(GSC_HEADER), []
+
+    snap = snaps[sorted(snaps.keys())[-1]]
+    rows = snap.get("rows", {}) or {}
+    span = f"{snap.get('start_date', '?')} → {snap.get('end_date', '?')}"
+    fetched = _clean(snap.get("fetched_at"))
+
+    def _sort_key(q: str):
+        return (-(rows[q].get("impressions") or 0), q)
+
+    out = []
+    for q in sorted(rows.keys(), key=_sort_key):
+        r = rows[q] or {}
+        out.append([
+            q,
+            _clean(r.get("clicks")),
+            _clean(r.get("impressions")),
+            f"{float(r.get('position') or 0):.1f}",
+            f"{float(r.get('ctr') or 0) * 100:.2f}",
+            span,
+            fetched,
+        ])
+    return list(GSC_HEADER), out
+
+
 # ─── GHI FILE ────────────────────────────────────────────────────────────────
 
 def _unique_path(kind: str) -> str:
@@ -90,3 +127,14 @@ def export_rank() -> tuple[str, int]:
     path = _unique_path("rank")
     header, rows = rank_rows()
     return path, _write_csv(path, header, rows)
+
+
+def export_gsc() -> tuple[str, int]:
+    path = _unique_path("gsc")
+    header, rows = gsc_rows()
+    return path, _write_csv(path, header, rows)
+
+
+def export_all() -> list[tuple[str, int]]:
+    """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống)."""
+    return [export_rank(), export_gsc()]
