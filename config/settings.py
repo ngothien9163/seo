@@ -85,9 +85,8 @@ REST_BETWEEN_SESSIONS_MAX = 45
 # Gi? l?p gi? cao ?i?m (peak hours)
 PEAK_HOURS_ENABLE = True          # Ch?y nhi?u h?n vào gi? cao ?i?m
 PEAK_HOURS = [(9, 11), (14, 16), (19, 22)]  # Khung gi? VN
-# Danh sách từ khóa KHÔNG nằm ở đây nữa (F2) — xem config/keywords.json,
+# Danh sách từ khóa KHÔNG nằm ở đây nữa — xem config/keywords.json,
 # đọc/ghi qua utils/keywords.py: load_keywords() / save_keywords() / add_keyword().
-KEYWORD_SUGGEST_MIN_IMPRESSIONS = 30   # F2: query GSC có impressions >= ngưỡng này mới được đề xuất
 
 # AI Engine
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -117,3 +116,7 @@ GSC_SITE_URL = "sc-domain:nankybeauty.com"  # Property URL (sc-domain:... hoặc
 GSC_CREDENTIALS_FILE = "config/gsc_service_account.json"  # JSON key service account (docs/SETUP_GSC.md)
 GSC_LOOKBACK_DAYS = 28            # Lấy dữ liệu 28 ngày gần nhất
 GSC_MAX_FETCH_PER_DAY = 4         # Số lần fetch tối đa/ngày (quota API 1200/phút — chỉ để tránh gọi thừa)
+
+# F2 — biến query GSC thành từ khóa cần theo dõi
+KEYWORD_SUGGEST_MIN_IMPRESSIONS = 30   # Ngưỡng impressions (inclusive) để một query được đề xuất
+KEYWORD_SUGGEST_LIMIT = 20             # Số đề xuất hiển thị tối đa mỗi lần (--gsc-keywords / GUI)

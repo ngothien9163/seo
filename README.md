@@ -75,6 +75,13 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
 - GUI: tab **📈 Xếp Hạng** → nút **📤 XUẤT CSV** (in đường dẫn file ra log).
 
+### 9. Từ khóa đề xuất từ Search Console — danh sách biết tự lớn
+
+- Query người dùng thực sự tìm mà bạn **chưa theo dõi**, có impressions ≥ `KEYWORD_SUGGEST_MIN_IMPRESSIONS`, được liệt kê theo `--gsc-keywords` (kèm impressions/clicks/vị trí trung bình).
+- Thêm bằng `python main.py --gsc-add-keyword "..."` (có bước xác nhận, `--yes` cho script). Chống trùng theo dấu tiếng Việt: "noi mi quan 2" và "nối mi quận 2" là một.
+- Danh sách từ khóa nằm trong **`config/keywords.json`** (`{"site", "keywords"}`), không còn hardcode trong settings.py — thêm từ khóa xong, lần `--rank` kế tiếp check luôn.
+- Bảng "Query mới phát hiện" trong báo cáo gộp cũng trỏ thẳng tới lệnh này.
+
 ---
 
 ## Cài đặt
@@ -135,6 +142,8 @@ python main.py --rank       # Kiểm tra vị trí từ khóa trên Google (+ l�
 python main.py --rank-report # Xem báo cáo xếp hạng đã lưu
 python main.py --gsc        # Lấy dữ liệu Search Console (clicks/impressions)
 python main.py --gsc-report # Xem báo cáo Search Console đã lưu
+python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Console (chưa theo dõi)
+python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
 python main.py --export rank|gsc|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console
 ```
 
@@ -160,6 +169,7 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `GSC_LOOKBACK_DAYS` | `28` | Search Console: lấy dữ liệu N ngày gần nhất |
 | `GSC_MAX_FETCH_PER_DAY` | `4` | Search Console: số lần fetch tối đa mỗi ngày |
 | `KEYWORD_SUGGEST_MIN_IMPRESSIONS` | `30` | Search Console: ngưỡng impressions để một query được đề xuất làm từ khóa mới |
+| `KEYWORD_SUGGEST_LIMIT` | `20` | Số từ khóa đề xuất hiển thị tối đa mỗi lần |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
@@ -174,7 +184,8 @@ seo-by-Tung/
 ├── ui.py                    # GUI (CustomTkinter, 7 tab)
 ├── fix_encoding.py          # Tool sửa lỗi encoding tiếng Việt trong source
 ├── config/
-│   └── settings.py          # Toàn bộ cấu hình
+│   ├── settings.py          # Toàn bộ cấu hình
+│   └── keywords.json        # Danh sách từ khóa đang theo dõi (nguồn sự thật duy nhất)
 ├── core/
 │   └── browser_manager.py   # Launch browser, fingerprint anti-detect, profile
 ├── scenarios/
@@ -187,6 +198,7 @@ seo-by-Tung/
 │   ├── onsite_interactions.py # CTA, tabs, gallery, form, search onsite
 │   ├── rank_tracker.py      # Theo dõi vị trí từ khóa trên Google
 │   ├── gsc_client.py        # Google Search Console API client + báo cáo gộp
+│   ├── keywords.py          # Đọc/ghi/add từ khóa (config/keywords.json)
 │   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/

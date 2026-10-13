@@ -424,3 +424,58 @@ def run_gsc_fetch_cli():
     mark_fetch_run()
     print()
     print_report()
+
+
+def run_keyword_suggest_cli(limit: int = None) -> int:
+    """In danh sách query chưa theo dõi đủ ngưỡng impressions. Trả exit code."""
+    rows = latest_gsc_rows()
+    if not rows:
+        print("[Keyword] Chưa có dữ liệu Search Console — lấy trước: python main.py --gsc")
+        return 0
+
+    from utils.keywords import load_keywords
+    tracked = load_keywords()
+    min_imps = getattr(cfg, "KEYWORD_SUGGEST_MIN_IMPRESSIONS", 30)
+    items = suggest_keywords(rows, tracked, min_impressions=min_imps,
+                             limit=limit or getattr(cfg, "KEYWORD_SUGGEST_LIMIT", 20))
+    print("=" * 92)
+    print(f"  TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE — {getattr(cfg, 'GSC_SITE_URL', '?')}")
+    print(f"  Query chưa theo dõi, impressions ≥ {min_imps} "
+          f"(đang track {len(tracked)} từ khóa | snapshot mới nhất)")
+    print("=" * 92)
+    if not items:
+        print("  Không còn query nào đủ ngưỡng. Thử hạ KEYWORD_SUGGEST_MIN_IMPRESSIONS trong config/settings.py.")
+        return 0
+
+    for i, d in enumerate(items, 1):
+        print(f"  {i:>2}. {d['query'][:50]:<50}{d['impressions']:>7} hiện{d['clicks']:>7} clicks"
+              f"  (vị trí TB {d['position']:.1f})")
+    print("-" * 92)
+    print('  Thêm vào theo dõi:  python main.py --gsc-add-keyword "nguyên văn query"')
+    print("  Xếp hạng của từ khóa mới sẽ xuất hiện ở lần check kế tiếp: python main.py --rank")
+    return 0
+
+
+def run_add_keyword_cli(keyword: str, assume_yes: bool = False) -> int:
+    """Thêm một từ khóa vào config/keywords.json (có bước xác nhận).
+
+    Exit code: 0 đã thêm | 1 người dùng hủy hoặc trùng | 2 thiếu tham số.
+    """
+    keyword = " ".join((keyword or "").strip().split())
+    if not keyword:
+        print('[Keyword] ⚠️ Thiếu từ khóa — dùng: python main.py --gsc-add-keyword "nối mi quận 7"')
+        return 2
+
+    if not assume_yes:
+        try:
+            ans = input(f"[Keyword] Thêm '{keyword}' vào danh sách theo dõi? [Y/n] ").strip().lower()
+        except EOFError:
+            ans = "n"
+        if ans not in ("", "y", "yes", "d", "đ"):
+            print("[Keyword] Đã hủy — không ghi gì vào config/keywords.json.")
+            return 1
+
+    from utils.keywords import add_keyword
+    added, msg = add_keyword(keyword)
+    print(f"[Keyword] {'✅' if added else '⚠️'} {msg}")
+    return 0 if added else 1

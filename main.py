@@ -47,6 +47,8 @@ def show_strategy():
     print("  python main.py --rank-report Xem bao cao xep hang da luu")
     print("  python main.py --gsc        Lay du lieu Search Console (clicks/impressions)")
     print("  python main.py --gsc-report Xem bao cao Search Console da luu")
+    print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
+    print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
     print("  python main.py --export rank|gsc|all  Xuat bao cao CSV mo bang Excel")
     print("-" * 65)
 
@@ -118,6 +120,17 @@ if __name__ == "__main__":
     elif "--gsc-report" in sys.argv:
         from utils.gsc_client import print_report
         print_report()
+
+    elif "--gsc-keywords" in sys.argv:
+        from utils.gsc_client import run_keyword_suggest_cli
+        sys.exit(run_keyword_suggest_cli())
+
+    elif "--gsc-add-keyword" in sys.argv:
+        from utils.gsc_client import run_add_keyword_cli
+        i = sys.argv.index("--gsc-add-keyword")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        kw = nxt if nxt and not nxt.startswith("-") else ""
+        sys.exit(run_add_keyword_cli(kw, assume_yes="--yes" in sys.argv))
 
     elif "--export" in sys.argv:
         from utils.exporter import run_export_cli

@@ -110,11 +110,11 @@
 - Modify: `utils/gsc_client.py` (2 hàm CLI), `main.py` (2 nhánh), `README.md`
 - Modify: `_quick_keyword_test.py`
 
-- [ ] **Step 1 — Test fail trước:** `run_add_keyword_cli("  ")` → không ghi file, trả exit code != 0; `--gsc-keywords` khi chưa có snapshot → in "python main.py --gsc" chứ không raise; `main.py` có chứa `'"--gsc-keywords"'` và `'"--gsc-add-keyword"'`.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement:** `run_keyword_suggest_cli(limit)` in bảng xếp hạng đề xuất (query | impressions | clicks | vị trí TB | CTR) kèm dòng hướng dẫn `python main.py --gsc-add-keyword "..."`; `run_add_keyword_cli(kw, assume_yes=False)` → in thông báo, hỏi `[Y/n]` (EOF/không phải y → hủy, không ghi), gọi `add_keyword`, in kết quả + tổng số từ khóa sau khi thêm.
-- [ ] **Step 4 — Verify thật:** `PYTHONIOENCODING=utf-8 python main.py --gsc-keywords` (máy chưa có GSC data → phải in hướng dẫn, exit 0); `python main.py --gsc-add-keyword "test tu khoa tam" --yes` rồi `--rank-report` thấy nó, rồi xóa bằng cách ghi lại list cũ (khôi phục `config/keywords.json` đúng nguyên trạng — verify bằng `git diff` sạch).
-- [ ] **Step 5 — Commit:** `feat: F2 cli --gsc-keywords va --gsc-add-keyword (xac nhan truoc khi ghi)`
+- [x] **Step 1 — Test fail trước:** `run_add_keyword_cli("  ")` → không ghi file, trả exit code != 0; `--gsc-keywords` khi chưa có snapshot → in "python main.py --gsc" chứ không raise; `main.py` có chứa `'"--gsc-keywords"'` và `'"--gsc-add-keyword"'`.
+- [x] **Step 2 — Chạy → FAIL.**
+- [x] **Step 3 — Implement:** `run_keyword_suggest_cli(limit)` in bảng xếp hạng đề xuất (query | impressions | clicks | vị trí TB | CTR) kèm dòng hướng dẫn `python main.py --gsc-add-keyword "..."`; `run_add_keyword_cli(kw, assume_yes=False)` → in thông báo, hỏi `[Y/n]` (EOF/không phải y → hủy, không ghi), gọi `add_keyword`, in kết quả + tổng số từ khóa sau khi thêm.
+- [x] **Step 4 — Verify thật:** `PYTHONIOENCODING=utf-8 python main.py --gsc-keywords` (máy chưa có GSC data → phải in hướng dẫn, exit 0); `python main.py --gsc-add-keyword "test tu khoa tam" --yes` rồi `--rank-report` thấy nó, rồi xóa bằng cách ghi lại list cũ (khôi phục `config/keywords.json` đúng nguyên trạng — verify bằng `git diff` sạch).
+- [x] **Step 5 — Commit:** `feat: F2 cli --gsc-keywords va --gsc-add-keyword (xac nhan truoc khi ghi)`
 
 ### Task 4: Khung "Từ khóa đề xuất" trong tab 📈 Xếp Hạng
 
