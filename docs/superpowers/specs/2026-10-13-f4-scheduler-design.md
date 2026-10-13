@@ -1,7 +1,7 @@
 # Spec: F4 — Scheduler tự động (chạy nền không cần mở GUI)
 
 - Ngày: 2026-10-13
-- Trạng thái: **Chờ owner duyệt 4 quyết định ở mục 2** (code chưa viết)
+- Trạng thái: **ĐÃ DUYẾT 2026-10-13** — owner chọn phương án A (Windows Task Scheduler làm đồng hồ) và job traffic **TẮT** tự chạy (chỉ rank + GSC). 2.3 (không chạy bù qua ngày) và 2.4 (`data/` + lock stale 20 phút) giữ như đề xuất. Plan: `docs/superpowers/plans/2026-10-13-f4-scheduler.md`.
 - Phân loại: Architectural — thêm một vòng đời process mới, đụng file state mới và quyết định "để tự động chạy phần nào" (rủi ro thật).
 - Card gốc: `docs/superpowers/plans/2026-10-06-roadmap-10-tinh-nang.md` (mục F4).
 
