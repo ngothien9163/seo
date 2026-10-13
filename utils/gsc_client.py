@@ -242,6 +242,43 @@ def _match_keywords(rows: dict, keywords: list) -> tuple[dict, dict]:
     return matched, unmatched
 
 
+# ─── ĐỀ XUẤT TỪ KHÓA MỚI (F2) ───────────────────────────────────────────────
+
+def latest_gsc_rows() -> dict:
+    """rows của snapshot Search Console mới nhất — {} khi chưa từng fetch."""
+    snaps = _load_history().get("snapshots", {})
+    if not snaps:
+        return {}
+    return snaps[sorted(snaps.keys())[-1]].get("rows", {}) or {}
+
+
+def suggest_keywords(rows: dict, tracked: list = None,
+                     min_impressions: int = None, limit: int = 20) -> list[dict]:
+    """
+    Query đang có impressions mà CHƯA theo dõi → ứng viên từ khóa mới.
+
+    rows: {query: {clicks, impressions, position, ctr}} (thường lấy từ latest_gsc_rows())
+    tracked: danh sách từ khóa đang theo dõi — None → đọc config/keywords.json
+    min_impressions: None → cfg.KEYWORD_SUGGEST_MIN_IMPRESSIONS (ngưỡng inclusive)
+    Trả về list [{"query", "impressions", "clicks", "position", "ctr"}] theo impressions giảm dần.
+    """
+    if tracked is None:
+        from utils.keywords import load_keywords
+        tracked = load_keywords()
+    if min_impressions is None:
+        min_impressions = getattr(cfg, "KEYWORD_SUGGEST_MIN_IMPRESSIONS", 30)
+
+    _, unmatched = _match_keywords(rows or {}, list(tracked))
+    out = [{"query": q,
+            "impressions": r.get("impressions", 0),
+            "clicks": r.get("clicks", 0),
+            "position": r.get("position", 0.0),
+            "ctr": r.get("ctr", 0.0)}
+           for q, r in unmatched.items() if r.get("impressions", 0) >= min_impressions]
+    out.sort(key=lambda d: (-d["impressions"], d["query"]))
+    return out[:limit]
+
+
 # ─── BÁO CÁO GỘP ─────────────────────────────────────────────────────────────
 
 def build_report(tail_spark: int = 8) -> str:
@@ -320,6 +357,8 @@ def build_report(tail_spark: int = 8) -> str:
         for q, r in top:
             lines.append(f"    {q[:50]:<50}{r.get('impressions', 0):>7} hiện{r.get('clicks', 0):>7} clicks"
                          f"  (vị trí TB {r.get('position', 0.0):.1f})")
+        lines.append(f"  Biến query thành từ khóa theo dõi (ngưỡng ≥ {getattr(cfg, 'KEYWORD_SUGGEST_MIN_IMPRESSIONS', 30)} "
+                     f"impressions): python main.py --gsc-keywords")
 
     lines.append("-" * 104)
     total_clicks = sum(r.get("clicks", 0) for r in rows.values())

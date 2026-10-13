@@ -93,16 +93,16 @@
 - `suggest_keywords(rows: dict, tracked: list, min_impressions: int = None, limit: int = 20) -> list[dict]` — mỗi phần tử `{"query", "impressions", "clicks", "position", "ctr"}`, sắp impressions giảm dần. `min_impressions=None` → đọc `cfg.KEYWORD_SUGGEST_MIN_IMPRESSIONS`.
 - `latest_gsc_rows() -> dict` — rows của snapshot mới nhất, `{}` khi chưa có.
 
-- [ ] **Step 1 — Test fail trước:**
+- [x] **Step 1 — Test fail trước:**
   - Query khớp keyword đang theo dõi (kể cả khác dấu: "noi mi quan 2" vs "nối mi quận 2") → **không** xuất hiện trong đề xuất.
   - Query impressions < ngưỡng → bị loại; đúng ngưỡng (== 30) → được giữ (ranh giới inclusive).
   - Kết quả sắp theo impressions giảm dần; `limit=2` cắt còn 2.
   - `rows={}` hoặc tracked rỗng → không crash (`[]` với rows rỗng; mọi query khi tracked = [] nhưng vẫn phải qua ngưỡng impressions).
   - `latest_gsc_rows()` khi `gsc_history.json` chưa tồn tại → `{}`.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement** (`suggest_keywords` gọi `_match_keywords(rows, tracked)` rồi lọc `unmatched`; `latest_gsc_rows` đọc `_load_history()`), `py_compile`.
-- [ ] **Step 4 — Chạy test → ALL PASS.**
-- [ ] **Step 5 — Commit:** `feat: F2 bo de xuat tu khoa tu GSC (suggest_keywords, nguong impressions)`
+- [x] **Step 2 — Chạy → FAIL.**
+- [x] **Step 3 — Implement** (`suggest_keywords` gọi `_match_keywords(rows, tracked)` rồi lọc `unmatched`; `latest_gsc_rows` đọc `_load_history()`), `py_compile`.
+- [x] **Step 4 — Chạy test → ALL PASS.**
+- [x] **Step 5 — Commit:** `feat: F2 bo de xuat tu khoa tu GSC (suggest_keywords, nguong impressions)`
 
 ### Task 3: CLI `--gsc-keywords` + `--gsc-add-keyword`
 
