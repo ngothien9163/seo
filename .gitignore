@@ -17,3 +17,5 @@ reports/
 _test_*
 *.log
 _quick_*.py
+# F3 state chống spam cảnh báo
+data/

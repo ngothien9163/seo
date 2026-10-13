@@ -120,3 +120,13 @@ GSC_MAX_FETCH_PER_DAY = 4         # Số lần fetch tối đa/ngày (quota API 
 # F2 — biến query GSC thành từ khóa cần theo dõi
 KEYWORD_SUGGEST_MIN_IMPRESSIONS = 30   # Ngưỡng impressions (inclusive) để một query được đề xuất
 KEYWORD_SUGGEST_LIMIT = 20             # Số đề xuất hiển thị tối đa mỗi lần (--gsc-keywords / GUI)
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN F: CẢNH BÁO TỤT HẠNG (F3) — Telegram, mặc định TẮT
+# ────────────────────────────────────────────────────────────────────────────
+ALERTS_ENABLE = False             # Bật = gửi Telegram; Tắt = rules vẫn chạy, chỉ in console
+RANK_ALERT_DROP = 5               # Báo khi hạng rơi >= N vị trí so với lần check liền trước
+RANK_ALERT_TOP10_FALL = True      # Báo khi từ khóa đang trong Top 10 bị rớt ra ngoài
+TELEGRAM_BOT_TOKEN = ""           # Token từ @BotFather — xem docs/SETUP_ALERTS.md
+TELEGRAM_CHAT_ID = ""             # Chat id nhận tin (cá nhân hoặc nhóm)
+ALERTS_STATE_DIR = "data"         # Thư mục state chống spam (1 tin/ngày/từ khóa)

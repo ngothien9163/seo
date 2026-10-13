@@ -45,6 +45,7 @@
 | Khi nào evaluate | **Trong** `run_rank_check` sau khi `save_check_result` (không phải một lệnh riêng) | Owner không phải nhớ chạy thêm bước; scheduler F4 tái dùng đúng hàm này. |
 | GSC có vào rules không? | Chưa — F3 chỉ rank. GSC hook chỉ gọi lại cùng rules engine (dùng snapshot rank gần nhất) | CTR/rank GSC bất thường để phase sau (roadmap ghi rõ ngoài phạm vi). |
 | Trạng thái "đã gửi" có xoá theo thời gian? | State giữ 14 ngày, prune mỗi lần ghi | File không phình vô hạn; 14 ngày đủ dài để debug. |
+| Từ khóa đang có hạng mà biến mất khỏi top N (old > 10 → None)? | **Báo, `kind="drop"`, `delta=None`** (quyết định trong Task 1 khi test replay lộ ra) | Không tính được số hạng tụt nhưng "rơi khỏi vùng đo được" là tín hiệu thật; để im lặng thì một từ khóa đang hạng 15 biến mất sẽ bị coi là không có gì xảy ra. |
 
 ---
 
@@ -65,19 +66,19 @@
 - `mark_sent(keyword: str, day: str = None) -> None` — prune state cũ hơn 14 ngày.
 - `pending_alerts() -> list[Alert]` — `evaluate_from_history()` lọc bỏ cái đã gửi hôm nay (đây là hàm mà Task 3 hook và Task 4 CLI/GUI gọi).
 
-- [ ] **Step 1 — Test fail trước:**
+- [x] **Step 1 — Test fail trước:**
   - `evaluate({})` → `[]`; 1 check → `[]`.
   - Drop: `{"t1": {"kw": {"pos": 5}}, "t2": {"kw": {"pos": 10}}}` → 1 alert `kind="drop"`, `delta=5`; `pos` 5→9 → `[]` (ranh giới dưới ngưỡng).
-  - Top10 fall: 9 → 12 → **một** alert (kind `"top10_fall"`); 3 → 4 → `[]`; 12 → 20 → `[]` (đã ngoài top 10 từ trước, không báo lại).
-  - `None` handling: 8 → None → `kind="top10_fall"`, message chứa "khỏi Top 10"; None → 8 → `[]` (hạng tốt lên, và không có mốc cũ để tính drop); None → None → `[]`.
+  - Top10 fall: 9 → 12 → **một** alert (kind `"top10_fall"`); 3 → 4 → `[]`; 12 → 20 → **một** alert `kind="drop"` (rule drop chạy vô điều kiện; điều 12→20 không muốn nói là *im lặng*, mà là không được tính là `top10_fall` vì chưa từng ở Top 10).
+  - `None` handling: 8 → None → `kind="top10_fall"`, message chứa "khỏi Top 10"; None → 8 → `[]` (hạng tốt lên, và không có mốc cũ để tính drop); None → None → `[]`; 15 → None → `kind="drop"`, `delta=None`, message chứa "top 100" (rơi khỏi vùng đo được là tin, không cần con số).
   - Cải thiện hạng: 20 → 6 → `[]`; 12 → 8 → `[]` (đi lên, không phải đối tượng cảnh báo).
   - Nhiều từ khóa cùng rơi → mỗi kw một alert; message chứa con số (`"5"`), tên kw, và domain/không crash khi thiếu url.
   - `message` là chuỗi tiếng Việt hoàn chỉnh, tự gửi được (không cần caller ghép chữ).
   - State: `mark_sent("kw")` rồi `pending_alerts()` (seed history + STATE_FILE tạm) → kw đó biến mất; `day` hôm qua → **không** chặn; `ALERTS` state hỏng JSON → coi như rỗng, không raise.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement `utils/alerts.py`** (task 1 chỉ rules + state, chưa sender) + settings + `.gitignore`.
-- [ ] **Step 4 — Chạy test → ALL PASS**, `py_compile`.
-- [ ] **Step 5 — Commit:** `feat: F3 rules engine canh bao tut hang + state chong spam 1 tin/ngay/tu khoa`
+- [x] **Step 2 — Chạy → FAIL.** (`ModuleNotFoundError: No module named 'utils.alerts'`)
+- [x] **Step 3 — Implement `utils/alerts.py`** (task 1 chỉ rules + state, chưa sender) + settings + `.gitignore`.
+- [x] **Step 4 — Chạy test → ALL PASS**, `py_compile`. (31 test PASS; 4 suite cũ vẫn PASS; probe thật: `data/alerts_state.json` sinh đúng đường dẫn rồi xoá sạch)
+- [x] **Step 5 — Commit:** `feat: F3 rules engine canh bao tut hang + state chong spam 1 tin/ngay/tu khoa`
 
 ### Task 2: Telegram sender (bất ngờ không được giết flow chính)
 
@@ -145,3 +146,4 @@
 - Rules chỉ nhìn rank SERP; chưa cảnh báo CTR/impressions bất thường từ GSC (ngoài phạm vi card F3, để phase sau).
 - Chưa có email/Slack/Discord.
 - State chống spam theo ngày local máy, không theo timezone Search Console.
+- Bất đối xứng có chủ đích: `None → có hạng` và `thiếu key "pos"` / từ khóa vắng mặt ở check mới đều **im lặng** (không đủ căn cứ, và lần check giữa chừng vì CAPTCHA không được thành nguồn tin giả). Chỉ `có hạng → None` mới báo.
