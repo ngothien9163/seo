@@ -39,6 +39,8 @@
 
 ## F1 — Export báo cáo CSV
 
+**Trạng thái: ✅ XONG 2026-10-13** — `utils/exporter.py`, plan `2026-10-13-f1-export-csv.md`, test `_quick_export_test.py`.
+
 **Mục tiêu:** rank history + GSC snapshot xuất thành CSV mở bằng Excel (kể cả Excel tiếng Việt — UTF-8 BOM).
 
 **Phạm vi:** CLI `--export rank|gsc|all` + nút Export trong tab "📈 Xếp Hạng"; file ghi vào `reports/export_<ngày>_<loại>.csv`. **Ngoài phạm vi:** xlsx thật (cần thư viện), PDF, chart ảnh.
@@ -51,6 +53,8 @@
 
 ## F2 — Pipeline keyword từ GSC
 
+**Trạng thái: ✅ XONG 2026-10-13** — `config/keywords.json` + `utils/keywords.py`, plan `2026-10-13-f2-keyword-pipeline.md`, test `_quick_keyword_test.py`.
+
 **Mục tiêu:** mục "Query mới phát hiện" trong báo cáo gộp thành đầu vào thật: query có impressions đủ ngưỡng mà chưa track → đề xuất, xác nhận → thêm vào danh sách từ khóa.
 
 **Phạm vi:** hàm đề xuất (filter impressions ≥ X trong lookback), CLI in gợi ý + `--gsc-add-keyword "query"` ghi vào cấu hình, nút "+ Thêm vào theo dõi" trong GUI. **Ngoài phạm vi:** tự động thêm không hỏi; đo volume từ nguồn ngoài (Ahrefs/SEMrush).
@@ -62,6 +66,8 @@
 **Tiêu chí hoàn thành:** query có dấu/không dấu vẫn nhận ra là trùng; keyword đã track không bị đề xuất lại; thêm xong, rank tracker check được kw mới ở lần chạy sau; file keywords luôn valid JSON sau khi ghi.
 
 ## F3 — Cảnh báo tụt hạng
+
+**Trạng thái: ✅ XONG 2026-10-13 (code) — còn 1 bước phía owner:** `utils/alerts.py` + hook trong rank check, plan `2026-10-13-f3-rank-alerts.md`, test `_quick_alert_test.py` (59 test, sender mock). Chưa có tin Telegram **thật** cho tới khi owner tạo bot và cấp token/chat id theo `docs/SETUP_ALERTS.md`; `ALERTS_ENABLE` vẫn đang `False`.
 
 **Mục tiêu:** hạng rơi quá N vị trí hoặc rớt khỏi Top 10 → gửi Telegram (fallback: in console). Là bộ não cảnh báo dùng chung, sau này scheduler (F4) chỉ cần gọi.
 
