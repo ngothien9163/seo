@@ -624,6 +624,8 @@ class TrafficBotUI(ctk.CTk):
         save_snapshot(rows, (today - timedelta(days=days - 1)).isoformat(), today.isoformat())
         mark_fetch_run()
         print(f"[GSC] ✅ Đã lưu {len(rows)} query — báo cáo gộp đã cập nhật.")
+        from utils.alerts import hint_pending
+        hint_pending()   # GUI không đi qua run_gsc_fetch_cli → nhắc ở đây
 
     def _gsc_fetch_worker(self):
         try:

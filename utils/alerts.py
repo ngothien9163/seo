@@ -300,7 +300,11 @@ def send(message: str) -> bool:
 
 
 def notify(alerts: list[dict]) -> int:
-    """Gửi từng cảnh báo (bỏ qua từ khóa đã gửi hôm nay). Trả số tin đã giao."""
+    """
+    Gửi từng cảnh báo (bỏ qua từ khóa đã gửi hôm nay). Trả số tin đã giao.
+    Mạng/Telegram hỏng ngay tin đầu tiên → dừng: không có nghĩa 18 từ khóa
+    cùng lỗi mạng và mỗi lần retry mất tới 15 giây.
+    """
     sent = 0
     for alert in alerts or []:
         keyword = (alert or {}).get("keyword")
@@ -310,7 +314,32 @@ def notify(alerts: list[dict]) -> int:
         if send(message):
             mark_sent(keyword)
             sent += 1
+        else:
+            _log("Dừng lượt cảnh báo này — chưa gửi sẽ được thử lại ở lần check sau.")
+            break
     return sent
+
+
+def check_and_notify() -> int:
+    """Hook sau rank check: evaluate lịch sử + giao cảnh báo đang chờ. Không bao giờ raise."""
+    try:
+        return notify(pending_alerts())
+    except Exception as e:
+        _log(f"⚠️ Không chạy được bộ cảnh báo ({type(e).__name__}: {str(e)[:120]})"
+             f" — xếp hạng vẫn được lưu bình thường.")
+        return 0
+
+
+def hint_pending() -> int:
+    """Hook sau GSC fetch: chỉ nhắc số cảnh báo đang chờ, KHÔNG gửi (rank check mới là nơi gửi)."""
+    try:
+        pending = pending_alerts()
+    except Exception as e:
+        _log(f"⚠️ Không kiểm tra được cảnh báo chờ ({type(e).__name__}: {str(e)[:120]})")
+        return 0
+    if pending:
+        _log(f"{len(pending)} cảnh báo xếp hạng đang chờ — gửi ngay: python main.py --alerts")
+    return len(pending)
 
 
 def run_alert_check_cli() -> int:

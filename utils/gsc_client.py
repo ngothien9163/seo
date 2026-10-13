@@ -424,6 +424,8 @@ def run_gsc_fetch_cli():
     mark_fetch_run()
     print()
     print_report()
+    from utils.alerts import hint_pending
+    hint_pending()   # rank history chưa đổi → chỉ nhắc, không gửi trùng
 
 
 def run_keyword_suggest_cli(limit: int = None) -> int:

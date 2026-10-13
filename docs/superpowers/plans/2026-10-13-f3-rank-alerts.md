@@ -116,14 +116,14 @@
 - Modify: `utils/gsc_client.py` (cuối `run_gsc_fetch_cli` + `_gsc_fetch_sync` trong `ui.py` nếu cần)
 - Modify: `_quick_alert_test.py`
 
-- [ ] **Step 1 — Test fail trước (AST + hành vi):**
+- [x] **Step 1 — Test fail trước (AST + hành vi):**
   - AST: trong `rank_tracker.run_rank_check`, lời gọi `alerts.check_and_notify(...)` (hoặc `notify(pending...)`) xuất hiện **sau** `save_check_result(...)` — so line number của hai node Call.
   - Behavior: seed history giả, `ALERTS_ENABLE=True` nhưng token rỗng → `run_rank_check` với một `FakePage` (chỉ cần các coroutine `goto/eval_on_selector_all`...) — nếu quá nặng, thay bằng test mức hàm: `check_and_notify()` chạy không raise khi chưa cấu hình, và raise-safe khi sender ném exception (monkeypatch `send` raise).
   - `check_and_notify()` trả `int` (số tin gửi) và không bao giờ raise ở mọi nhánh.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement** `alerts.check_and_notify()` + 2 hook (rank sau khi lưu; GSC sau khi fetch xong — rank history không đổi nên GSC hook chỉ in hint nếu có cảnh báo chờ, không gửi trùng).
-- [ ] **Step 4 — Chạy test → ALL PASS** + toàn bộ 5 suite cũ vẫn PASS.
-- [ ] **Step 5 — Commit:** `feat: F3 hook canh bao sau rank check va sau GSC fetch (khong bao loi khi Telegram chap chenh)`
+- [x] **Step 2 — Chạy → FAIL** (8 test: thiếu `check_and_notify`/`hint_pending`, chưa có hook trong `run_rank_check`).
+- [x] **Step 3 — Implement** `alerts.check_and_notify()` + `hint_pending()` + hook (rank sau khi lưu, GSC CLI + GSC worker của GUI chỉ nhắc không gửi) + `notify` dừng ngay tin đầu tiên thất bại.
+- [x] **Step 4 — Chạy test → ALL PASS** (55 test) + 4 suite cũ vẫn PASS + **verify thật**: chạy `run_rank_check` với page giả 2 mốc (hạng 4 → 28) in ra `[Alert] 🚨 "serum duong da" rớt khỏi Top 10 ...`, state `sent` có từ khóa, `pending_alerts()` = 0.
+- [x] **Step 5 — Commit:** `feat: F3 hook canh bao sau rank check va sau GSC fetch (khong bao loi khi Telegram chap chenh)`
 
 ### Task 4: CLI `--alerts` + nút GUI + tài liệu
 
@@ -150,3 +150,4 @@
 - Chưa có email/Slack/Discord.
 - State chống spam theo ngày local máy, không theo timezone Search Console.
 - Bất đối xứng có chủ đích: `None → có hạng` và `thiếu key "pos"` / từ khóa vắng mặt ở check mới đều **im lặng** (không đủ căn cứ, và lần check giữa chừng vì CAPTCHA không được thành nguồn tin giả). Chỉ `có hạng → None` mới báo.
+- `rank_tracker.save_check_result` keyed theo `isoformat(timespec="seconds")` → hai lần check **cùng giây** sẽ ghi đè nhau và làm mất mốc so sánh của F3. Không xảy ra qua đường thường (`RANK_CHECK_MIN_INTERVAL=3600`), chỉ thấy khi test ép 2 check chạy sát nhau; fix thuộc về rank_tracker (F1 đã ghi nhận history là nguồn), chưa làm trong plan này.

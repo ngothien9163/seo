@@ -29,6 +29,7 @@ from urllib.parse import quote, urlparse
 from playwright.async_api import Page
 
 import config.settings as cfg
+from utils import alerts
 from utils.keywords import load_keywords
 from utils.interactions import random_sleep, human_scroll
 from tests.test_search_flow import (
@@ -270,6 +271,7 @@ async def run_rank_check(page: Page, keywords: list = None, domain: str = None,
     if results:
         save_check_result(results, domain)
         print(f"[Rank] Đã lưu kết quả {len(results)}/{len(order)} từ khóa vào rank_history.json.")
+        alerts.check_and_notify()   # phải chạy SAU khi lịch sử đã ghi mốc mới
 
     return results, captcha_hit
 
