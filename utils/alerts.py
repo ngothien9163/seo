@@ -16,11 +16,14 @@ import json
 import os
 from datetime import date, timedelta
 
+import requests
+
 import config.settings as cfg
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_KEEP_DAYS = 14        # state chống spam giữ bao nhiêu ngày trước khi prune
 TOP10 = 10                  # ngưỡng "Top 10" trong thông điệp
+SEND_TIMEOUT = 15           # giây — sender không bao giờ được treo flow gọi nó
 
 # Sentinel: từ khóa không có dữ liệu hạng ở mốc đó (khác với pos = None = không vào top)
 _MISSING = object()
@@ -204,3 +207,131 @@ def mark_sent(keyword: str, day: str = None) -> None:
 def pending_alerts() -> list[dict]:
     """Cảnh báo của lần check gần nhất, đã lọc bỏ từ khóa gửi xong hôm nay."""
     return [a for a in evaluate_from_history() if not already_sent_today(a["keyword"])]
+
+
+# ─── 3. SENDER: Telegram, fallback console ───────────────────────────────────
+
+def _telegram_fields() -> tuple[str, str]:
+    """Env var thắng settings.py — token không buộc phải nằm trong file được git theo dõi."""
+    token = (os.getenv("TELEGRAM_BOT_TOKEN")
+             or str(getattr(cfg, "TELEGRAM_BOT_TOKEN", "") or "")).strip()
+    chat = (os.getenv("TELEGRAM_CHAT_ID")
+            or str(getattr(cfg, "TELEGRAM_CHAT_ID", "") or "")).strip()
+    return token, chat
+
+
+def is_configured() -> tuple[bool, str]:
+    """(token + chat id đã đủ chưa, thông điệp hướng dẫn tiếng Việt)."""
+    token, chat = _telegram_fields()
+    if token and chat:
+        return True, "Telegram đã sẵn sàng."
+    return False, ("Chưa cấu hình Telegram — thêm TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID "
+                   "vào config/settings.py (hướng dẫn: docs/SETUP_ALERTS.md).")
+
+
+def delivery_mode() -> str:
+    """Kênh thực sự dùng lúc này: 'telegram' hoặc 'console'."""
+    if not bool(getattr(cfg, "ALERTS_ENABLE", False)):
+        return "console"
+    ok, _ = is_configured()
+    return "telegram" if ok else "console"
+
+
+def _scrub(text: str, *secrets: str) -> str:
+    """Token/exception của requests có chứa URL mang bot token → bóc trước khi in."""
+    out = str(text)
+    for s in secrets:
+        if s:
+            out = out.replace(s, "***")
+    return out
+
+
+def _log(message: str) -> None:
+    print(f"[Alert] {message}")
+
+
+def send(message: str) -> bool:
+    """
+    Giao một tin. Trả True = đã thông báo xong (kể cả qua console), False = thất bại
+    và caller nên thử lại ở lần check sau. Không bao giờ raise.
+    """
+    message = (message or "").strip()
+    if not message:
+        return False
+
+    if not bool(getattr(cfg, "ALERTS_ENABLE", False)):
+        _log(message)
+        _log("ALERTS_ENABLE=False → mới chỉ in ra console, chưa gửi đi đâu.")
+        return True
+
+    ok, hint = is_configured()
+    if not ok:
+        _log(message)
+        _log(hint)
+        return True
+
+    token, chat = _telegram_fields()
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat, "text": message},
+            timeout=SEND_TIMEOUT,
+        )
+    except Exception as e:            # RequestException + mọi lỗi network khác
+        _log(f"⚠️ Không gọi được Telegram ({type(e).__name__}: "
+             f"{_scrub(str(e)[:160], token, chat)}) — tin chưa gửi.")
+        return False
+
+    try:
+        data = resp.json()
+    except Exception as e:
+        _log(f"⚠️ Telegram trả phản hồi không đọc được ({type(e).__name__}) — tin chưa gửi.")
+        return False
+
+    if isinstance(data, dict) and data.get("ok"):
+        _log(f"Đã gửi 1 cảnh báo qua Telegram (chat {chat[-4:]}).")
+        return True
+
+    reason = ""
+    if isinstance(data, dict):
+        reason = str(data.get("description") or "")
+    _log(f"⚠️ Telegram từ chối ({reason or 'lỗi không rõ'}) — tin chưa gửi.")
+    return False
+
+
+def notify(alerts: list[dict]) -> int:
+    """Gửi từng cảnh báo (bỏ qua từ khóa đã gửi hôm nay). Trả số tin đã giao."""
+    sent = 0
+    for alert in alerts or []:
+        keyword = (alert or {}).get("keyword")
+        message = (alert or {}).get("message")
+        if not keyword or not message or already_sent_today(keyword):
+            continue
+        if send(message):
+            mark_sent(keyword)
+            sent += 1
+    return sent
+
+
+def run_alert_check_cli() -> int:
+    """Entry `--alerts`: in cảnh báo đang chờ + kênh giao hàng. Không gửi trùng."""
+    mode = delivery_mode()
+    print("=" * 70)
+    print("  CANH BAO TUT HANG (F3)")
+    print(f"  Kênh giao hàng: {mode}")
+    print("=" * 70)
+    if mode == "console":
+        enabled = bool(getattr(cfg, "ALERTS_ENABLE", False))
+        if not enabled:
+            _log("ALERTS_ENABLE=False → bật trong config/settings.py PHẦN F mới gửi Telegram.")
+        else:
+            _log(is_configured()[1])
+    pending = pending_alerts()
+    if not pending:
+        _log("Không có cảnh báo mới (lịch sử chưa đủ 2 lần check, hoặc hạng không rơi).")
+        _log("Xem lịch sử: python main.py --rank-report")
+        return 0
+    sent = notify(pending)
+    _log(f"{len(pending)} cảnh báo | {sent} tin đã giao qua kênh {mode} "
+         f"| mỗi từ khóa tối đa 1 tin/ngày.")
+    return 0

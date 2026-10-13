@@ -38,7 +38,7 @@
 
 | Câu hỏi | Chốt | Lý do |
 |---|---|---|
-| Nguồn gửi | **Telegram bot** (fallback console khi chưa cấu hình) | Miễn phí, không cần SMTP server, owner tạo bot 1 lần qua @BotFather (hướng dẫn 5 dòng trong README). Email/Slack ngoài phạm vi card F3. |
+| Nguồn gửi | **Telegram bot** (fallback console khi chưa cấu hình) | Miễn phí, không cần SMTP server, owner tạo bot 1 lần qua @BotFather (hướng dẫn 5 bước + nhóm/kênh + troubleshooting trong `docs/SETUP_ALERTS.md`). Email/Slack ngoài phạm vi card F3. |
 | Mốc so sánh | **Lần check liền trước**, ngưỡng rơi `>= 5` hạng | Trung bình 3 lần làm chậm tín hiệu thêm 2 ngày; rank check đã có cooldown 1 giờ nên lần trước là mốc đủ tin cậy. |
 | Ngưỡng | `RANK_ALERT_DROP = 5`, `RANK_ALERT_TOP10_FALL = True` | Theo khuyến nghị roadmap. |
 | Chống spam | 1 tin/ngày/từ khóa, state `data/alerts_state.json` | Check 3 lần/ngày → không gửi 3 tin cho một chuyện. |
@@ -46,6 +46,8 @@
 | GSC có vào rules không? | Chưa — F3 chỉ rank. GSC hook chỉ gọi lại cùng rules engine (dùng snapshot rank gần nhất) | CTR/rank GSC bất thường để phase sau (roadmap ghi rõ ngoài phạm vi). |
 | Trạng thái "đã gửi" có xoá theo thời gian? | State giữ 14 ngày, prune mỗi lần ghi | File không phình vô hạn; 14 ngày đủ dài để debug. |
 | Từ khóa đang có hạng mà biến mất khỏi top N (old > 10 → None)? | **Báo, `kind="drop"`, `delta=None`** (quyết định trong Task 1 khi test replay lộ ra) | Không tính được số hạng tụt nhưng "rơi khỏi vùng đo được" là tín hiệu thật; để im lặng thì một từ khóa đang hạng 15 biến mất sẽ bị coi là không có gì xảy ra. |
+| Token điền ở `config/settings.py` bắt buộc? | **Không** — env `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` đọc trước, settings chỉ là fallback (chốt khi viết `docs/SETUP_ALERTS.md`) | `settings.py` đang được git theo dõi; bắt owner dán token vào đó là mời commit secret. Envvar không thêm dependency nào. |
+| In lỗi network thế nào cho không lộ token? | `_scrub()` bóc token + chat id khỏi text của exception trước khi in | `requests` nối URL (dạng `/bot<token>/sendMessage`) vào message của `ConnectionError` → in thô là lộ token ra console/log. |
 
 ---
 
@@ -94,17 +96,18 @@
 - `notify(alerts: list[Alert]) -> int` — gửi từng alert (bỏ qua kw đã gửi hôm nay), chỉ `mark_sent` khi send trả `True`, trả số tin đã gửi.
 - `run_alert_check_cli()` — in danh sách cảnh báo hiện tại + mode giao hàng.
 
-- [ ] **Step 1 — Test fail trước** (monkeypatch `alerts.requests.post` bằng fake đếm lời gọi):
+- [x] **Step 1 — Test fail trước** (monkeypatch `al.requests` bằng fake đối tượng — `send()` tra tên module trong namespace của `alerts`, nên patch thuộc tính là đủ, không cần `unittest.mock`):
   - `ALERTS_ENABLE=False` → `requests.post` **0** lần, output có prefix `[Alert]` và nội dung message.
   - `ALERTS_ENABLE=True`, token rỗng → 0 lần post, in hướng dẫn `SETUP_ALERTS`.
   - `ALERTS_ENABLE=True`, token+chat đủ → đúng 1 lần post, URL chứa token, payload `{"chat_id":..., "text":...}`, `parse_mode` không làm nổ; mock trả `{"ok": true}` → `send` trả True và `mark_sent` được gọi.
   - Mock post raise `requests.ConnectionError` → `send` trả False, `notify` **không** mark_sent, không exception lan ra ngoài.
   - Mock trả `{"ok": false, "description": "..."}` → trả False + in mô tả, không in token.
   - `notify([...3 alert, 1 đã gửi hôm nay...])` → chỉ gửi 2 tin.
-- [ ] **Step 2 — Chạy → FAIL.**
-- [ ] **Step 3 — Implement** sender + `notify` + `docs/SETUP_ALERTS.md`.
-- [ ] **Step 4 — Chạy test → ALL PASS.**
-- [ ] **Step 5 — Commit:** `feat: F3 telegram sender + notify (that bai khong giet flow, khong in token)`
+  - (bổ sung khi implement) `ConnectionError` có message chứa URL `/bot<token>/sendMessage` → console **không** được chứa token; env var `TELEGRAM_*` thay thế được settings; gửi hỏng → **không** `mark_sent`.
+- [x] **Step 2 — Chạy → FAIL** (14 test ERROR `has no attribute 'send'/'notify'/'is_configured'`).
+- [x] **Step 3 — Implement** sender + `notify` + `run_alert_check_cli` + `docs/SETUP_ALERTS.md`.
+- [x] **Step 4 — Chạy test → ALL PASS** (46 test) + verify thật `run_alert_check_cli()` trên máy chưa cấu hình → in `Kênh giao hàng: console`, exit 0.
+- [x] **Step 5 — Commit:** `feat: F3 telegram sender + notify (that bai khong giet flow, khong in token)`
 
 ### Task 3: Hook vào rank check và GSC fetch
 
