@@ -77,13 +77,16 @@
 
 ### Task 3: Cấu hình PHẦN G + CLI
 
-**Files:** Modify `config/settings.py`, `main.py`, `_quick_scheduler_test.py`.
+**Files:** Modify `config/settings.py`, `main.py`, `utils/scheduler.py` (`format_status`/`run_status_cli` + giờ trong `JOBS`), Modify `_quick_scheduler_test.py`.
 
-- [ ] Step 1 — Test fail trước: settings có `SCHEDULER_RANK_HOURS`/`SCHEDULER_GSC_HOURS`/`SCHEDULER_TRAFFIC_ENABLE=False`/`SCHEDULER_LOCK_STALE=1200`; `main.py` chứa `"--run-job"` và `"--scheduler-status"`; help in 2 lệnh mới.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement CLI: `--run-job rank` → exit code từ `run_job`; tên sai → exit 2 + in `JOBS`; `--scheduler-status` → bảng job + 5 run gần nhất + "đang chạy".
-- [ ] Step 4 — **Verify thật**: `python main.py --run-job gsc` (máy chưa có credentials → `[Scheduler] ...` exit 0 hoặc 1 tùy guard, không traceback); `--run-job saymax` → exit 2; `--scheduler-status` trên state rỗng → in bảng "chưa chạy lần nào".
-- [ ] Step 5 — Commit: `feat: F4 cli --run-job va --scheduler-status + settings Phan G`
+**Interfaces:** `SCHEDULER_RANK_HOURS`/`SCHEDULER_GSC_HOURS`/`SCHEDULER_TRAFFIC_ENABLE`/`SCHEDULER_LOCK_STALE`; `scheduler.CLOCK_NOTE`, `_hours_text(job)`, `format_status() -> list[str]`, `run_status_cli() -> int`; `main.py --run-job <name>`, `--scheduler-status`.
+
+- [x] Step 1 — Test fail trước: settings có `SCHEDULER_RANK_HOURS=[7,13,19]`/`SCHEDULER_GSC_HOURS=[9]`/`SCHEDULER_TRAFFIC_ENABLE=False`/`SCHEDULER_LOCK_STALE=1200` (+ "PHẦN G" trong file); `_lock_stale_after()` phải đổi theo cfg **lúc gọi** (không snapshot); `describe_jobs()` in giờ và nói rõ đồng hồ thật thuộc Task Scheduler; `run_status_cli()` trên state rỗng → 0 + "chưa chạy lần nào" + đủ 3 job, có run → hiện `last_status`/`last_error` + mục "Gần đây", có lock → "đang chạy"; `main.py` chứa `"--run-job"`/`"--scheduler-status"` và **help in 2 lệnh mới** (AST đọc body `show_strategy`).
+- [x] Step 2 — Chạy → FAIL: 7 FAIL/ERROR (`run_status_cli` chưa tồn tại, chưa có PHẦN G, describe_jobs chưa có giờ).
+- [x] Step 3 — Implement CLI: `--run-job rank` → `sys.exit(run_job(name))`; thiếu tên/tên sai → `run_job("")` rơi vào nhánh "Không có job" → exit 2 + in `describe_jobs()` (đúng thông lệ `--export`); `--scheduler-status` → `run_status_cli()` in `format_status()`, luôn trả 0 (xem trạng thái không phải là chạy việc). Giờ trong settings chỉ là **lịch mong muốn** → in cạnh mỗi job + `CLOCK_NOTE` nói thẳng đồng hồ thật ở Windows (rule không có enforcement trong code thì doc/CLI phải tự nhận).
+- [x] Step 3b — **Sửa lỗi thật tìm thấy khi verify** (ngoài plan, thuộc entry point): console Windows ở máy này là cp1252 → `python main.py --scheduler-status` **crash `UnicodeEncodeError: '\u1edd'`, exit 1** ngay tại dòng `print(line)`. Job chạy không có ai nhìn mà chết vì in tiếng Việt thì vô dụng → `main.py` gọi `sys.stdout/stderr.reconfigure(encoding="utf-8", errors="replace")` (guard `hasattr` + try/except) ngay sau `import sys`. Đây là entry point CLI duy nhất, `ui.py` không liên quan (tự redirect stdout).
+- [x] Step 4 — **Verify thật** (không `PYTHONIOENCODING`, tức đường Task Scheduler thật gọi): `--scheduler-status` state rỗng → exit 0, bảng 3 job "chưa chạy lần nào"; `--run-job saymax` → exit 2 + danh sách; `--run-job` (thiếu tên) → exit 2; `--run-job traffic` → exit 0 + "đang TẮT theo quyết định của owner"; `--run-job gsc` trên máy chưa có credentials → `[GSC] ❌ ...docs/SETUP_GSC.md` rồi `[Scheduler] gsc: lỗi — Job kết thúc sớm bằng sys.exit(1)...`, **exit 1, không traceback**, lock được nhả, `--scheduler-status` hiện đúng dòng error đó. State probe `data/scheduler_state.json` đã xóa sau verify. Test: **ALL PASS (36)**; 5 suite cũ PASS; **3/3 mutation CAUGHT** (snapshot `LOCK_STALE_DEFAULT`, bỏ dòng "đang chạy", `run_status_cli` return sớm); CJK scan 4 file touched = 0.
+- [x] Step 5 — Commit: `feat: F4 cli --run-job va --scheduler-status + settings Phan G`
 
 ### Task 4: GUI trạng thái + tài liệu lịch
 

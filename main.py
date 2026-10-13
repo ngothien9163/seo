@@ -5,6 +5,16 @@ SEO2 — Chi?n l??c SEO toàn di?n cho topdev.vn
 """
 import sys
 
+# Console Windows mặc định cp1252: in tiếng Việt là UnicodeEncodeError, chết giữa job
+# khi Task Scheduler gọi mà không có ai nhìn. UTF-8 + replace = in không bao giờ nổ.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 def show_strategy():
     """Hi?n th? chi?n l??c t?ng th?."""
     from content.planner import print_plan, get_plan_summary
@@ -51,6 +61,8 @@ def show_strategy():
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
     print("  python main.py --export rank|gsc|all  Xuat bao cao CSV mo bang Excel")
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
+    print("  python main.py --run-job rank|gsc|traffic  Goi 1 job (Windows Task Scheduler)")
+    print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
     print("-" * 65)
 
 
@@ -111,6 +123,17 @@ if __name__ == "__main__":
     elif "--alerts" in sys.argv:
         from utils.alerts import run_alert_check_cli
         sys.exit(run_alert_check_cli())
+
+    elif "--run-job" in sys.argv:
+        from utils.scheduler import run_job
+        i = sys.argv.index("--run-job")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        name = nxt if nxt and not nxt.startswith("-") else ""
+        sys.exit(run_job(name))
+
+    elif "--scheduler-status" in sys.argv:
+        from utils.scheduler import run_status_cli
+        sys.exit(run_status_cli())
 
     else:
         show_strategy()

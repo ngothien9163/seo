@@ -49,7 +49,8 @@ LOCK_FILE = _lock_path()
 
 
 def _lock_stale_after() -> int:
-    return int(getattr(cfg, "SCHEDULER_LOCK_STALE", LOCK_STALE_DEFAULT))
+    value = getattr(cfg, "SCHEDULER_LOCK_STALE", None) or LOCK_STALE_DEFAULT
+    return int(value)
 
 
 # ─── STATE ───────────────────────────────────────────────────────────────────
@@ -259,17 +260,29 @@ def _run_traffic() -> int:
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
+             "hours": list(getattr(cfg, "SCHEDULER_RANK_HOURS", [7, 13, 19])),
              "guard": "_guard_rank", "runner": "_run_rank"},
     "gsc": {"desc": "Lấy dữ liệu Search Console (clicks/impressions)",
+            "hours": list(getattr(cfg, "SCHEDULER_GSC_HOURS", [9])),
             "guard": "_guard_gsc", "runner": "_run_gsc"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
+                "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},
 }
+
+CLOCK_NOTE = "Giờ thật do Windows Task Scheduler quyết định — xem docs/SETUP_SCHEDULER.md"
+
+
+def _hours_text(job: dict) -> str:
+    return ", ".join(f"{int(h):02d}:00" for h in job["hours"]) or "không tự chạy"
 
 
 def describe_jobs() -> list:
     """Mỗi dòng một job — cho `--run-job` sai tên và docs/SETUP_SCHEDULER.md."""
-    return [f"  {name:<8} {job['desc']}" for name, job in JOBS.items()]
+    lines = [f"  {name:<8} {job['desc']} | {_hours_text(job)}"
+             for name, job in JOBS.items()]
+    lines.append(f"  ({CLOCK_NOTE}; giờ ở trên là lịch mong muốn trong config/settings.py)")
+    return lines
 
 
 def run_job(name: str) -> int:
@@ -326,3 +339,37 @@ def run_job(name: str) -> int:
     else:
         print(f"[Scheduler] {name}: lỗi — {error}")
     return code
+
+
+# ─── STATUS (CLI --scheduler-status + GUI đọc file, không đọc in-process) ─────
+
+def format_status() -> list:
+    st = status()
+    lines = [f"[Scheduler] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} — {CLOCK_NOTE}"]
+    lines.append("  Job:")
+    for name, job in JOBS.items():
+        hours = _hours_text(job)
+        info = st["jobs"].get(name)
+        if info is None:
+            lines.append(f"    {name:<8} {hours:<20} chưa chạy lần nào")
+            continue
+        tail = " — đang chạy" if st["running"] == name else ""
+        lines.append(f"    {name:<8} {hours:<20} lần cuối {info['last_run']} → "
+                     f"{info['last_status']} (exit {info['exit_code']}){tail}")
+        if info.get("last_error"):
+            lines.append(f"             lỗi: {info['last_error']}")
+    lines.append("  Gần đây:")
+    runs = st["runs"][-5:][::-1]
+    if not runs:
+        lines.append("    (chưa có lần chạy nào)")
+    for run in runs:
+        lines.append(f"    {run['at']}  {run['job']:<8} {run['status']} (exit {run['exit_code']})")
+    if st["running"]:
+        lines.append(f"  đang chạy: {st['running']} — job khác sẽ bỏ qua cho tới khi xong")
+    return lines
+
+
+def run_status_cli() -> int:
+    for line in format_status():
+        print(line)
+    return 0

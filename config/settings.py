@@ -130,3 +130,14 @@ RANK_ALERT_TOP10_FALL = True      # Báo khi từ khóa đang trong Top 10 bị 
 TELEGRAM_BOT_TOKEN = ""           # Token từ @BotFather — xem docs/SETUP_ALERTS.md
 TELEGRAM_CHAT_ID = ""             # Chat id nhận tin (cá nhân hoặc nhóm)
 ALERTS_STATE_DIR = "data"         # Thư mục state chống spam (1 tin/ngày/từ khóa)
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN G: LỊCH TỰ ĐỘNG (F4) — đồng hồ thật là Windows Task Scheduler
+# ────────────────────────────────────────────────────────────────────────────
+# Các giờ dưới đây là LỊCH MONG MUỐN: chỉ để đăng ký task (docs/SETUP_SCHEDULER.md)
+# và in ra khi xem --scheduler-status. Code không tự thức dậy; máy tắt đúng giờ thì
+# không chạy bù (quyết định đã duyệt trong spec F4).
+SCHEDULER_RANK_HOURS = [7, 13, 19]   # giờ trong ngày check thứ hạng từ khóa
+SCHEDULER_GSC_HOURS = [9]            # giờ kéo dữ liệu Search Console
+SCHEDULER_TRAFFIC_ENABLE = False     # traffic tự chạy = quyết định của owner, mặc định TẮT
+SCHEDULER_LOCK_STALE = 1200          # giây không heartbeat là lock bị coi đã chết (20 phút)
