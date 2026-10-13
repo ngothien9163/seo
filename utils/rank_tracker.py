@@ -2,7 +2,7 @@
 utils/rank_tracker.py — Theo dõi vị trí từ khóa trên Google (Rank Tracker).
 
 Luồng:
-1. Search từng từ khóa trong cfg.SEO_KEYWORDS trên Google (num=100, hl=vi, pws=0)
+1. Search từng từ khóa trong load_keywords() (config/keywords.json) trên Google (num=100, hl=vi, pws=0)
 2. Tìm vị trí của domain mục tiêu trong kết quả organic
 3. Lưu lịch sử vào rank_history.json (tồn tại qua các lần restart)
 4. Giới hạn an toàn: tối đa RANK_CHECK_MAX_PER_DAY lần check/ngày + cooldown
@@ -29,6 +29,7 @@ from urllib.parse import quote, urlparse
 from playwright.async_api import Page
 
 import config.settings as cfg
+from utils.keywords import load_keywords
 from utils.interactions import random_sleep, human_scroll
 from tests.test_search_flow import (
     _accept_google_consent,
@@ -206,14 +207,14 @@ async def run_rank_check(page: Page, keywords: list = None, domain: str = None,
     on_captcha: async callback(page) -> bool. Trả True nếu đã giải CAPTCHA
                 (thử lại từ khóa), False/None để dừng toàn bộ check.
     """
-    keywords = keywords or getattr(cfg, "SEO_KEYWORDS", [])
+    keywords = keywords or load_keywords()
     domain = domain or _domain_of(getattr(cfg, "TARGET_URL", ""))
     depth = getattr(cfg, "RANK_CHECK_DEPTH", 100)
     delay_min = getattr(cfg, "RANK_KEYWORD_DELAY_MIN", 8)
     delay_max = getattr(cfg, "RANK_KEYWORD_DELAY_MAX", 20)
 
     if not keywords:
-        print("[Rank] ⚠️ Chưa có từ khóa nào (cfg.SEO_KEYWORDS rỗng).")
+        print("[Rank] ⚠️ Chưa có từ khóa nào (config/keywords.json rỗng).")
         return {}, False
     if not domain:
         print("[Rank] ⚠️ Chưa cấu hình TARGET_URL.")

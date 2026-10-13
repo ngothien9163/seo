@@ -85,26 +85,9 @@ REST_BETWEEN_SESSIONS_MAX = 45
 # Gi? l?p gi? cao ?i?m (peak hours)
 PEAK_HOURS_ENABLE = True          # Ch?y nhi?u h?n vào gi? cao ?i?m
 PEAK_HOURS = [(9, 11), (14, 16), (19, 22)]  # Khung gi? VN
-SEO_KEYWORDS = [
-    "nối mi thủ đức",
-    "eyelash extensions ho chi minh city",
-    "uốn mi thủ đức",
-    "best eyelashes near me",
-    "eyelash extensions ho chi minh",
-    "eyelash extension near me",
-    "chuyên bán dụng cụ nối mi ở tphcm",
-    "lash extensions near me",
-    "mi wispy là gì",
-    "dụng cụ nối mi giá rẻ tphcm",
-    "nối mi quận 2",
-    "nối mi thảo điền",
-    "uốn mi quận 2",
-    "nối mi gần đây",
-    "nối mi trần não",
-    "uốn mi gần đây",
-    "eyelashes near me",
-    "eyelash extensions distric 2",
-]
+# Danh sách từ khóa KHÔNG nằm ở đây nữa (F2) — xem config/keywords.json,
+# đọc/ghi qua utils/keywords.py: load_keywords() / save_keywords() / add_keyword().
+KEYWORD_SUGGEST_MIN_IMPRESSIONS = 30   # F2: query GSC có impressions >= ngưỡng này mới được đề xuất
 
 # AI Engine
 OLLAMA_URL = "http://localhost:11434/api/generate"

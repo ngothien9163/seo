@@ -159,7 +159,12 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `GSC_CREDENTIALS_FILE` | `config/gsc_service_account.json` | Search Console: file key service account |
 | `GSC_LOOKBACK_DAYS` | `28` | Search Console: lấy dữ liệu N ngày gần nhất |
 | `GSC_MAX_FETCH_PER_DAY` | `4` | Search Console: số lần fetch tối đa mỗi ngày |
-| `SEO_KEYWORDS` | danh sách từ khóa nối mi | Từ khóa sẽ search |
+| `KEYWORD_SUGGEST_MIN_IMPRESSIONS` | `30` | Search Console: ngưỡng impressions để một query được đề xuất làm từ khóa mới |
+
+Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
+(`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
+nút **+ Thêm** ở khung đề xuất tab 📈 Xếp Hạng, hoặc `python main.py --gsc-add-keyword "..."`.
+Sửa tay file này phải giữ JSON hợp lệ — mã hỏng thì tool coi như danh sách rỗng.
 
 ## Cấu trúc project
 

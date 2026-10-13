@@ -63,7 +63,7 @@
 - `add_keyword(kw: str) -> tuple[bool, str]` — (đã thêm chưa, thông điệp tiếng Việt); trùng theo `_fold` → `(False, "Từ khóa đã có trong danh sách ('...')")`.
 - `site_domain() -> str` — domain của `cfg.TARGET_URL` (tái dùng logic normalize có sẵn, không tự viết parser mới).
 
-- [ ] **Step 1 — Test fail trước** (`_quick_keyword_test.py`, 12 assert):
+- [x] **Step 1 — Test fail trước** (`_quick_keyword_test.py`, 12 assert):
   - `load_keywords()` khi file chưa tồn tại → `[]`.
   - `save_keywords(["a","b"," a ","", None, 3])` → file JSON parse được, `keywords == ["a","b"]` (fold-dedupe + bỏ phần tử không hợp lệ, giữ thứ tự).
   - `load_keywords()` đọc lại đúng list vừa ghi, tiếng Việt không bị escape thành `\uXXXX` (kiểm tra chuỗi "nối mi" nằm raw trong file).
@@ -75,12 +75,12 @@
   - Grep sạch chỗ đọc: không file `.py` nào khác `config/settings.py` còn chứa `SEO_KEYWORDS`.
   - AST `ui.py`: `start_thread` gọi `save_keywords`, `_setup_tab_general` gọi `load_keywords`, `export_csv_now` vẫn còn.
   - `import utils.keywords` không import playwright ở đầu file.
-- [ ] **Step 2 — Chạy → FAIL** (module chưa tồn tại).
-- [ ] **Step 3 — Sinh `config/keywords.json`** từ list cũ bằng script tạm (in ra để đối chiếu đúng 18 dòng, không mất từ khóa nào), rồi xóa list khỏi `settings.py`.
-- [ ] **Step 4 — Viết `utils/keywords.py`**, sửa 6 chỗ đọc/ghi.
-- [ ] **Step 5 — Chạy:** `_quick_keyword_test.py` ALL PASS + `_quick_gsc_test.py` + `_quick_export_test.py` + `_quick_test.py` vẫn PASS (không vỡ harness cũ) + `py_compile` mọi file sửa.
-- [ ] **Step 6 — Verify thật:** `PYTHONIOENCODING=utf-8 python main.py --rank-report` chạy được (đọc keywords qua hàm mới), `python -c "import ui; ui.TrafficBotUI()"` mở được GUI không lỗi.
-- [ ] **Step 7 — Commit:** `refactor: F2 keyword thi truong ve config/keywords.json + utils/keywords.py (1 diem doc duy nhat)`
+- [x] **Step 2 — Chạy → FAIL** (module chưa tồn tại).
+- [x] **Step 3 — Sinh `config/keywords.json`** từ list cũ bằng script tạm (in ra để đối chiếu đúng 18 dòng, không mất từ khóa nào), rồi xóa list khỏi `settings.py`.
+- [x] **Step 4 — Viết `utils/keywords.py`**, sửa 6 chỗ đọc/ghi.
+- [x] **Step 5 — Chạy:** `_quick_keyword_test.py` ALL PASS + `_quick_gsc_test.py` + `_quick_export_test.py` + `_quick_test.py` vẫn PASS (không vỡ harness cũ) + `py_compile` mọi file sửa.
+- [x] **Step 6 — Verify thật:** `PYTHONIOENCODING=utf-8 python main.py --rank-report` chạy được (đọc keywords qua hàm mới), `python -c "import ui; ui.TrafficBotUI()"` mở được GUI không lỗi.
+- [x] **Step 7 — Commit:** `refactor: F2 keyword thi truong ve config/keywords.json + utils/keywords.py (1 diem doc duy nhat)`
 
 ### Task 2: Bộ đề xuất `suggest_keywords()` (hàm thuần, tái dùng `_match_keywords`)
 

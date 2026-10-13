@@ -267,7 +267,8 @@ def build_report(tail_spark: int = 8) -> str:
         return (f"Property {gsc_h.get('site') or getattr(cfg, 'GSC_SITE_URL', '?')} chưa có dữ liệu "
                 f"(mới verify cần chờ vài ngày để tích lũy). Lần fetch gần nhất: {latest_key}")
 
-    keywords = list(getattr(cfg, "SEO_KEYWORDS", []))
+    from utils.keywords import load_keywords
+    keywords = load_keywords()
     depth = getattr(cfg, "RANK_CHECK_DEPTH", 100)
     matched, unmatched = _match_keywords(rows, keywords)
 

@@ -13,6 +13,7 @@ from utils.ai_engine import (
     PersonaConfig,
 )
 import config.settings as cfg
+from utils.keywords import load_keywords
 
 
 # ─── warm-up sites phân loại theo persona ────────────────────────────────────
@@ -399,11 +400,12 @@ async def _verify_on_target(page: Page, domain_target: str) -> bool:
 # ─── main flow ───────────────────────────────────────────────────────────────
 
 async def run_search_flow(page: Page):
-    if not cfg.SEO_KEYWORDS:
-        print("   [❌] Lỗi: Chưa nhập Từ khóa SEO!")
+    keywords = load_keywords()
+    if not keywords:
+        print("   [❌] Lỗi: Chưa có Từ khóa SEO (config/keywords.json rỗng)!")
         return
 
-    keyword = random.choice(cfg.SEO_KEYWORDS)
+    keyword = random.choice(keywords)
     raw_domain = cfg.TARGET_URL.replace("https://", "").replace("http://", "").split("/")[0]
     domain_target = raw_domain.replace("www.", "")
     total_time_spent = 0

@@ -13,6 +13,7 @@ from tkinter import END
 
 from core.browser_manager import BrowserManager
 from tests.test_direct_access import run_deep_session
+from utils.keywords import load_keywords, save_keywords
 import config.settings as cfg
 
 _real_stderr = sys.stderr  # preserve before any redirect
@@ -218,8 +219,9 @@ class TrafficBotUI(ctk.CTk):
         ctk.CTkLabel(t, text="Từ khóa Google SEO (mỗi dòng 1 từ):").grid(row=0, column=1, sticky="w", padx=20, pady=(12, 4))
         self.txt_keywords = ctk.CTkTextbox(t, width=280, height=230)
         self.txt_keywords.grid(row=1, column=1, rowspan=7, sticky="nsew", padx=20, pady=(0, 12))
-        if cfg.SEO_KEYWORDS:
-            self.txt_keywords.insert("0.0", "\n".join(cfg.SEO_KEYWORDS))
+        _kws = load_keywords()
+        if _kws:
+            self.txt_keywords.insert("0.0", "\n".join(_kws))
 
     # ═══════════════════════════════════════════════════════════════
     # TAB: TREO MÁY
@@ -712,7 +714,10 @@ class TrafficBotUI(ctk.CTk):
         cfg.TRAFFIC_MODE = self.radio_var.get()
 
         kws = self.txt_keywords.get("0.0", "end").strip().split("\n")
-        cfg.SEO_KEYWORDS = [k.strip() for k in kws if k.strip()]
+        cleaned = [k.strip() for k in kws if k.strip()]
+        if not cleaned:
+            print("[Keyword] ⚠️ Danh sách từ khóa trống — search traffic và rank check không còn từ khóa để chạy.")
+        save_keywords(cleaned)
 
         proxies = self.txt_proxy.get("0.0", "end").strip().split("\n")
         cfg.PROXY_LIST = [p.strip() for p in proxies if p.strip()]

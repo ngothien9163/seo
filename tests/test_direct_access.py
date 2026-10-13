@@ -5,6 +5,7 @@ from utils.interactions import human_scroll
 from utils.onsite_interactions import rich_on_site_interaction, auto_close_popups
 from utils.ai_engine import generate_user_persona
 import config.settings as cfg
+from utils.keywords import load_keywords
 
 REFERERS = [
     "https://www.google.com.vn/", "https://www.google.com/", "https://www.bing.com/", "https://m.facebook.com/"
@@ -24,7 +25,8 @@ async def auto_fake_conversion(page: Page):
 async def run_deep_session(page: Page):
     target_url = cfg.TARGET_URL
     total_time_spent = 0
-    ai_topic = random.choice(cfg.SEO_KEYWORDS) if hasattr(cfg, 'SEO_KEYWORDS') and cfg.SEO_KEYWORDS else "sản phẩm và dịch vụ nổi bật"
+    keywords = load_keywords()
+    ai_topic = random.choice(keywords) if keywords else "sản phẩm và dịch vụ nổi bật"
     referer = random.choice(REFERERS) if random.random() < 0.7 else None
     
     try:
