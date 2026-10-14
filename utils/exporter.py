@@ -54,7 +54,7 @@ def rank_rows() -> tuple[list[str], list[list[str]]]:
     checks = _load_history().get("checks", {}) or {}
     rows: list[list[str]] = []
     for checked_at in sorted(checks.keys()):
-        stamp = str(checked_at).replace("T", " ")
+        stamp = str(checked_at)[:19].replace("T", " ")
         results = checks[checked_at] or {}
         for kw in sorted(results.keys()):
             r = results[kw] or {}

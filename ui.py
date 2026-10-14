@@ -662,7 +662,7 @@ class TrafficBotUI(ctk.CTk):
 
     def _refresh_rank_report(self):
         from utils.gsc_client import build_report as build_merged_report
-        from utils.rank_tracker import _load_history
+        from utils.rank_tracker import _load_history, fmt_stamp
         try:
             # Báo cáo gộp SERP + GSC (tự fallback báo cáo rank khi chưa có dữ liệu GSC)
             report = build_merged_report()
@@ -674,7 +674,7 @@ class TrafficBotUI(ctk.CTk):
             checks = _load_history().get("checks", {})
             if checks:
                 self.lbl_rank_last.configure(
-                    text=f"Lần check gần nhất: {sorted(checks.keys())[-1].replace('T', ' ')}")
+                    text=f"Lần check gần nhất: {fmt_stamp(sorted(checks.keys())[-1])}")
             else:
                 self.lbl_rank_last.configure(text="Chưa check lần nào")
         except Exception:

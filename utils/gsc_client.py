@@ -338,7 +338,7 @@ def build_report(tail_spark: int = 8) -> str:
     lines.append(f"  BÁO CÁO SEO GỘP — SERP + SEARCH CONSOLE — {site}")
     lines.append(f"  Dữ liệu GSC: {snap.get('start_date')} → {snap.get('end_date')}"
                  f"  (fetch: {snap.get('fetched_at', '?').replace('T', ' ')})"
-                 f"  | Lần check SERP: {rkeys[-1].replace('T', ' ') if rkeys else '—'}")
+                 f"  | Lần check SERP: {rkeys[-1][:19].replace('T', ' ') if rkeys else '—'}")
     lines.append("=" * 104)
     lines.append(f"  {'Từ khóa':<34}{'SERP':>6}  {'Δ':>5}  {'Xu hướng':<8}"
                  f"{'Clicks':>7}{'Hiện':>7}{'Vị trí TB':>10}{'CTR':>7}")

@@ -203,7 +203,9 @@ def save_check_result(results: dict, domain: str):
     h = _load_history()
     h["domain"] = domain
     h.setdefault("checks", {})
-    h["checks"][datetime.now().isoformat(timespec="seconds")] = results
+    # Key đủ độ chính xác microsecond: hai lần check cùng NHỊP GIÂY không ghi đè nhau
+    # (mất mốc so sánh của F3). Display chỉ hiện tới giây qua _fmt_stamp ở các consumer.
+    h["checks"][datetime.now().isoformat()] = results
 
     keys = sorted(h["checks"].keys())
     for k in keys[:-MAX_CHECKS_KEPT]:
@@ -294,6 +296,11 @@ async def run_rank_check(page: Page, keywords: list = None, domain: str = None,
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
 
+def fmt_stamp(key: str) -> str:
+    """Key ISO (có/không microsecond) → 'YYYY-MM-DD HH:MM:SS' để hiển thị/CSV."""
+    return str(key)[:19].replace("T", " ")
+
+
 def sparkline(positions: list, width: int = 8) -> str:
     """Vẽ xu hướng: hạng càng tốt (số nhỏ) → cột càng cao. None → '·'"""
     vals = positions[-width:]
@@ -349,7 +356,7 @@ def build_report(tail_spark: int = 8) -> str:
     lines = []
     lines.append("=" * 76)
     lines.append(f"  BÁO CÁO XẾP HẠNG GOOGLE — {domain}")
-    lines.append(f"  Lần check gần nhất: {latest.replace('T', ' ')}  "
+    lines.append(f"  Lần check gần nhất: {fmt_stamp(latest)}  "
                  f"({len(keys)} lần lưu | {len(latest_data)} từ khóa)")
     lines.append("=" * 76)
     lines.append(f"  {'Từ khóa':<40}{'Hạng':>7}  {'Δ':>5}  Xu hướng")
