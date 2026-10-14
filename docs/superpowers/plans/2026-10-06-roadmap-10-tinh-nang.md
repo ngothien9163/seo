@@ -118,6 +118,8 @@
 
 ## F6 — Site audit on-page
 
+**Trạng thái: ✅ XONG 2026-10-13 (code) — còn 1 bước phía owner:** `utils/html_probe.py` + `utils/site_auditor.py` + `utils/pagespeed.py`, plan `2026-10-13-f6-site-audit.md`, test `_quick_audit_test.py`. Parser dùng **stdlib `html.parser`** (KHÔNG thêm `beautifulsoup4` — quyết định đã chốt, giữ "không thêm dependency"). PSI không key chạy được nhưng **hết quota ẩn danh** — owner điền `PAGESPEED_API_KEY` (miễn phí) khi cần đo thường xuyên.
+
 **Mục tiêu:** crawl site mục tiêu (≤ N trang cùng domain) kiểm tra title/meta description/H1/alt ảnh/thứ tự heading/canonical/robots/link hỏng; Core Web Vitals qua PageSpeed Insights API (miễn phí, quota không key là đủ dùng).
 
 **Phạm vi:** CLI `--audit` + xuất CSV (tái dùng module F1) + nút GUI; báo cáo mỗi lỗi kèm severity (CAO/TRUNG BÌNH/THẤP) và URL bị lỗi. **Ngoài phạm vi:** audit JS-rendered sâu (requests đọc HTML tĩnh là đủ cho site WordPress/WooCommerce), so sánh 2 lần audit.
@@ -130,6 +132,8 @@
 
 ## F7 — Backlink auto-check
 
+**Trạng thái: ✅ XONG 2026-10-14 (code) — còn 1 bước phía owner:** `utils/backlinks.py` (store + verify thuần, tái dùng `html_probe`) + `utils/backlink_checker.py` (batch `requests` ≤5 luồng, cache 24h), plan `2026-10-14-f7-backlink-check.md`, test `_quick_backlink_test.py` (72 test, fetcher mock). Lịch sự với site người khác: 403/429 → ghi "bị chặn", **không** retry/đổi UA/giải CAPTCHA. **CHƯA** verify bằng backlink thật vì `config/backlinks.json` đang trống — owner thêm link đã đặt (hoặc import CSV "External links" từ GSC) rồi chạy `--backlink-check`.
+
 **Mục tiêu:** mỗi backlink trong `backlinks/tracker.py` được verify thật: còn sống (HTTP 200)? trang có chứa link tới site không? dofollow/nofollow? anchor text gì? — kèm import danh sách link ngoài từ GSC.
 
 **Phạm vi:** verifier chạy theo batch, lưu `backlink_status.json` kèm ngày check, báo cáo % sống/chết + xuất CSV; import CSV "External links" tải tay từ UI Search Console (API của GSC **không** có endpoint external links — ghi rõ trong hướng dẫn). **Ngoài phạm vi:** tự tìm backlink mới ngoài GSC, đo DA/DR (cần API trả phí).
@@ -141,6 +145,8 @@
 **Tiêu chí hoàn thành:** trang 404 → đánh dấu chết ngay; timeout không treo cả batch; chạy lại trong ngày → dùng cache, không refetch (giống pattern snapshot GSC).
 
 ## F8 — Content generation bằng Ollama
+
+**Trạng thái: ✅ XONG 2026-10-14 (code) — còn 1 bước phía owner:** `utils/content_prompts.py` (prompt + seo_check thuần) + `utils/ollama_client.py` (client localhost, stream=False, chỉ retry khi timeout) + `content/generator.py` (pipeline outline→draft→file), plan `2026-10-14-f8-content-generation.md`, test `_quick_content_test.py` (45 test, client mock). **Không** thêm dependency, **không** tự đăng (tool chỉ sinh draft vào `content/drafts/`, gitignore). Ollama **chưa chạy** trên máy dev (đo 2026-10-14) → chưa có bài thật từ `qwen3:30b-a3b`; owner `ollama serve` + `ollama pull qwen3:30b-a3b` rồi `--generate` để xác nhận chất lượng.
 
 **Mục tiêu:** chọn một mục trong content plan 30 ngày → sinh outline → draft bài tiếng Việt tối ưu từ khóa (lấy từ danh sách đang track) → lưu markdown vào `content/drafts/`.
 
@@ -157,6 +163,8 @@
 # Phase 4 — Kiến trúc mở rộng
 
 ## F9 — AEO tracking (đo AI visibility)
+
+**Trạng thái: ⏳ CHƯA LÀM — đã chốt hướng (2026-10-14).** Phương án **(a) bị loại**: hỏi AI bằng Playwright tái dùng profile anti-detect = đúng lớp né phát hiện bot đã tuyên bố không động từ đầu phiên (cùng lý do với F5 ở trên). F9 **chỉ** đi theo (b) API có key (owner tự cấp, trả phí) hoặc (c) dán tay câu trả lời AI vào tool rồi phân tích brand mention — cả hai không tự động hóa hành vi vượt CAPTCHA. (a)/(b)/(c) là quyết định owner còn phải xác nhận bằng lời trước khi code; đến lúc đó mới viết spec + plan riêng.
 
 **Mục tiêu:** theo từng từ khóa, hỏi các AI engine "câu trả lời có nhắc đến brand/domain X không?" → lưu `aeo_history.json` song song rank history, hiển thị cạnh cột SERP/GSC trong báo cáo gộp.
 
