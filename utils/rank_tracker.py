@@ -38,7 +38,19 @@ from tests.test_search_flow import (
     _unwrap_google_redirect,
 )
 
-HISTORY_FILE = os.path.join(os.path.dirname(__file__), "..", "rank_history.json")
+import utils.site_paths as _site_paths
+
+_HISTORY_NAME = "rank_history.json"
+_DEFAULT_HISTORY_PATH = _site_paths.site_file(_HISTORY_NAME)
+# Slot override cho test/CLI; mọi code đọc qua _history_path() chứ không dùng thẳng biến này.
+HISTORY_FILE = _DEFAULT_HISTORY_PATH
+
+
+def _history_path() -> str:
+    """Đường dẫn rank history lúc gọi. Test gán HISTORY_FILE → tôn trọng; không → resolve per-site."""
+    if HISTORY_FILE != _DEFAULT_HISTORY_PATH:
+        return HISTORY_FILE
+    return _site_paths.site_file(_HISTORY_NAME)
 
 # Selector chứa kết quả organic của Google (thử lần lượt, selector đầu tiên có kết quả được dùng)
 _SERP_SELECTORS = ["#search a[href]", "#rso a[href]", "#main a[href]"]
@@ -52,9 +64,10 @@ MAX_CHECKS_KEPT = 90  # Số lần check lưu lại tối đa trong lịch sử
 # ─── LỊCH SỬ: đọc / ghi ──────────────────────────────────────────────────────
 
 def _load_history() -> dict:
-    if os.path.exists(HISTORY_FILE):
+    path = _history_path()
+    if os.path.exists(path):
         try:
-            with open(HISTORY_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -62,7 +75,7 @@ def _load_history() -> dict:
 
 
 def _save_history(data: dict):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+    with open(_history_path(), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
 

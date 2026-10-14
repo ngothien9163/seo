@@ -13,21 +13,35 @@ import os
 import time
 from datetime import datetime, date
 
-STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "session_state.json")
+import utils.site_paths as _site_paths
+
+_SESSION_NAME = "session_state.json"
+_DEFAULT_STATE_PATH = _site_paths.site_file(_SESSION_NAME)
+# Slot override cho test/CLI (test gán STATE_FILE); code đọc qua _state_path().
+STATE_FILE = _DEFAULT_STATE_PATH
+
+
+def _state_path() -> str:
+    """Đường dẫn session state lúc gọi. Test gán STATE_FILE → tôn trọng; không → resolve per-site."""
+    if STATE_FILE != _DEFAULT_STATE_PATH:
+        return STATE_FILE
+    return _site_paths.site_file(_SESSION_NAME)
+
 
 def _load_state() -> dict:
-    """??c tr?ng thái t? file."""
-    if os.path.exists(STATE_FILE):
+    """Đọc trạng thái từ file."""
+    path = _state_path()
+    if os.path.exists(path):
         try:
-            with open(STATE_FILE) as f:
+            with open(path) as f:
                 return json.load(f)
         except:
             pass
     return {"date": "", "count": 0, "last_session": 0}
 
 def _save_state(state: dict):
-    """Ghi tr?ng thái ra file."""
-    with open(STATE_FILE, "w") as f:
+    """Ghi trạng thái ra file."""
+    with open(_state_path(), "w") as f:
         json.dump(state, f)
 
 def can_run_session(max_per_day: int = 25, min_interval: int = 300) -> tuple[bool, str]:

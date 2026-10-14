@@ -27,8 +27,19 @@ from urllib.parse import quote
 import requests
 
 import config.settings as cfg
+import utils.site_paths as _site_paths
 
-HISTORY_FILE = DATA_FILE = os.path.join(os.path.dirname(__file__), "..", "gsc_history.json")
+_GSC_NAME = "gsc_history.json"
+_DEFAULT_GSC_PATH = _site_paths.site_file(_GSC_NAME)
+# Slot override cho test/CLI (test gán DATA_FILE); code đọc qua _data_path().
+HISTORY_FILE = DATA_FILE = _DEFAULT_GSC_PATH
+
+
+def _data_path() -> str:
+    """Đường dẫn gsc history lúc gọi. Test gán DATA_FILE → tôn trọng; không → resolve per-site."""
+    if DATA_FILE != _DEFAULT_GSC_PATH:
+        return DATA_FILE
+    return _site_paths.site_file(_GSC_NAME)
 
 GSC_API_BASE = "https://searchconsole.googleapis.com/webmasters/v3/sites"
 SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
@@ -44,9 +55,10 @@ class GSCSetupError(Exception):
 # ─── LỊCH SỬ: đọc / ghi ──────────────────────────────────────────────────────
 
 def _load_history() -> dict:
-    if os.path.exists(DATA_FILE):
+    path = _data_path()
+    if os.path.exists(path):
         try:
-            with open(DATA_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -54,7 +66,7 @@ def _load_history() -> dict:
 
 
 def _save_history(data: dict):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
+    with open(_data_path(), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
 

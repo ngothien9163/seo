@@ -18,8 +18,20 @@ import json
 import os
 from urllib.parse import urlparse
 
+import utils.site_paths as _site_paths
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEYWORDS_FILE = os.path.join(ROOT, "config", "keywords.json")
+_KW_NAME = "keywords.json"
+_DEFAULT_KEYWORDS_FILE = _site_paths.site_config(_KW_NAME)
+# Slot override cho test/CLI (test gán KEYWORDS_FILE); code đọc qua _keywords_path().
+KEYWORDS_FILE = _DEFAULT_KEYWORDS_FILE
+
+
+def _keywords_path() -> str:
+    """Đường dẫn keywords.json lúc gọi. Test gán KEYWORDS_FILE → tôn trọng; không → resolve per-site."""
+    if KEYWORDS_FILE != _DEFAULT_KEYWORDS_FILE:
+        return KEYWORDS_FILE
+    return _site_paths.site_config(_KW_NAME)
 
 
 def _fold(s: str) -> str:
@@ -42,10 +54,10 @@ def site_domain() -> str:
 
 def load_keywords() -> list[str]:
     """Danh sách từ khóa đang theo dõi. File thiếu/hỏng → [] (không raise)."""
-    if not os.path.exists(KEYWORDS_FILE):
+    if not os.path.exists(_keywords_path()):
         return []
     try:
-        with open(KEYWORDS_FILE, encoding="utf-8") as f:
+        with open(_keywords_path(), encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return []
@@ -80,15 +92,16 @@ def _normalize(keywords) -> list[str]:
 def save_keywords(keywords, site: str = None) -> None:
     """Ghi danh sách từ khóa (chuẩn hóa) vào keywords.json — atomic qua file tạm."""
     payload = {"site": site or site_domain(), "keywords": _normalize(keywords)}
-    tmp = KEYWORDS_FILE + ".tmp"
-    parent = os.path.dirname(KEYWORDS_FILE)
+    path = _keywords_path()
+    tmp = path + ".tmp"
+    parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
             f.write("\n")
-        os.replace(tmp, KEYWORDS_FILE)
+        os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):
             try:
