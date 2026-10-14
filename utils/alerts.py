@@ -19,6 +19,7 @@ from datetime import date, timedelta
 import requests
 
 import config.settings as cfg
+from utils import site_paths
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_KEEP_DAYS = 14        # state chống spam giữ bao nhiêu ngày trước khi prune
@@ -35,10 +36,19 @@ def _state_path() -> str:
     folder = getattr(cfg, "ALERTS_STATE_DIR", "data") or "data"
     if not os.path.isabs(folder):
         folder = os.path.join(ROOT, folder)
-    return os.path.join(folder, "alerts_state.json")
+    return site_paths.per_site("alerts_state.json", folder)
 
 
+# Slot override cho test/CLI (test gán STATE_FILE); code đọc qua _active_path().
 STATE_FILE = _state_path()
+_DEFAULT_STATE_PATH = STATE_FILE
+
+
+def _active_path() -> str:
+    """Đường dẫn alerts state lúc gọi. Test gán STATE_FILE → tôn trọng; không → resolve per-site."""
+    if STATE_FILE != _DEFAULT_STATE_PATH:
+        return STATE_FILE
+    return _state_path()
 
 
 # ─── 1. RULES ENGINE THUẦN ───────────────────────────────────────────────────
@@ -143,9 +153,10 @@ def evaluate_from_history() -> list[dict]:
 # ─── 2. STATE CHỐNG SPAM: 1 tin / ngày / từ khóa ─────────────────────────────
 
 def _load_state() -> dict:
-    if os.path.exists(STATE_FILE):
+    path = _active_path()
+    if os.path.exists(path):
         try:
-            with open(STATE_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict) and isinstance(data.get("sent"), dict):
                 return data
@@ -155,14 +166,15 @@ def _load_state() -> dict:
 
 
 def _save_state(state: dict) -> None:
-    parent = os.path.dirname(STATE_FILE)
+    path = _active_path()
+    parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    tmp = STATE_FILE + ".tmp"
+    tmp = path + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, STATE_FILE)
+        os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):
             try:

@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse, urljoin
 
 import config.settings as cfg
+from utils import site_paths
 from utils.html_probe import probe
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,14 +40,14 @@ _TRACKING_PARAMS = {"gclid", "gbraid", "wbraid", "fbclid", "ref", "ref_src",
 
 
 def _store_path() -> str:
-    """Nơi ở của danh sách link — đọc cfg lúc gọi (F10 multi-site chỉ đổi chỗ này)."""
-    return os.path.join(ROOT, "config",
-                        getattr(cfg, "BACKLINK_STORE_FILE", "backlinks.json"))
+    """Nơi ở của danh sách link — đọc cfg lúc gọi; F10 rẽ sang config/<site>/ khi đã migrate."""
+    return site_paths.per_site(getattr(cfg, "BACKLINK_STORE_FILE", "backlinks.json"),
+                               os.path.join(ROOT, "config"))
 
 
 def _state_path() -> str:
-    return os.path.join(ROOT, getattr(cfg, "BACKLINK_STATE_DIR", "data"),
-                        "backlink_status.json")
+    return site_paths.per_site("backlink_status.json",
+                               os.path.join(ROOT, getattr(cfg, "BACKLINK_STATE_DIR", "data")))
 
 
 def _now() -> str:

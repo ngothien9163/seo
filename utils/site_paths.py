@@ -74,3 +74,16 @@ def site_config(name: str) -> str:
 def report_prefix() -> str:
     """Tiền tố tên file báo cáo: '<slug>_' khi multi-site, '' khi đơn site (giữ nguyên F1)."""
     return f"{site_slug()}_" if is_multi_site() else ""
+
+
+def per_site(name: str, base_dir: str) -> str:
+    """File state nằm trong một base dir tự quản (data/, config/...).
+
+    Multi-site → <base_dir>/<slug>/<name>; đơn site → <base_dir>/<name> (y như hôm nay).
+    Khác site_file(): site_file fallback về FLAT_ROOT (gốc project) cho rank/gsc/session legacy;
+    per_site giữ nguyên base_dir cũ của module (alerts/scheduler/backlinks/audit/pagespeed vốn
+    đã nằm trong data/, không ở gốc) — đơn vị bật/tắt vẫn là is_multi_site().
+    """
+    if is_multi_site():
+        return os.path.join(base_dir, site_slug(), name)
+    return os.path.join(base_dir, name)

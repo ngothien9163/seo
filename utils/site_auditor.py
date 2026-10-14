@@ -24,6 +24,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import requests
 
 import config.settings as cfg
+from utils import site_paths
 from utils.html_probe import probe
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -582,8 +583,9 @@ def audit_crawl(result: dict) -> list:
 # ─── state: kết quả audit gần nhất (để --export audit đọc lại) ───────────────
 
 def _state_path() -> str:
-    """data/audit_last.json — path đi qua MỘT hàm để còn đổi chỗ khi tách đa site (F10)."""
-    return os.path.join(ROOT, getattr(cfg, "AUDIT_STATE_DIR", "data"), "audit_last.json")
+    """data/audit_last.json — đi qua MỘT hàm; F10 rẽ sang data/<site>/ khi đã migrate."""
+    return site_paths.per_site("audit_last.json",
+                               os.path.join(ROOT, getattr(cfg, "AUDIT_STATE_DIR", "data")))
 
 
 def save_last_audit(findings: list, url: str = "", pages: int = 0) -> str:

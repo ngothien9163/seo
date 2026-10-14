@@ -21,6 +21,7 @@ import time
 from datetime import datetime
 
 import config.settings as cfg
+from utils import site_paths
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_RUNS_KEPT = 50            # số lần chạy giữ lại trong state
@@ -37,15 +38,25 @@ def _data_dir() -> str:
 
 
 def _state_path() -> str:
-    return os.path.join(_data_dir(), "scheduler_state.json")
+    # State per-site (QĐ B); LOCK đi đường riêng vì QĐ chốt: lock DÙNG CHUNG process-wide.
+    return site_paths.per_site("scheduler_state.json", _data_dir())
 
 
 def _lock_path() -> str:
     return os.path.join(_data_dir(), "scheduler.lock")
 
 
+# STATE_FILE là slot override cho test/CLI; code đọc qua _active_state_path().
 STATE_FILE = _state_path()
+_DEFAULT_STATE_PATH = STATE_FILE
 LOCK_FILE = _lock_path()
+
+
+def _active_state_path() -> str:
+    """Đường dẫn scheduler state lúc gọi. Test gán STATE_FILE → tôn trọng; không → resolve per-site."""
+    if STATE_FILE != _DEFAULT_STATE_PATH:
+        return STATE_FILE
+    return _state_path()
 
 
 def _lock_stale_after() -> int:
@@ -57,9 +68,10 @@ def _lock_stale_after() -> int:
 
 def read_state() -> dict:
     """State gần nhất; file thiếu/hình hỏng → coi như chưa chạy lần nào."""
-    if os.path.exists(STATE_FILE):
+    path = _active_state_path()
+    if os.path.exists(path):
         try:
-            with open(STATE_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 return {"jobs": data.get("jobs") or {}, "runs": data.get("runs") or []}
@@ -69,14 +81,15 @@ def read_state() -> dict:
 
 
 def _save_state(state: dict) -> None:
-    parent = os.path.dirname(STATE_FILE)
+    path = _active_state_path()
+    parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    tmp = STATE_FILE + ".tmp"
+    tmp = path + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, STATE_FILE)
+        os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):
             try:

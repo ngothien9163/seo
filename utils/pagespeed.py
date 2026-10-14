@@ -22,6 +22,7 @@ from datetime import datetime
 import requests
 
 import config.settings as cfg
+from utils import site_paths
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
@@ -47,11 +48,11 @@ def _api_key() -> str:
 
 
 def _state_path() -> str:
-    """Điểm duy nhất sinh path — giống alerts._state_path(), để F10 đổi theo site."""
+    """Điểm duy nhất sinh path; F10 rẽ sang data/<site>/ khi đã migrate."""
     folder = getattr(cfg, "PAGESPEED_STATE_DIR", "data") or "data"
     if not os.path.isabs(folder):
         folder = os.path.join(ROOT, folder)
-    return os.path.join(folder, "pagespeed.json")
+    return site_paths.per_site("pagespeed.json", folder)
 
 
 def _short(value) -> str:
