@@ -150,3 +150,8 @@ AUDIT_TIMEOUT = 10                  # giây/request — link hỏng không đư�
 # UA desktop tĩnh để request HTML. Crawler không phải Googlebot và không đánh cược
 # với bot-detection: chỉ lấy HTML tĩnh của site mình, không đụng lớp anti-detect.
 AUDIT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+PAGESPEED_TIMEOUT = 90              # giây/lượt — PSI tự chạy Lighthouse, chậm hơn crawl rất nhiều
+PAGESPEED_STATE_DIR = "data"        # nơi lưu pagespeed.json (chỉ số gọn, không chứa response thô)
+# PSI không key dùng chung một quota "Queries per day" toàn cầu — đã đo 2026-10-14: hết là hết.
+# Điền key miễn phí (Google Cloud Console -> PageSpeed Insights API) để thoát cảnh đó; để trống vẫn chạy.
+PAGESPEED_API_KEY = ""
