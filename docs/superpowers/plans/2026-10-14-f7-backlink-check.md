@@ -111,11 +111,22 @@
 
 **Interfaces:** `exporter.export_backlinks() -> (path, n)` (đọc state qua `backlinks.load_state()`, mapping thứ tự cột để một chỗ trong checker); `import_gsc_csv(path) -> (added:int, message:str)`.
 
-- [ ] Step 1 — Test fail trước: header CSV **chốt một lần**: `["trạng thái", "url", "host", "có link", "dofollow", "số link", "anchor", "check lúc", "url cuối", "lỗi"]` (tiếng Việt có dấu, không có dấu cách thừa, thứ tự cố định để người dùng so hai lần export); AST chặn `import csv` trong checker; `_unique_path("backlinks")`; importer: tìm cột chứa URL **trong mọi ô** (GSC đổi tên cột theo thời gian — không hardcode header), **KHÔNG lọc theo domain** (backlink tới site mình nằm trên domain khác, giữ hết, chỉ bỏ ô không parse ra http(s) URL); trùng URL đã có → không thêm; file không có URL nào → message rõ + store giữ nguyên + exit 2; file có BOM (GSC export ghi BOM) phải đọc được.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement.
-- [ ] Step 4 — Test ALL PASS + mutation.
-- [ ] Step 5 — Commit: `feat: F7 xuat CSV backlink + import CSV External links cua GSC`
+- [x] Step 1 — Test fail trước: header CSV **chốt một lần**: `["trạng thái", "url", "host", "có link", "dofollow", "số link", "anchor", "check lúc", "url cuối", "lỗi"]` (tiếng Việt có dấu, không có dấu cách thừa, thứ tự cố định để người dùng so hai lần export); AST chặn `import csv` trong checker; `_unique_path("backlinks")`; importer: tìm cột chứa URL **trong mọi ô** (GSC đổi tên cột theo thời gian — không hardcode header), **KHÔNG lọc theo domain** (backlink tới site mình nằm trên domain khác, giữ hết, chỉ bỏ ô không parse ra http(s) URL); trùng URL đã có → không thêm; file không có URL nào → message rõ + store giữ nguyên + exit 2; file có BOM (GSC export ghi BOM) phải đọc được.
+- [x] Step 2 — Chạy → FAIL (11 test mới đỏ: `export_backlinks`/`import_gsc_csv`/`state_rows` chưa tồn tại; 45 test Task 1+2 vẫn xanh).
+- [x] Step 3 — Implement.
+- [x] Step 4 — Test ALL PASS + mutation.
+- [x] Step 5 — Commit: `feat: F7 xuat CSV backlink + import CSV External links cua GSC`
+
+**Kết quả Task 3 (2026-10-14):** 56 test ALL PASS, mutation **11/11 CAUGHT**, 7 suite cũ nguyên xanh (`_quick_export_test.py` cũng bắt được mutant `export_all` kéo theo backlink).
+
+**Deviations so với plan:**
+1. `import_gsc_csv()` nằm ở **`utils/backlinks.py`**, không ở exporter.py: exporter giữ đúng hợp đồng F1 "đọc state → ghi CSV", còn store là nơi **duy nhất** được sửa danh sách — import đi qua `add_link()` nên cùng một luồng validate/chống trùng/ghi atomic với thêm tay. `csv` vẫn chỉ là import trong hàm (test AST đầu file không đổi).
+2. "Tìm cột chứa URL" triển khai thành **quét mọi ô**: GSC đổi tiêu đề cột theo báo cáo và theo phiên bản, còn hình dạng giá trị thì không đổi. Ô là domain trần (`topbep.vn`) hoặc path (`/noi-mi`) bị bỏ vì không phải địa chỉ trang — verify một domain thì vô nghĩa.
+3. Constraint "KHÔNG lọc theo domain" được hiểu lại cho đúng: không lọc theo domain **nguồn** (backlink nằm ở domain khác, giữ hết), nhưng **loại trang của chính site** — CSV External links của GSC có nguyên cột "Pages from our site", thêm nó vào danh sách thì báo cáo tự xác nhận link nội bộ của mình là backlink. Message nói rõ đã bỏ bao nhiêu trang self.
+4. Link import vào store mang `note = "import từ CSV GSC"` để owner phân biệt với link thêm tay.
+5. Thứ tự CSV do `backlink_checker.state_rows()` quyết (link lỗi/chết/không link/nofollow lên đầu, trong nhóm theo URL) — exporter không tái định nghĩa thứ tự, cùng nguyên tắc `audit_rows` ủy quyền cho site_auditor.
+6. Test thứ tự dùng URL cố ý chọn (`z/a/b/c`): bộ fixture đơn giản "1 chết + 1 nofollow + 1 ổn" cho ra cùng một thứ tự dù `_problem_rank` bỏ qua error hay bỏ qua nofollow, nên mutant sống sót. Với bộ URL mới, mỗi cách nhóm sai cho một hoán vị khác hẳn.
+
 
 ### Task 4: CLI + GUI + README
 

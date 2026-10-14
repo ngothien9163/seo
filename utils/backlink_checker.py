@@ -136,6 +136,18 @@ def check_rows(rows) -> tuple:
 # ─── batch check ─────────────────────────────────────────────────────────────
 
 
+def _problem_rank(row: dict):
+    """Link cần xử lý (chết/bị chặn/không link/nofollow) lên đầu, trong nhóm theo URL."""
+    clean = (not row["error"]) and row["has_link"] and row["dofollow"]
+    return (1 if clean else 0, row["url"])
+
+
+def state_rows(state: dict) -> tuple:
+    """state (chìa _link_key -> entry) -> (header, rows), link có vấn đề lên đầu."""
+    rows = sorted((_row(e) for e in state.values()), key=_problem_rank)
+    return check_rows(rows)
+
+
 def check_links(links, state, fetcher=None, refresh: bool = False,
                 now=None, domain=None) -> tuple:
     """Check một đợt. Trả (state_mới, rows_theo_thứ_tự_input). Không raise, không dừng."""

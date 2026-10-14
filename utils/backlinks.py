@@ -237,6 +237,71 @@ def remove_link(url) -> tuple:
     return True, f"Đã bỏ '{url}' — còn {len(kept)} backlink đang theo dõi."
 
 
+def _urls_in_csv(rows) -> list:
+    """Mọi ô parse được thành URL http(s), giữ thứ tự gặp, đã gỡ trùng theo chìa.
+
+    Không tìm "cột tên External link": GSC đổi tên cột theo báo cáo và theo phiên bản,
+    còn giá trị URL thì nhận ra được. Ô là domain trần ("/noi-mi", "topbep.vn") bị bỏ
+    vì không phải địa chỉ trang — verify một domain thì vô nghĩa.
+    """
+    out, seen = [], set()
+    for row in (rows or []):
+        for cell in (row or []):
+            url = _valid_url((cell or "").strip())
+            key = _link_key(url)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(url)
+    return out
+
+
+def import_gsc_csv(path, note: str = "import từ CSV GSC") -> tuple:
+    """Nạp CSV "External links" tải tay từ Search Console vào danh sách theo dõi.
+
+    API của GSC **không** có endpoint external links — con đường duy nhất là UI →
+    Export. Vì vậy parser chỉ tin vào hình dạng giá trị, không tin tiêu đề cột.
+    Trả (số link mới thêm, thông điệp tiếng Việt). File hỏng/không có URL → thêm 0,
+    danh sách cũ không bị động tới.
+    """
+    if not isinstance(path, str) or not path:
+        return 0, "Chưa chỉ định file CSV nào — dùng: python main.py --backlink-import <duong-dan.csv>"
+    if not os.path.exists(path):
+        return 0, f"Không thấy file '{path}' — kiểm tra lại đường dẫn CSV tải từ Search Console."
+    import csv
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.reader(handle))
+    except (OSError, UnicodeDecodeError, csv.Error) as exc:
+        return 0, f"Không đọc được file CSV ({type(exc).__name__}: {str(exc)[:120]})."
+
+    own = target_domain()
+    seen_keys = {_link_key(entry["url"]) for entry in load_links()}
+    added = skipped_own = skipped_dup = 0
+    for url in _urls_in_csv(rows):
+        host = _norm_domain(urlparse(url).netloc)
+        if own and (host == own or host.endswith("." + own)):
+            skipped_own += 1          # trang của chính site không bao giờ là backlink
+            continue
+        key = _link_key(url)
+        if key in seen_keys:
+            skipped_dup += 1
+            continue
+        seen_keys.add(key)
+        if add_link(url, note=note)[0]:
+            added += 1
+
+    if not added and not skipped_own and not skipped_dup:
+        return 0, ("Không tìm thấy ô URL http(s) nào trong file — GSC có thể đổi tên cột, "
+                   "hoặc đây không phải báo cáo 'External links'. Danh sách hiện tại giữ nguyên.")
+    parts = [f"Đã thêm {added} backlink từ CSV GSC"]
+    if skipped_dup:
+        parts.append(f"bỏ {skipped_dup} URL đã có trong danh sách (trùng)")
+    if skipped_own:
+        parts.append(f"bỏ {skipped_own} trang của chính site {own} — không phải backlink")
+    return added, ", ".join(parts) + f" — tổng {len(load_links())} link đang theo dõi."
+
+
 # ─── state: data/backlink_status.json ────────────────────────────────────────
 
 

@@ -1,19 +1,21 @@
 """
 utils/exporter.py — F1: xuất dữ liệu SEO đã thu ra CSV mở bằng Excel.
 
-Đọc (không sửa) ba file state:
+Đọc (không sửa) bốn file state:
 - rank_history.json  → một dòng mỗi (lần check × từ khóa), toàn bộ lịch sử
 - gsc_history.json   → các query của snapshot GSC mới nhất
 - audit_last.json    → các finding của lần `--audit` gần nhất
+- backlink_status.json → kết quả `--backlink-check` gần nhất (link chết/nofollow đầu bảng)
 
-File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<rank|gsc>.csv`, mã UTF-8 có BOM
+File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<kind>.csv`, mã UTF-8 có BOM
 (Excel bản tiếng Việt cần BOM để không lỗi dấu), mỗi lần export một file mới.
 
 Chạy:
     python main.py --export rank       # chỉ xếp hạng
     python main.py --export gsc        # chỉ Search Console
     python main.py --export audit      # kết quả --audit lần gần nhất (data/audit_last.json)
-    python main.py --export all        # rank + gsc (audit không đi kèm: phải --audit trước)
+    python main.py --export backlinks  # kết quả --backlink-check (data/backlink_status.json)
+    python main.py --export all        # rank + gsc (audit/backlinks không đi kèm: phải chạy trước)
     GUI: tab "📈 Xếp Hạng" → nút "📤 XUẤT CSV"
 
 Ghi chú:
@@ -155,31 +157,58 @@ def export_audit() -> tuple[str, int]:
     return path, _write_csv(path, header, rows)
 
 
+# ─── SERIALIZE + EXPORT: kết quả check backlink (F7) ─────────────────────────
+
+def backlink_rows() -> tuple[list[str], list[list[str]]]:
+    """Kết quả `--backlink-check` gần nhất → (header, rows), link có vấn đề trước.
+
+    Header và thứ tự cột thuộc về backlink_checker (nơi sinh ra row) — exporter chỉ
+    ghi BOM + tên file, giống hệt cách audit_rows ủy quyền mapping cho site_auditor.
+    """
+    from utils.backlink_checker import state_rows
+    from utils.backlinks import load_state
+    return state_rows(load_state())
+
+
+def export_backlinks() -> tuple[str, int]:
+    path = _unique_path("backlinks")
+    header, rows = backlink_rows()
+    return path, _write_csv(path, header, rows)
+
+
 def export_all() -> list[tuple[str, int]]:
-    """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống)."""
+    """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống).
+
+    `all` chỉ rank + gsc vì đó là dữ liệu định kỳ scheduler tự lấy. Audit và
+    backlink là thứ owner chủ động chạy (--audit / --backlink-check), bắt nó đi kèm
+    nghĩa là export một đống số liệu của lần chạy cũ nhất không ai biết từ bao giờ.
+    """
     return [export_rank(), export_gsc()]
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
-KINDS = ("rank", "gsc", "audit", "all")
+KINDS = ("rank", "gsc", "audit", "backlinks", "all")
 
-_LABELS = {"rank": "xếp hạng", "gsc": "Search Console", "audit": "kết quả audit on-page"}
+_LABELS = {"rank": "xếp hạng", "gsc": "Search Console",
+           "audit": "kết quả audit on-page", "backlinks": "kết quả check backlink"}
 # Lệnh lấy dữ liệu tương ứng — in ra khi file chỉ có tiêu đề
-_SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit"}
+_SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit",
+            "backlinks": "--backlink-check"}
+
+_EXPORTERS = {"rank": export_rank, "gsc": export_gsc, "audit": export_audit,
+              "backlinks": export_backlinks}
 
 
 def run_export_cli(kind: str = "all") -> int:
     """Entry `--export`: xuất CSV theo loại, in đường dẫn từng file. Trả exit code."""
     kind = (kind or "all").strip().lower()
     if kind not in KINDS:
-        print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: rank | gsc | audit | all")
+        print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: {' | '.join(KINDS)}")
         return 2
 
-    # `all` = dữ liệu định kỳ (rank + gsc). Audit là thứ chủ động chạy rồi mới xuất,
-    # nên không kéo theo mỗi lần `--export all`.
     selected = [("rank", export_rank), ("gsc", export_gsc)] if kind == "all" else \
-               [(kind, {"rank": export_rank, "gsc": export_gsc, "audit": export_audit}[kind])]
+               [(kind, _EXPORTERS[kind])]
 
     for label, fn in selected:
         path, n = fn()
