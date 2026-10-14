@@ -75,8 +75,23 @@ def _load_history() -> dict:
 
 
 def _save_history(data: dict):
-    with open(_history_path(), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
+    """Ghi nguyên tử (tmp + os.replace): crash giữa lúc serialize không xoá mất lịch sử
+    — cùng idiom scheduler/alerts/backlinks/keywords đã dùng."""
+    path = _history_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 # ─── DOMAIN HELPERS ──────────────────────────────────────────────────────────

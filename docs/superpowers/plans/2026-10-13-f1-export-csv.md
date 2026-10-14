@@ -115,6 +115,8 @@
 
 ## Known limitations (ghi nhận, không sửa trong plan này)
 
+- **`_save_history` của rank_tracker (và gsc_client) từng ghi trực tiếp `open(path,"w")`** → process chết giữa lúc `json.dump` để lại file cụt/không parse được, `_load_history` `except` trả `{}` → **mất sạch lịch sử xếp hạng/GSC** không tái tạo được. **✅ ĐÃ SỬA (2026-10-14, audit code-health theo owner):** cả 2 chuyển sang idiom **atomic tmp + `os.replace`** (giống scheduler/alerts/backlinks/keywords/generator đã dùng sẵn). Test `_quick_atomic_history_test.py` 4/4 (crash giữa ghi → file gốc còn nguyên + load lại được; happy-path vẫn ghi; không sót `.tmp`); mutation `_mut_atomic_hist` 2/2 KILLED (cho `tmp = path` → reproduce mất dữ liệu).
+
 - `--export gsc` chỉ lấy snapshot mới nhất; muốn chuỗi snapshot theo ngày cần thêm loại `gsc-history` (chưa có nhu cầu thực tế → YAGNI).
 - Module không xuất `session_state.json` (dữ liệu traffic bot) — roadmap F1 chỉ định danh rank + GSC.
 - GUI nút Export in đường dẫn ra console, không mở hộp thoại "Save As" — customtkinter không có file dialog sẵn; owner muốn chọn nơi lưu thì mở `reports/` trong Explorer.

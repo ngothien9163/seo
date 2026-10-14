@@ -66,8 +66,23 @@ def _load_history() -> dict:
 
 
 def _save_history(data: dict):
-    with open(_data_path(), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
+    """Ghi nguyên tử (tmp + os.replace): crash giữa lúc serialize không xoá mất snapshot
+    GSC đã tích luỹ — cùng idiom scheduler/alerts/backlinks/keywords."""
+    path = _data_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 # ─── CREDENTIALS ─────────────────────────────────────────────────────────────
