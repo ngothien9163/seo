@@ -14,14 +14,19 @@ Nguyên tắc không được phá:
   thắng, bằng độ dài thì dòng khai báo trước thắng). `urllib.robotparser` 3.11 khớp
   theo thứ tự khai báo nên `Disallow: /wp-admin/` ăn đè `Allow` dài hơn — đã đo.
 """
+import json
+import os
 import re
 from collections import deque
+from datetime import datetime
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 
 import config.settings as cfg
 from utils.html_probe import probe
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SEVERITY_ORDER = ("CAO", "TRUNG BÌNH", "THẤP")
 
@@ -38,6 +43,8 @@ TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term",
                    "utm_content", "utm_id", "gclid", "gclsrc", "dclid", "fbclid",
                    "msclkid", "mc_eid", "ref_src"}
 _LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
+_SITEMAP_INDEX_RE = re.compile(r"<sitemapindex[\s>]", re.IGNORECASE)
+SITEMAP_INDEX_MAX = 10          # file sitemap con đọc tối đa / lần (1 request mỗi file)
 
 
 def finding(rule: str, severity: str, url: str, detail: str = "") -> dict:
@@ -196,7 +203,49 @@ def _default_fetcher(url: str):
 def _meta(start_url: str) -> dict:
     return {"start_url": start_url, "host": _host(start_url), "robots_status": None,
             "robots_blocked": 0, "sitemap_status": None, "sitemap_urls": 0,
+            "sitemap_submaps": 0, "sitemap_truncated": False, "sitemap_files": [],
             "offsite_skipped": 0, "stopped_at_limit": False}
+
+
+def _is_sitemap_file(url: str) -> bool:
+    return urlsplit(url).path.lower().endswith(".xml")
+
+
+def _sitemap_locs(body: str, base: str, start: str, policy) -> list:
+    """Các <loc> dùng được: cùng domain, robots cho phép, không trùng, giữ thứ tự sitemap."""
+    out = []
+    for loc in _LOC_RE.findall(body or ""):
+        target = normalize_url(loc, base)
+        if (target and same_host(target, start) and policy.allowed(target)
+                and target not in out):
+            out.append(target)
+    return out
+
+
+def _sitemap_seeds(body: str, sitemap_url: str, start: str, policy, fetcher, meta) -> list:
+    """URL cần audit lấy từ /sitemap.xml.
+
+    `<sitemapindex>` = danh sách sitemap CON (XML), không phải danh sách trang: phải đọc
+    thêm từng file rồi mới có URL, và bản thân file XML không được đưa vào queue — áp rule
+    on-page lên XML sẽ báo "thiếu title/H1" cho một file chưa bao giờ là trang.
+    """
+    locs = _sitemap_locs(body, sitemap_url, start, policy)
+    if not _SITEMAP_INDEX_RE.search(body or ""):
+        meta["sitemap_files"] = [sitemap_url]
+        pages = locs
+    else:
+        subs = locs[:SITEMAP_INDEX_MAX]
+        pages = []
+        for sub in subs:
+            meta["sitemap_submaps"] += 1
+            status, text, _ = fetcher(sub)
+            if status == 200:
+                for url in _sitemap_locs(text or "", sub, start, policy):
+                    if url not in pages:
+                        pages.append(url)
+        meta["sitemap_truncated"] = len(locs) > SITEMAP_INDEX_MAX
+        meta["sitemap_files"] = [sitemap_url] + subs
+    return [u for u in pages if not _is_sitemap_file(u)]
 
 
 # ─── crawler ─────────────────────────────────────────────────────────────────
@@ -228,16 +277,15 @@ def crawl(start_url: str, max_pages=None, fetcher=None) -> dict:
         status, body, _ = fetcher(sitemap_url)
         meta["sitemap_status"] = status
         if status == 200:
-            for loc in _LOC_RE.findall(body or ""):
-                target = normalize_url(loc, sitemap_url)
-                if target and same_host(target, start) and policy.allowed(target):
-                    seeds.append(target)
+            seeds = _sitemap_seeds(body or "", sitemap_url, start, policy, fetcher, meta)
             meta["sitemap_urls"] = len(seeds)
     if start not in seeds:
         seeds.append(start)
 
     pages = []
-    visited = set()
+    # file sitemap/robots đã đọc rồi = không phải trang: đừng fetch lại (mỗi URL tối đa
+    # một lần) và đừng áp rule on-page lên XML/text chỉ vì một trang có link trỏ về.
+    visited = set(meta["sitemap_files"]) | {robots_url}
     queue = deque(dict.fromkeys(seeds))
     while queue and len(pages) < limit:
         url = queue.popleft()
@@ -531,6 +579,50 @@ def audit_crawl(result: dict) -> list:
     return findings
 
 
+# ─── state: kết quả audit gần nhất (để --export audit đọc lại) ───────────────
+
+def _state_path() -> str:
+    """data/audit_last.json — path đi qua MỘT hàm để còn đổi chỗ khi tách đa site (F10)."""
+    return os.path.join(ROOT, getattr(cfg, "AUDIT_STATE_DIR", "data"), "audit_last.json")
+
+
+def save_last_audit(findings: list, url: str = "", pages: int = 0) -> str:
+    """Lưu findings của lần audit vừa xong. Chỉ 4 key của finding — không chứa HTML."""
+    payload = {
+        "url": url,
+        "pages": pages,
+        "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "findings": [{key: f.get(key, "") for key in ("rule", "severity", "url", "detail")}
+                     for f in findings],
+    }
+    path = _state_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=1)
+    return path
+
+
+def load_last_audit() -> list:
+    """findings lần audit gần nhất — file thiếu/hỏng/rác thì trả [] (không raise)."""
+    try:
+        with open(_state_path(), encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    out = []
+    for f in (raw.get("findings") or []) if isinstance(raw, dict) else []:
+        if not isinstance(f, dict):
+            continue
+        severity = f.get("severity")
+        if severity not in SEVERITY_ORDER or not f.get("rule") or not f.get("url"):
+            continue
+        out.append(finding(str(f["rule"]), str(severity), str(f["url"]),
+                           str(f.get("detail") or "")))
+    return out
+
+
 # ─── output ──────────────────────────────────────────────────────────────────
 
 def audit_rows(findings: list):
@@ -558,6 +650,12 @@ def _sitemap_note(meta: dict) -> str:
         return "không xin được (robots chặn)"
     if status != 200:
         return f"HTTP {status}"
+    if meta.get("sitemap_submaps"):
+        note = (f"{meta['sitemap_submaps']} sitemap con → "
+                f"{meta.get('sitemap_urls', 0)} URL cùng domain")
+        if meta.get("sitemap_truncated"):
+            note += f" (chỉ đọc {SITEMAP_INDEX_MAX} file sitemap con đầu)"
+        return note
     return f"{meta.get('sitemap_urls', 0)} URL cùng domain"
 
 
@@ -597,12 +695,14 @@ def run_audit_cli(limit=None, fetcher=None, url: str = "") -> int:
         return 1
 
     _print_findings(findings)
+    save_last_audit(findings, url=start, pages=len(result["pages"]))
     counts = {severity: sum(1 for f in findings if f["severity"] == severity)
               for severity in SEVERITY_ORDER}
     print(f"\n[Audit] {len(result['pages'])} trang / {len(findings)} lỗi"
           f" (CAO {counts['CAO']}, TRUNG BÌNH {counts['TRUNG BÌNH']}, THẤP {counts['THẤP']})")
     if not findings:
         print("[Audit] ✅ Không tìm thấy lỗi trong các rule đã cài.")
+    print("[Audit] 💾 Đã lưu kết quả — mở bằng Excel: python main.py --export audit")
     if meta.get("stopped_at_limit"):
         print(f"[Audit] ℹ️ Dừng ở ngưỡng {limit or _max_pages()} trang — còn link chưa đi hết;"
               " tăng bằng --audit-limit N.")
