@@ -73,6 +73,8 @@ def show_strategy():
     print('  python main.py --generate "tu khoa"  Sinh bai bang Ollama (chi draft, khong tu dang)')
     print("  python main.py --generate --day 3    Lay muc ngay 3 trong content plan 30 ngay")
     print("  python main.py --generate \"kw\" --dry-run  Chi in prompt, khong goi Ollama")
+    print("  python main.py --migrate-multi-site  Chep du lieu site hien tai vao data/<slug>/ (khong xoa goc)")
+    print("  python main.py --migrate-multi-site --dry-run  Chi xem se copy gi, khong ghi")
     print("-" * 65)
 
 
@@ -194,6 +196,10 @@ if __name__ == "__main__":
         sys.exit(run_generate_cli(keyword=_flag_value("--generate"),
                                   day=_flag_value("--day"),
                                   dry_run="--dry-run" in sys.argv))
+
+    elif "--migrate-multi-site" in sys.argv:
+        from utils.migrate_sites import run_migrate_cli
+        sys.exit(run_migrate_cli(dry_run="--dry-run" in sys.argv))
 
     else:
         show_strategy()
