@@ -141,3 +141,12 @@ SCHEDULER_RANK_HOURS = [7, 13, 19]   # giờ trong ngày check thứ hạng từ
 SCHEDULER_GSC_HOURS = [9]            # giờ kéo dữ liệu Search Console
 SCHEDULER_TRAFFIC_ENABLE = False     # traffic tự chạy = quyết định của owner, mặc định TẮT
 SCHEDULER_LOCK_STALE = 1200          # giây không heartbeat là lock bị coi đã chết (20 phút)
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN H: AUDIT ON-PAGE (F6) — --audit crawl chính site của mình, không đụng trình duyệt
+# ────────────────────────────────────────────────────────────────────────────
+AUDIT_MAX_PAGES = 100               # Số trang tối đa mỗi lần --audit (--audit-limit N để đổi)
+AUDIT_TIMEOUT = 10                  # giây/request — link hỏng không được treo cả đợt audit
+# UA desktop tĩnh để request HTML. Crawler không phải Googlebot và không đánh cược
+# với bot-detection: chỉ lấy HTML tĩnh của site mình, không đụng lớp anti-detect.
+AUDIT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
