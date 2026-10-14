@@ -70,6 +70,9 @@ def show_strategy():
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
     print("  python main.py --backlink-refresh [--backlink-limit N]  Check lai het, bo qua cache 24h")
+    print('  python main.py --generate "tu khoa"  Sinh bai bang Ollama (chi draft, khong tu dang)')
+    print("  python main.py --generate --day 3    Lay muc ngay 3 trong content plan 30 ngay")
+    print("  python main.py --generate \"kw\" --dry-run  Chi in prompt, khong goi Ollama")
     print("-" * 65)
 
 
@@ -185,6 +188,12 @@ if __name__ == "__main__":
     elif "--backlink-import" in sys.argv:
         from utils.backlink_checker import run_backlink_import_cli
         sys.exit(run_backlink_import_cli(_flag_value("--backlink-import")))
+
+    elif "--generate" in sys.argv:
+        from content.generator import run_generate_cli
+        sys.exit(run_generate_cli(keyword=_flag_value("--generate"),
+                                  day=_flag_value("--day"),
+                                  dry_run="--dry-run" in sys.argv))
 
     else:
         show_strategy()

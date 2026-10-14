@@ -130,6 +130,19 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 14. Content generation bằng Ollama — draft bài tiếng Việt (F8)
+
+- Chọn một mục trong content plan 30 ngày → sinh **dàn ý** → viết **bản nháp** markdown tối ưu từ khóa → lưu vào `content/drafts/<slug>-<timestamp>.md`. Model mặc định `qwen3:30b-a3b` (README Ollama), chạy local qua `OLLAMA_URL`, **không** gửi gì ra ngoài máy.
+- `python main.py --generate "nối mi tự nhiên"` (hoặc `--generate --day 3` lấy đúng mục ngày 3 trong plan, hay `--generate "kw"` rơi về `config/keywords.json` nếu không truyền). Chạy 2 lần cùng từ khóa → **2 file khác nhau**, không ghi đè.
+- `--dry-run` chỉ **in prompt** (outline + draft) mà **không gọi Ollama, không tạo file** — dùng để xem tool sẽ hỏi model gì trước khi tốn thời gian.
+- Mỗi bài có **frontmatter** (keyword, topic, type, date, model) và được tự kiểm tra SEO thô in ra console: từ khóa có trong **H1**? xuất hiện mấy lần? có trong **2 đoạn mở đầu**?
+- GUI: tab **🤖 AI Engine** → ô từ khóa + nút **✍️ SINH BÀI** (thread nền, đọc Ollama URL ngay trên tab, xong in đường dẫn draft xuống log).
+- **Tool CHỈ sinh, không tự đăng.** Không có WordPress API, không sinh ảnh, không đăng hàng loạt cả tháng — bạn duyệt và tự dán lên site. Văn phong/độ chính xác của bản nháp là việc bạn kiểm; prompt chỉ là hướng dẫn tiếng Việt, không phải RAG nên không guarantee số liệu đúng.
+- Timeout mỗi lượt `CONTENT_GEN_TIMEOUT` (300s — model 30b chậm), `CONTENT_GEN_RETRIES` (1) **chỉ áp dụng khi timeout**, connection error báo ngay không retry.
+- **Giới hạn / chưa verify**: trên máy dev Ollama **chưa chạy** (đo 2026-10-14), nên pipeline + ghi file chỉ được chứng minh bằng unit test tiêm client giả — **chưa** có bài thật từ `qwen3:30b-a3b`. Muốn xem chất lượng bài: `ollama serve` + `ollama pull qwen3:30b-a3b` rồi chạy `--generate`. `content/drafts/` được gitignore (dữ liệu nháp, owner duyệt rồi mới dùng).
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -200,6 +213,9 @@ python main.py --backlink-check [--backlink-limit 20]  # Verify link đã đặt
 python main.py --backlink-add "https://site-khac/bai-cua-ban"  # Thêm 1 backlink vào config/backlinks.json
 python main.py --backlink-import <file.csv>  # Nạp CSV "External links" tải tay từ Search Console
 python main.py --backlink-refresh  # Check lại toàn bộ, bỏ qua cache 24h
+python main.py --generate "nối mi tự nhiên"  # Sinh dàn ý + draft vào content/drafts/ (Ollama local)
+python main.py --generate --day 3  # Lấy mục ngày 3 trong content plan 30 ngày để sinh bài
+python main.py --generate "kw" --dry-run  # Chỉ in prompt, không gọi Ollama, không tạo file
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -245,6 +261,10 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `BACKLINK_CACHE_HOURS` | `24` | Backlink: URL đã check trong N giờ thì dùng kết quả cũ (`--backlink-refresh` để bỏ qua) |
 | `BACKLINK_STATE_DIR` | `data` | Nơi lưu `backlink_status.json` (kết quả check, để `--export backlinks` đọc lại) |
 | `BACKLINK_STORE_FILE` | `backlinks.json` | Tên file danh sách link đã đặt, nằm trong `config/` — **đã gitignore** vì là dữ liệu kinh doanh |
+| `CONTENT_MODEL` | `qwen3:30b-a3b` | Content (F8): model Ollama sinh bài — bản nháp, owner duyệt rồi mới dùng |
+| `CONTENT_GEN_TIMEOUT` | `300` | Content: giây/lượt gọi Ollama — model 30b chậm, draft dài cần thời gian |
+| `CONTENT_GEN_RETRIES` | `1` | Content: số lần retry, **chỉ khi timeout**; connection error báo ngay không retry |
+| `CONTENT_DRAFTS_DIR` | `content/drafts` | Content: nơi lưu bản nháp `.md` (UTF-8, **gitignore** — dữ liệu nháp riêng) |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
@@ -287,6 +307,8 @@ seo-by-Tung/
 │   ├── pagespeed.py         # Core Web Vitals qua PageSpeed Insights API (số LAB, lưu data/pagespeed.json)
 │   ├── backlinks.py         # Backlink: store config/backlinks.json + state + verify thuần (tái dùng html_probe)
 │   ├── backlink_checker.py  # Backlink: batch fetch requests ≤5 luồng, cache 24h, báo cáo %sống/%link/dofollow
+│   ├── content_prompts.py   # Content (F8): slugify + prompt outline/draft + frontmatter + seo_check — thuần, không network
+│   ├── ollama_client.py     # Content (F8): client Ollama localhost (stream=False, chỉ retry khi timeout)
 │   ├── automation.py        # 1 session traffic — main.py --auto và scheduler dùng chung
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
@@ -294,7 +316,9 @@ seo-by-Tung/
 │   └── test_direct_access.py# Deep session truy cập trực tiếp
 ├── content/
 │   ├── planner.py           # Content plan 30 ngày
-│   └── keyword_research.py  # Volume/difficulty/intent + funnel
+│   ├── keyword_research.py  # Volume/difficulty/intent + funnel
+│   ├── generator.py         # F8: pipeline outline→draft→file (atomic, UTF-8 không BOM), CLI --generate
+│   └── drafts/              # (sinh ra khi chạy) bản nháp .md — gitignore, owner duyệt rồi mới dùng
 ├── backlinks/
 │   └── tracker.py           # Backlink 3 tier + guest post targets = danh sách **cơ hội** (todo), không phải link đã đặt
 ├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
@@ -308,6 +332,7 @@ seo-by-Tung/
 - **Bị CAPTCHA thường xuyên**: kiểm tra `locale`/`timezone`/`Accept-Language` đã khớp (mặc định đã force `vi-VN`); giữ nguyên file trong `profiles/`; giảm `MAX_SESSIONS_PER_DAY`; cân nhắc dùng proxy VN.
 - **Gõ lệnh `python ui.py` báo thiếu module**: chưa `pip install -r requirements.txt` hoặc đang sai môi trường ảo.
 - **Playwright không mở được browser**: chạy `playwright install chromium`.
+- **`--generate` báo "Chưa chạy Ollama tại localhost:11434"**: chưa bật `ollama serve` (hoặc chưa `ollama pull qwen3:30b-a3b`). Tool chỉ nói chuyện với Ollama local, **không** thêm dependency AI nào, **không** gửi prompt ra ngoài máy — dùng `--dry-run` để xem prompt mà không cần Ollama.
 - **Ký tự tiếng Việt hiển thị `?` trong source**: một số file comment bị hỏng encoding (lịch sử lưu ANSI). Chạy `python fix_encoding.py` để sửa các chuỗi quen thuộc, hoặc mở file và lưu lại với encoding UTF-8.
 - **`--audit` báo "Không đọc được trang nào" (exit 1)**: sai `TARGET_URL` hoặc mất mạng; nếu site tự chặn UA desktop thì crawler chỉ ghi nhận 403/429 thành một dòng báo cáo — **không** retry và **không** đổi UA để lọt qua (đó là việc của lớp anti-detect, đã tuyên bố không đụng tới).
 - **`--pagespeed` trả 429 "hết quota"**: quota ẩn danh của PSI là *Queries per day* dùng chung toàn cầu — hết thì chờ hoặc tạo key miễn phí rồi điền `PAGESPEED_API_KEY`; báo cáo audit HTML không liên quan vẫn chạy.

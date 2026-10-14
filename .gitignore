@@ -21,3 +21,5 @@ _test_*
 _quick_*.py
 # F3 state chống spam cảnh báo
 data/
+# F8: bản nháp bài viết sinh bằng Ollama — owner duyệt rồi mới dùng, không commit
+content/drafts/

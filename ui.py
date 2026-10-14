@@ -57,6 +57,7 @@ class TrafficBotUI(ctk.CTk):
         self._gsc_running = False
         self._audit_running = False
         self._backlinks_running = False
+        self._generate_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -393,6 +394,16 @@ class TrafficBotUI(ctk.CTk):
         self.btn_refresh_models.pack(side="left", padx=6)
         self.lbl_ollama_status = ctk.CTkLabel(bf, text="● Chưa kiểm tra", text_color="gray")
         self.lbl_ollama_status.pack(side="left", padx=14)
+
+        self.entry_gen_kw = ctk.CTkEntry(bf, width=240, placeholder_text="từ khóa (trống = từ khóa đang track)")
+        self.entry_gen_kw.pack(side="left", padx=(14, 0))
+        self.btn_generate = ctk.CTkButton(
+            bf, text="✍️  SINH BÀI",
+            fg_color="#2a5a8a", hover_color="#3a7ab0",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_generate_content,
+        )
+        self.btn_generate.pack(side="left", padx=(10, 0))
 
         ctk.CTkFrame(t, height=1, fg_color="#333").grid(row=6, column=0, columnspan=2, sticky="ew", padx=14, pady=8)
 
@@ -795,6 +806,41 @@ class TrafficBotUI(ctk.CTk):
                 state="normal", text="🔗  CHECK BACKLINK"))
 
     # ═══════════════════════════════════════════════════════════════
+    # CONTENT GENERATION (F8) — chỉ sinh bản nháp bằng Ollama, không tự đăng
+    # ═══════════════════════════════════════════════════════════════
+
+    def run_generate_content(self):
+        """Nút ✍️: sinh dàn ý → bản nháp markdown vào content/drafts/ (thread nền)."""
+        if self.is_running:
+            print("[Content] ⚠️ Bot đang treo máy — đợi phiên traffic xong rồi sinh bài.")
+            return
+        if self._generate_running:
+            return
+        # Đọc widget Tk ở luồng chính — worker nền KHÔNG được chạm entry (Tk không thread-safe)
+        kw = self.entry_gen_kw.get().strip()
+        url = self.entry_ollama_url.get().strip()
+        self._generate_running = True
+        self.btn_generate.configure(state="disabled", text="⏳ Đang sinh bài...")
+        threading.Thread(target=self._generate_worker, args=(kw, url), daemon=True).start()
+
+    def _generate_worker(self, kw, url):
+        try:
+            from content.generator import generate_article
+            if url:
+                cfg.OLLAMA_URL = url
+            path, msg = generate_article(keyword=kw)
+            if path:
+                print(f"[Content] ✍️ Đã lưu bản nháp: {path}")
+            else:
+                print(f"[Content] {msg}")
+        except Exception as e:
+            print(f"[Content] Lỗi: {e}")
+        finally:
+            self._generate_running = False
+            self.after(0, lambda: self.btn_generate.configure(
+                state="normal", text="✍️  SINH BÀI"))
+
+    # ═══════════════════════════════════════════════════════════════
     # TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE (F2)
     # ═══════════════════════════════════════════════════════════════
 
@@ -863,7 +909,8 @@ class TrafficBotUI(ctk.CTk):
         threading.Thread(target=self._do_test_ollama, daemon=True).start()
 
     def _do_test_ollama(self):
-        base = self.entry_ollama_url.get().replace("/api/generate", "").rstrip("/")
+        from utils.ollama_client import base_from_url
+        base = base_from_url(self.entry_ollama_url.get().strip())
         try:
             resp = requests.get(f"{base}/api/tags", timeout=5)
             if resp.status_code == 200:
@@ -887,7 +934,8 @@ class TrafficBotUI(ctk.CTk):
     
     def refresh_ollama_models(self):
         """L?y danh s�ch model t? Ollama server v� c?p nh?t dropdown."""
-        base = self.entry_ollama_url.get().replace("/api/generate", "").rstrip("/")
+        from utils.ollama_client import base_from_url
+        base = base_from_url(self.entry_ollama_url.get().strip())
         try:
             resp = requests.get(f"{base}/api/tags", timeout=5)
             if resp.status_code == 200:
