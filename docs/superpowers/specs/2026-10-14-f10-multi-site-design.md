@@ -1,7 +1,7 @@
 # Spec: F10 — Multi-site / multi-project (quản lý nhiều site trong một project)
 
 - Ngày: 2026-10-14
-- Trạng thái: ⏳ **CHỜ OWNER DUYỆT** — 4 quyết định (QĐ A/B/C mục 2 + scheduler lock mục 6, chốt ở cuối file) chưa chốt; chưa code vì migration đụng dữ liệu thật.
+- Trạng thái: ✅ **ĐÃ DUYỆT 2026-10-14** — owner chốt cả 4 quyết định theo khuyến nghị: QĐ A = slug từ `cfg.TARGET_URL` (không SITE_ID); QĐ B = fallback flat-file (đơn site không breaking, chưa migrate vẫn chạy như cũ); QĐ C = profile browser dùng chung theo persona (chỉ state/history là per-site); scheduler lock = dùng chung process-wide. Plan: `docs/superpowers/plans/2026-10-14-f10-multi-site.md`.
 - Phân loại: Architectural — đổi nơi lưu state ở mọi module đọc/ghi và migrate file thật của owner (hard-to-reverse).
 - Card gốc: `docs/superpowers/plans/2026-10-06-roadmap-10-tinh-nang.md` (mục F10).
 
@@ -160,11 +160,11 @@ Idempotent: chạy 2 lần không nhân bản dữ liệu (bỏ qua nếu đích
 
 ---
 
-## Cần owner trả lời trước khi code
+## Kết quả chốt của owner (2026-10-14)
 
-1. **QĐ A:** slug từ domain (mặc định) hay `SITE_ID` tường minh?
-2. **QĐ B:** fallback flat-file để đơn site không breaking (mặc định) hay bắt buộc migrate?
-3. **QĐ C:** profile giữ persona-chung (mặc định) hay scope per-site?
-4. Scheduler lock: dùng chung (mặc định) hay per-site?
+1. **QĐ A:** slug từ `cfg.TARGET_URL` qua `site_domain()` — **đã chốt**, không dùng SITE_ID.
+2. **QĐ B:** fallback flat-file, đơn site không breaking — **đã chốt**.
+3. **QĐ C:** profile browser dùng chung theo persona, chỉ state/history per-site — **đã chốt**.
+4. Scheduler lock: dùng chung process-wide — **đã chốt**.
 
-Owner trả lời (hoặc nói "chốt theo mặc định, làm ngay") → tôi viết plan F10 chi tiết rồi thực thi T1→T4.
+→ Duyệt xong. Viết plan `docs/superpowers/plans/2026-10-14-f10-multi-site.md` rồi thực thi T1→T4.
