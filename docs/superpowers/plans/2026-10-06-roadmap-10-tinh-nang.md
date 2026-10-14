@@ -178,6 +178,8 @@
 
 ## F10 — Multi-site / multi-project
 
+**Trạng thái: ⏳ SPEC đã soạn, chờ owner duyệt (2026-10-14)** — `docs/superpowers/specs/2026-10-14-f10-multi-site-design.md`. Chưa code vì migration đụng dữ liệu thật. Spec đề xuất **khác** 3 điểm so với card gốc (owner cần biết khi duyệt): (1) suy slug site từ `cfg.TARGET_URL` qua helper `site_domain()` đã có, **không** thêm `config/sites.json` registry; (2) **khuyến nghị giữ profile browser theo persona-chung** (cách ly history/state per-site, không tách profile per-site — trái với ý "profile browser riêng" ở card); (3) **fallback flat-file** để owner đơn site không breaking nếu chưa migrate. AEO history (dòng card gốc) phụ thuộc F9 chưa làm → không nằm trong F10. 4 quyết định cần owner trả lời ở cuối spec.
+
 **Mục tiêu:** quản lý nhiều site; mỗi site có URL, danh sách từ khóa, rank/GSC/session/AEO history, GSC property, profile browser riêng.
 
 **Tính chất: architectural rõ ràng** — spec đầy đủ + script migration. Đặt cuối vì đụng mọi nơi đọc/ghi state.
