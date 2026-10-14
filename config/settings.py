@@ -156,3 +156,12 @@ PAGESPEED_STATE_DIR = "data"        # nơi lưu pagespeed.json (chỉ số gọn
 # PSI không key dùng chung một quota "Queries per day" toàn cầu — đã đo 2026-10-14: hết là hết.
 # Điền key miễn phí (Google Cloud Console -> PageSpeed Insights API) để thoát cảnh đó; để trống vẫn chạy.
 PAGESPEED_API_KEY = ""
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN I: BACKLINK AUTO-CHECK (F7) — verify link đã đặt, lịch sự với site người khác
+# ────────────────────────────────────────────────────────────────────────────
+BACKLINK_PARALLEL = 5               # luồng fetch song song — nhiều hơn là gây tải cho host lạ
+BACKLINK_TIMEOUT = 15               # giây/link — một trang treo không được kéo cả batch
+BACKLINK_CACHE_HOURS = 24           # link vừa check trong vòng này không fetch lại (như snapshot GSC)
+BACKLINK_STATE_DIR = "data"         # nơi lưu backlink_status.json (kết quả check — gitignored)
+BACKLINK_STORE_FILE = "backlinks.json"  # nằm trong config/, danh sách link owner tự thêm

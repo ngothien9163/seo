@@ -85,6 +85,7 @@ class _Probe(HTMLParser):
         elif tag in _HEADING_LEVELS:
             self._begin_capture(tag)
         elif tag == "a":
+            self._flush_link()      # <a> mới xuất hiện = thẻ trước thiếu </a>, đừng bỏ rơi link
             self._link = {"href": _attr(attrs, "href"),
                           "rel": _ws(_attr(attrs, "rel")).lower(),
                           "parts": []}
@@ -117,13 +118,23 @@ class _Probe(HTMLParser):
             if level == 1:
                 self.h1.append(text)
         elif tag == "a" and self._link is not None:
-            link = self._link
-            self._link = None
-            self.links.append({"href": link["href"],
-                               "text": _ws("".join(link["parts"])),
-                               "rel": link["rel"]})
+            self._flush_link()
         elif self._tags and self._tags[-1] == tag:
             self._end_capture(tag)
+
+    def close(self):
+        """Hết document: link chưa gặp </a> vẫn là link thật, không được biến mất."""
+        super().close()
+        self._flush_link()
+
+    def _flush_link(self):
+        link = self._link
+        if link is None:
+            return
+        self._link = None
+        self.links.append({"href": link["href"],
+                           "text": _ws("".join(link["parts"])),
+                           "rel": link["rel"]})
 
     # link text cũng phải vào buffer của thẻ cha (h1 trong a, v.v.)
     def _meta(self, attrs):

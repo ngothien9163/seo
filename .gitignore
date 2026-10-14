@@ -13,6 +13,8 @@ session_state.json
 rank_history.json
 gsc_history.json
 config/gsc_service_account.json
+# F7: danh sách backlink của site — dữ liệu kinh doanh, không push lên repo
+config/backlinks.json
 reports/
 _test_*
 *.log
