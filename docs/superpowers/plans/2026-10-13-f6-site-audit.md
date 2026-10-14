@@ -87,6 +87,13 @@ Rules bắt buộc (mỗi rule một hàm nhỏ, test độc lập): thiếu `ti
   - Mutation khác đã soi và kết quả: bỏ `same_host` ở vòng link (2 FAIL), nhận URL ngoài domain từ sitemap, `max_pages` off-by-one (2 FAIL), giữ `?utm=`/giữ fragment, không seed trang chủ (14 FAIL), cho redirect ngoài domain lọt qua, parse link từ trang lỗi, gộp alt thiếu với alt rỗng, bỏ ngưỡng nội dung cho `alt=""`, bỏ kiểm tra host của canonical, báo `thiếu sitemap.xml` khi robots chặn hết, nổ rule on-page trên trang 404 (2 FAIL), trang chết bị báo 2 rule (2 FAIL), `RobotsPolicy` văn bản rỗng = chặn hết (16 FAIL), `Allow` dài hơn thua `Disallow` (khớp theo dòng đầu).
 - [x] Step 5 — Commit: `feat: F6 site auditor: 20 rule on-page + crawler chi cham domain muc tieu` — sửa "16" → "20" theo Deviation 3, vì message phải khớp số rule thật trong `RULE_COUNT`.
 
+**Task 2b — addendum (bug crawler do verify thật ở Task 4 bắt được, 2026-10-14).** `crawl()` coi **mọi** `<loc>` trong `/sitemap.xml` là một trang. Với site WordPress/Yoast (nankybeauty.com là một ca thật), `/sitemap.xml` là `<sitemapindex>`: các `<loc>` bên nó là **sitemap con (XML)**, không phải trang → crawler lấy rule on-page áp lên file XML và báo 3 lỗi **CAO giả** ("thiếu title", "thiếu meta description", "thiếu H1" cho `sitemap-0.xml`). Unit test không bắt được vì fixture `<urlset>` của Task 2 đúng là urlset. Đã sửa trong `utils/site_auditor.py`:
+- `_sitemap_seeds()`: nhận diện `<sitemapindex>` rồi mới đọc từng sitemap con (tối đa `SITEMAP_INDEX_MAX = 10` file, không đệ quy thêm cấp), gom `<loc>` từ đó; **bộ lọc `.xml` nằm ở MỘT chỗ duy nhất** áp cho cả hai nhánh (mutant "chỉ lọc ở một nhánh" từng sống nên giờ gộp lại).
+- `meta["sitemap_files"]` + `visited` khởi tạo bằng robots.txt và các file sitemap đã đọc → bất biến "mỗi URL request tối đa **1** lần" còn đúng khi một trang có link trỏ về `/sitemap.xml` (trước đó: fetch lần hai **và** audit XML lần hai).
+- `_meta()` thêm `sitemap_submaps`/`sitemap_truncated`/`sitemap_files`; `_sitemap_note()` in "1 sitemap con → 403 URL cùng domain (chỉ đọc 10 file sitemap con đầu)" khi bị cắt.
+- Sau sửa, verify thật: hết finding giả, `CAO 0`, 20 trang/16.25 s.
+- Test mới (4): `test_crawl_expands_sitemap_index_but_never_audits_the_xml_as_a_page`, `test_crawl_caps_how_many_sub_sitemaps_are_read`, `test_urlset_listing_a_sitemap_file_does_not_make_it_a_page`, `test_sitemap_files_already_read_are_not_audited_when_a_page_links_to_them`. Mutation: 4 mutant sitemap (không đọc sitemap con / coi `<sitemapindex>` như `<urlset>` / bỏ bộ lọc `.xml` / bỏ `visited` khởi tạo bằng file đã đọc) — **4/4 CAUGHT**.
+
 
 ### Task 3: `utils/pagespeed.py` — Core Web Vitals (PSI, không key)
 
@@ -121,13 +128,34 @@ Rules bắt buộc (mỗi rule một hàm nhỏ, test độc lập): thiếu `ti
 - [ ] Step 7 — GUI probe: `TrafficBotUI()`, `btn_audit.invoke()`, xác nhận không raise + log in ra (probe đọc `txt_log`).
 - [ ] Step 8 — Commit: `feat: F6 cli --audit + xuat CSV qua exporter + nut GUI audit`
 
+**Đã làm (2026-10-14) — tick + deviation thay cho checklist trên:**
+
+- [x] Step 1 — 15 test mới, RED thật 11 FAIL. Banned: import `main.py` (sợ chạm mạch traffic) → đo flags/help/hàm gọi bằng **AST** (`_strings_in`, `_called_names`, tìm `Call` có keyword `limit`); `site_auditor.py` **không import `csv`** cũng bằng AST; README needle đọc **đúng nhánh `utils/` của cây project** (prose nhắc tên file không được tính); state path phải nằm trong `data/` (thư mục đã gitignore từ F3) — kết quả audit chứa URL + lỗi nội bộ, lạc sang `reports/` là nguy cơ commit nhầm.
+- [x] Step 2 — **11 FAIL** (RED). Một lỗi do chính test viết sai (`patched()` gọi positional thay vì keyword) — sửa test, không sửa code.
+- [x] Step 3 — Implement. **4 deviation:**
+  - `exporter.export_audit()` **không nhận `rows`** (plan ghi `export_audit(rows)`). Module F1 đã có hợp đồng "mỗi `export_X()` tự đọc state, trả `(path, n)`"; giữ hợp đồng đó thì `--export audit` chạy được **sau khi** process audit đã thoát (GUI bấm nút hôm qua, hôm nay xuất vẫn còn), và không phải truyền finding qua lại giữa hai module. Nguồn: `data/audit_last.json` do `site_auditor.save_last_audit()` ghi mỗi lần `--audit` đọc được ≥1 trang — chỉ 4 key của finding + `url` + `pages` + `saved_at`, **không chứa HTML**; `load_last_audit()` loại dòng rác/severity lạ và **không raise** khi file thiếu hoặc hỏng JSON.
+  - Mapping finding → dòng CSV vẫn **một chỗ** (`site_auditor.audit_rows`); exporter chỉ `load_last_audit()` + `_unique_path("audit")` + `_write_csv`.
+  - `--export all` **không** kèm audit: rank/gsc là dữ liệu định kỳ, audit phải tự crawl trước; đổi lại `--audit` kết thúc bằng dòng gợi ý `python main.py --export audit`.
+  - `main.py` nhận `--audit-limit` **kể cả khi thiếu `--audit`** (gõ sót thì vẫn audit, không in help rồi bỏ); token kế tiếp bắt đầu bằng `-` → coi như không truyền limit (dùng `AUDIT_MAX_PAGES`), giá trị sai ("abc", số âm) → `run_audit_cli` exit 2 + giải thích.
+- [x] Step 4 — GUI: nút **🔍 AUDIT SITE** cuối hàng nút tab 📈 Xếp Hạng; guard `is_running` in lý do (không âm thầm), cờ `_audit_running`, thread nền, `print` của thread xuống khung log; chạy xong **tự gọi `export_audit()`** để "chạy xong rồi xem file" đúng với người chỉ dùng GUI.
+- [x] Step 5 — README: mục **"### 12. Audit on-page + Core Web Vitals"**, 3 dòng CLI (`--audit [--audit-limit N]`, `--pagespeed [URL]`, `--export audit`), **7 hàng bảng PHẦN H** (`AUDIT_MAX_PAGES`/`AUDIT_TIMEOUT`/`AUDIT_USER_AGENT`/`AUDIT_STATE_DIR` + `PAGESPEED_*`), cây project thêm `html_probe.py`/`site_auditor.py`/`pagespeed.py`, 2 dòng xử lý sự cố (403/429 và quota PSI), mục "Giới hạn phụ thuộc" ghi rõ **không thêm dependency** (html.parser stdlib thay beautifulsoup4).
+- [x] Step 6 — **Verify thật trên nankybeauty.com (có mạng)**:
+  - `--audit --audit-limit 3` → exit 0, **3.95 s**; `--audit-limit 20` → exit 0, **16.25 s ≈ 0.8 s/trang** ⇒ 50 trang ~40 s, 100 trang ~80 s. **Số đo thật, thay cho con số "2 phút" trong card.**
+  - Findings thật (không phải fixture): `heading nhảy cấp` h2→h4 trên 4/4 trang đầu, `title 107–123 ký tự`, `meta 170–214 ký tự`; đợt 20 trang = **42 lỗi, CAO 0, TRUNG BÌNH 18, THẤP 24**.
+  - `--export audit` → `reports/export_20261014_161913_audit.csv`: 42 dòng, BOM `ef bb bf`, header `severity,rule,url,detail`, tiếng Việt không dấu lỗi khi đọc bằng `utf-8-sig`.
+  - **Bug thật mà verify bắt được** → xem addendum **Task 2b** bên dưới (sitemap index bị audit như trang).
+  - `data/pagespeed.json`: **không tồn tại** — PSI vẫn 429 hết quota ẩn danh (Task 3), nên `load_saved()` chưa có gì để đọc; không fake file này để cho đẹp bước verify.
+- [x] Step 7 — GUI probe `_quick_gui_probe_audit.py` (gitignored) dùng **mainloop thật** + stub network: `btn_audit.invoke()` → `run_audit_cli` 1 lần, `export_audit` 1 lần, nút `normal → disabled → normal`, `_audit_running` nhả cờ, 2 dòng `[Audit]` xuất hiện trong `txt_log`, không Traceback → **[GUI-PROBE] OK**. Bài học: bơm `update()` thủ công thay vì `mainloop()` khiến `after()` của thread rơi xuống stderr → probe báo FAIL giả 2 lần; phải đo trong mainloop thật.
+- [x] Step 8 — Mutation battery **13/13 CAUGHT** (restore byte-exact có assert; `_mut_audit4.py` đã xóa sau khi chạy). Survivor vòng đầu: `run_audit_cli` bỏ `save_last_audit()` không bị bắt — test đọc leftover của test chạy trước → thêm `cleanup_audit_state()` + đòi file thật sự tồn tại. Trạng thái cuối: **104 audit test PASS**, 7/7 suite PASS, CJK 0 trên mọi file chạm.
+- [x] Step 9 — Commit: `feat: F6 cli --audit + xuat CSV qua exporter + nut GUI audit`
+
 ## Tiêu chí hoàn thành (card F6)
 
-- Không có sitemap → vẫn audit được bằng crawl.
-- Link hỏng không làm treo (timeout 10 s/link), một trang nổ không dừng cả đợt.
-- **Không bao giờ** request ra ngoài domain mục tiêu (test đếm URL, không phải tin tưởng).
-- Site ~50 trang xong trong cỡ 2 phút (chưa đo được thì ghi số đo thật vào plan, không hứa).
-- Kết quả đọc được trên console và mở được bằng Excel (CSV BOM từ exporter).
+- Không có sitemap → vẫn audit được bằng crawl. *(test: `test_crawl_without_sitemap_follows_internal_links_only`)*
+- Link hỏng không làm treo (timeout 10 s/link), một trang nổ không dừng cả đợt. *(test: 404/timeout → finding, queue đi tiếp; verify thật: 403/429 chỉ là một dòng)*
+- **Không bao giờ** request ra ngoài domain mục tiêu (test đếm URL, không phải tin tưởng). *(test: `net.calls` — gồm cả trường hợp sitemap index trỏ sitemap con ở host khác)*
+- Site ~50 trang xong trong cỡ 2 phút → **ĐO THẬT 2026-10-14: 20 trang/16.25 s trên nankybeauty.com (≈0.8 s/trang) ⇒ 50 trang ~40 s, nhanh hơn ngưỡng card.**
+- Kết quả đọc được trên console và mở được bằng Excel → **VERIFY THẬT: `--audit` in theo nhóm severity (42 lỗi/CAO 0), `--export audit` → `reports/export_20261014_161913_audit.csv` 42 dòng, BOM `ef bb bf`, đọc lại bằng `csv` với `utf-8-sig` nguyên dấu tiếng Việt.**
 
 ## Known limitations (ghi nhận, không sửa trong plan này)
 
@@ -140,5 +168,7 @@ Rules bắt buộc (mỗi rule một hàm nhỏ, test độc lập): thiếu `ti
 - Trang trả 403/429 (Cloudflare chặn UA desktop tĩnh) chỉ hiện ra là `không đọc được trang` CAO, crawler **không** retry và **không** đổi UA — cố đổi UA để lọt qua là việc đã tuyên bố không làm.
 - `audit_html` chạy trên HTML **đã decode**; nếu server gửi charset sai, `probe` vẫn trả dict (không raise) nhưng text có thể lỗi dấu — finding lúc đó là hệ quả của encoding, không phải của on-page.
 - Rule "alt rỗng hàng loạt" cần ngưỡng tự đặt (`word_count >= 200` và `>= 3` ảnh `alt=""`): trang ảnh dạng thư viện (nhiều ảnh, ít chữ) sẽ **không** bị nhắc, dù có thể nên nhắc. Đây là lựa chọn để tránh báo nhiễu, không phải chân lý.
-- Crawl là **BFS đồng bộ một luồng**, không song song: site 100 trang với 10s/req worst case ~17 phút. Chưa đo số thật (Task 4 Step 6 sẽ ghi số đo, không hứa).
+- Crawl là **BFS đồng bộ một luồng**, không song song: site 100 trang với 10s/req worst case ~17 phút. **Đo thật 2026-10-14 trên nankybeauty.com: 20 trang/16.25 s (≈0.8 s/trang, exit 0)** ⇒ 100 trang thực tế ~80 s, không phải worst case; chưa đo với site có trang chết/timeout hàng loạt.
+- Sitemap **index chỉ được mở 1 cấp và tối đa `SITEMAP_INDEX_MAX = 10` sitemap con**. Site có 20 file sitemap con sẽ thiếu trang (báo cáo ghi rõ "chỉ đọc 10 file..."), và `<sitemapindex>` lồng trong `<sitemapindex>` không được đệ quy — chủ đích, để một lần `--audit` không biến thành crawl cả thế giới.
+- URL có đuôi `.xml` **không bao giờ** được audit như trang (đó là file sitemap, không phải trang HTML). Nếu một site thật sự phục vụ nội dung đọc được ở đuôi `.xml` thì rule on-page bỏ qua nó — chấp nhận, vì giá trị báo giả (CAO "thiếu title" cho một file XML) còn tệ hơn bỏ sót.
 

@@ -63,6 +63,9 @@ def show_strategy():
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --run-job rank|gsc|traffic  Goi 1 job (Windows Task Scheduler)")
     print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
+    print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
+    print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
+    print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
     print("-" * 65)
 
 
@@ -134,6 +137,24 @@ if __name__ == "__main__":
     elif "--scheduler-status" in sys.argv:
         from utils.scheduler import run_status_cli
         sys.exit(run_status_cli())
+
+    elif "--audit" in sys.argv or "--audit-limit" in sys.argv:
+        from utils.site_auditor import run_audit_cli
+        i = sys.argv.index("--audit-limit") if "--audit-limit" in sys.argv else -1
+        limit = None
+        if i >= 0:
+            nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+            # để trống khi token kế tiếp là flag khác -> dùng AUDIT_MAX_PAGES, còn giá trị
+            # sai ("abc", "-5") thì run_audit_cli tự báo và exit 2
+            limit = nxt if nxt and not nxt.startswith("-") else None
+        sys.exit(run_audit_cli(limit=limit))
+
+    elif "--pagespeed" in sys.argv:
+        from utils.pagespeed import run_pagespeed_cli
+        i = sys.argv.index("--pagespeed")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        target = nxt if nxt and not nxt.startswith("-") else ""
+        sys.exit(run_pagespeed_cli(target))
 
     else:
         show_strategy()

@@ -70,9 +70,9 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ### 8. Xuất báo cáo CSV — mang dữ liệu đi nơi khác
 
-- `--export rank` xuất **toàn bộ lịch sử xếp hạng** (một dòng mỗi lần check × mỗi từ khóa), `--export gsc` xuất các query của snapshot Search Console mới nhất, `--export all` (mặc định) ra cả hai file.
+- `--export rank` xuất **toàn bộ lịch sử xếp hạng** (một dòng mỗi lần check × mỗi từ khóa), `--export gsc` xuất các query của snapshot Search Console mới nhất, `--export audit` xuất các lỗi của lần `--audit` gần nhất, `--export all` (mặc định) ra cả hai file **định kỳ** (rank + gsc — audit không đi kèm vì phải tự crawl trước).
 - Mã **UTF-8 có BOM** → mở trực tiếp bằng Excel bản tiếng Việt không lỗi dấu; CTR xuất dạng số đã ×100 (không kèm ký hiệu `%`) để Excel còn tính toán được.
-- File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
+- File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc|audit>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
 - GUI: tab **📈 Xếp Hạng** → nút **📤 XUẤT CSV** (in đường dẫn file ra log).
 
 ### 9. Từ khóa đề xuất từ Search Console — danh sách biết tự lớn
@@ -102,6 +102,18 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - **Chạy nền không ngồi chờ**: job `rank` gặp CAPTCHA thì bỏ qua từ khóa đó (khác với bấm `--rank` trong GUI, có ô hỏi người giải).
 - Xem lại: `python main.py --scheduler-status` (job nào chạy lúc nào, exit code, lỗi cuối, 5 lần gần nhất) hoặc khung **🗓 LỊCH TỰ ĐỘNG** trong tab 📈 Xếp Hạng. GUI cố ý **không** có nút chạy job — muốn chạy tay thì dùng CLI để log nằm đúng chỗ.
 - Đăng ký lịch từng bước (4 lệnh `schtasks`): **[`docs/SETUP_SCHEDULER.md`](docs/SETUP_SCHEDULER.md)**.
+
+---
+
+### 12. Audit on-page + Core Web Vitals (F6)
+
+- `python main.py --audit` crawl **chính site trong `TARGET_URL`** (tối đa `AUDIT_MAX_PAGES` trang, `AUDIT_TIMEOUT` giây/trang) bằng **HTML tĩnh qua `requests`** — không mở trình duyệt, không đụng lớp anti-detect, và **không bao giờ** request ra ngoài domain của bạn (kể cả link ngoài hay sitemap trỏ host khác).
+- 20 rule on-page, mỗi lỗi in kèm **severity + URL**: thiếu `title` / title dài ngắn bất thường / thiếu `meta description` / meta quá dài / thiếu `H1` / nhiều `H1` / heading nhảy cấp / ảnh thiếu `alt` / `alt=""` hàng loạt / thiếu `canonical` / `canonical` đáng ngờ / `noindex` lạc chỗ / link `http://` nội bộ / thiếu `lang` / **link nội bộ hỏng (404, 410)** / trang không đọc được / `title` trùng giữa các trang / thiếu `sitemap.xml` / URL bị robots chặn.
+- **Tôn trọng `robots.txt`** của site mình (tự parse theo quy tắc Google: đường dẫn khớp **dài nhất** thắng — `urllib.robotparser` 3.11 khớp theo thứ tự khai báo nên đã đo và không dùng), ưu tiên URL lấy từ `sitemap.xml`, không có sitemap thì lần theo link nội bộ. Trang 404/5xx/timeout là **một dòng báo cáo**, không làm dừng cả đợt.
+- Kết quả lưu vào `data/audit_last.json` → `python main.py --export audit` ra CSV (`severity,rule,url,detail`, UTF-8 BOM) mở bằng Excel. GUI: tab **📈 Xếp Hạng** → nút **🔍 AUDIT SITE** (thread nền, log in ra khung, chạy xong tự xuất CSV).
+- `python main.py --pagespeed [URL]`: **LCP / CLS / INP** + điểm hiệu năng, cả mobile lẫn desktop, qua PageSpeed Insights API; chỉ lưu số gọn trong `data/pagespeed.json` (không lưu response thô, vài MB).
+- Số PSI là **LAB** (Lighthouse do Google chạy hộ lúc gọi), **không phải field data CrUX**. API **không cần key**, nhưng quota ẩn danh là *"Queries per day" dùng chung toàn cầu* — **đo thật 2026-10-14: đang cạn**, nên lệnh hiện trả thông báo 429 và exit 1. Muốn có số: tạo key miễn phí rồi điền `PAGESPEED_API_KEY` (key là secret của bạn — code không in ra log, không ghi vào file).
+- HTML tĩnh **không phải Googlebot**: nội dung render bằng JS không được soi, và thứ hạng thật có thể khác những gì HTML thể hiện. `--audit-limit N` để thu hẹp/mở rộng số trang crawl.
 
 ---
 
@@ -146,7 +158,7 @@ Giao diện CustomTkinter dark mode với 7 tab cấu hình:
 | 🎯 Hành Vi SEO | Thời gian onsite min/max, pogo-stick, third page, warm-up search |
 | 🤖 AI Engine | URL Ollama, chọn model, kiểm tra kết nối |
 | 🔥 Nuôi Nick | Bật/tắt từng kênh warm-up (YouTube, báo, wiki, shopping, FB, IG) |
-| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, khung từ khóa đề xuất |
+| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, nút audit site, khung từ khóa đề xuất, khung lịch tự động |
 
 Sidebar hiển thị: đếm session ✅/❌, đồng hồ đếm ngược treo máy, trạng thái Ollama.
 
@@ -165,10 +177,12 @@ python main.py --gsc        # Lấy dữ liệu Search Console (clicks/impressio
 python main.py --gsc-report # Xem báo cáo Search Console đã lưu
 python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Console (chưa theo dõi)
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
-python main.py --export rank|gsc|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console
+python main.py --export rank|gsc|audit|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console + audit
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
+python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
+python main.py --pagespeed [URL]  # Core Web Vitals (LCP/CLS/INP) từ PageSpeed Insights — số LAB
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -202,6 +216,13 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `SCHEDULER_RANK_HOURS` / `SCHEDULER_GSC_HOURS` | `[7, 13, 19]` / `[9]` | Lịch **mong muốn** — chỉ để in ra status; giờ thật phải sửa trên Windows Task Scheduler |
 | `SCHEDULER_TRAFFIC_ENABLE` | `False` | Cho phép lịch tự chạy session traffic — mặc định TẮT, bật là quyết định của owner |
 | `SCHEDULER_LOCK_STALE` | `1200` | Giây không heartbeat thì lock bị coi là đã chết, job khác giành quyền chạy |
+| `AUDIT_MAX_PAGES` | `100` | Audit: số trang tối đa mỗi lần `--audit` (`--audit-limit N` để đổi từng lần) |
+| `AUDIT_TIMEOUT` | `10` | Audit: giây/request — link hỏng không được treo cả đợt audit |
+| `AUDIT_USER_AGENT` | UA Chrome desktop | Audit: UA tĩnh khi xin HTML — chỉ đọc site của chính bạn, không phải Googlebot |
+| `AUDIT_STATE_DIR` | `data` | Nơi lưu `audit_last.json` (kết quả lần audit gần nhất, để `--export audit` đọc lại) |
+| `PAGESPEED_TIMEOUT` | `90` | PageSpeed: giây/lượt — PSI tự chạy Lighthouse nên chậm hơn crawl nhiều |
+| `PAGESPEED_STATE_DIR` | `data` | Nơi lưu `pagespeed.json` (chỉ số gọn, không chứa response thô) |
+| `PAGESPEED_API_KEY` | `""` | PageSpeed: để trống vẫn chạy; điền key miễn phí khi quota ẩn danh (dùng chung toàn cầu) hết. **Secret** — đừng commit, đừng in ra log |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
@@ -231,9 +252,12 @@ seo-by-Tung/
 │   ├── rank_tracker.py      # Theo dõi vị trí từ khóa trên Google
 │   ├── gsc_client.py        # Google Search Console API client + báo cáo gộp
 │   ├── keywords.py          # Đọc/ghi/add từ khóa (config/keywords.json)
-│   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console
+│   ├── exporter.py          # Xuất CSV (UTF-8 BOM) lịch sử xếp hạng + Search Console + kết quả audit
 │   ├── alerts.py            # Cảnh báo tụt hạng: rules engine + chống spam + Telegram sender
 │   ├── scheduler.py         # Lịch tự động: bảng job + lock + state (đồng hồ ở Windows Task Scheduler)
+│   ├── html_probe.py        # Audit: HTML string → dict (stdlib html.parser, không dependency mới)
+│   ├── site_auditor.py      # Audit: 20 rule on-page + crawler chỉ chạm domain mục tiêu, có robots.txt
+│   ├── pagespeed.py         # Core Web Vitals qua PageSpeed Insights API (số LAB, lưu data/pagespeed.json)
 │   ├── automation.py        # 1 session traffic — main.py --auto và scheduler dùng chung
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
@@ -247,6 +271,7 @@ seo-by-Tung/
 ├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
 ├── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
 └── data/                    # (sinh ra khi chạy) alerts_state.json + scheduler_state.json/scheduler.lock
+                             #   + audit_last.json + pagespeed.json
 ```
 
 ## Xử lý sự cố
@@ -255,7 +280,11 @@ seo-by-Tung/
 - **Gõ lệnh `python ui.py` báo thiếu module**: chưa `pip install -r requirements.txt` hoặc đang sai môi trường ảo.
 - **Playwright không mở được browser**: chạy `playwright install chromium`.
 - **Ký tự tiếng Việt hiển thị `?` trong source**: một số file comment bị hỏng encoding (lịch sử lưu ANSI). Chạy `python fix_encoding.py` để sửa các chuỗi quen thuộc, hoặc mở file và lưu lại với encoding UTF-8.
+- **`--audit` báo "Không đọc được trang nào" (exit 1)**: sai `TARGET_URL` hoặc mất mạng; nếu site tự chặn UA desktop thì crawler chỉ ghi nhận 403/429 thành một dòng báo cáo — **không** retry và **không** đổi UA để lọt qua (đó là việc của lớp anti-detect, đã tuyên bố không đụng tới).
+- **`--pagespeed` trả 429 "hết quota"**: quota ẩn danh của PSI là *Queries per day* dùng chung toàn cầu — hết thì chờ hoặc tạo key miễn phí rồi điền `PAGESPEED_API_KEY`; báo cáo audit HTML không liên quan vẫn chạy.
 
 ## Giới hạn phụ thuộc
 
 `requirements.txt` gồm: `playwright`, `playwright-stealth`, `customtkinter`, `requests`, `fake-useragent`. `playwright-stealth` là tùy chọn — nếu chưa cài, tool vẫn chạy nhưng bỏ qua lớp stealth bổ sung.
+
+Audit (F6) **không thêm dependency nào**: bóc HTML dùng `html.parser` của stdlib (`utils/html_probe.py`) thay vì beautifulsoup4, crawl bằng `requests` đã có sẵn, PageSpeed gọi thẳng API không cần thư viện Google.

@@ -1,17 +1,19 @@
 """
 utils/exporter.py — F1: xuất dữ liệu SEO đã thu ra CSV mở bằng Excel.
 
-Đọc (không sửa) hai file state:
+Đọc (không sửa) ba file state:
 - rank_history.json  → một dòng mỗi (lần check × từ khóa), toàn bộ lịch sử
 - gsc_history.json   → các query của snapshot GSC mới nhất
+- audit_last.json    → các finding của lần `--audit` gần nhất
 
 File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<rank|gsc>.csv`, mã UTF-8 có BOM
 (Excel bản tiếng Việt cần BOM để không lỗi dấu), mỗi lần export một file mới.
 
 Chạy:
-    python main.py --export rank      # chỉ xếp hạng
-    python main.py --export gsc       # chỉ Search Console
-    python main.py --export all       # cả hai (mặc định)
+    python main.py --export rank       # chỉ xếp hạng
+    python main.py --export gsc        # chỉ Search Console
+    python main.py --export audit      # kết quả --audit lần gần nhất (data/audit_last.json)
+    python main.py --export all        # rank + gsc (audit không đi kèm: phải --audit trước)
     GUI: tab "📈 Xếp Hạng" → nút "📤 XUẤT CSV"
 
 Ghi chú:
@@ -135,6 +137,24 @@ def export_gsc() -> tuple[str, int]:
     return path, _write_csv(path, header, rows)
 
 
+# ─── SERIALIZE + EXPORT: kết quả audit on-page (F6) ─────────────────────────
+
+def audit_rows() -> tuple[list[str], list[list[str]]]:
+    """Findings của lần audit gần nhất → (header, rows).
+
+    Việc sắp xếp/map finding sang dòng nằm trong site_auditor.audit_rows — exporter
+    chỉ lo BOM + tên file, không tái định nghĩa thứ tự severity ở hai nơi.
+    """
+    from utils.site_auditor import audit_rows as _map, load_last_audit
+    return _map(load_last_audit())
+
+
+def export_audit() -> tuple[str, int]:
+    path = _unique_path("audit")
+    header, rows = audit_rows()
+    return path, _write_csv(path, header, rows)
+
+
 def export_all() -> list[tuple[str, int]]:
     """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống)."""
     return [export_rank(), export_gsc()]
@@ -142,27 +162,29 @@ def export_all() -> list[tuple[str, int]]:
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
-KINDS = ("rank", "gsc", "all")
+KINDS = ("rank", "gsc", "audit", "all")
 
-_LABELS = {"rank": "xếp hạng", "gsc": "Search Console"}
+_LABELS = {"rank": "xếp hạng", "gsc": "Search Console", "audit": "kết quả audit on-page"}
+# Lệnh lấy dữ liệu tương ứng — in ra khi file chỉ có tiêu đề
+_SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit"}
 
 
 def run_export_cli(kind: str = "all") -> int:
     """Entry `--export`: xuất CSV theo loại, in đường dẫn từng file. Trả exit code."""
     kind = (kind or "all").strip().lower()
     if kind not in KINDS:
-        print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: rank | gsc | all")
+        print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: rank | gsc | audit | all")
         return 2
 
+    # `all` = dữ liệu định kỳ (rank + gsc). Audit là thứ chủ động chạy rồi mới xuất,
+    # nên không kéo theo mỗi lần `--export all`.
     selected = [("rank", export_rank), ("gsc", export_gsc)] if kind == "all" else \
-               [("gsc", export_gsc)] if kind == "gsc" else \
-               [("rank", export_rank)]
+               [(kind, {"rank": export_rank, "gsc": export_gsc, "audit": export_audit}[kind])]
 
     for label, fn in selected:
         path, n = fn()
         print(f"[Export] ✅ Đã lưu {path} ({n} dòng {_LABELS[label]})")
         if n == 0:
-            cmd = "--rank" if label == "rank" else "--gsc"
             print(f"[Export]    Chưa có dữ liệu {_LABELS[label]} — file chỉ có tiêu đề."
-                  f" Lấy dữ liệu: python main.py {cmd}")
+                  f" Lấy dữ liệu: python main.py {_SOURCES[label]}")
     return 0

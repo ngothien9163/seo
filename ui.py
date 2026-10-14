@@ -55,6 +55,7 @@ class TrafficBotUI(ctk.CTk):
         self._session_err = 0
         self._rank_running = False
         self._gsc_running = False
+        self._audit_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -495,6 +496,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_alert_preview,
         )
         self.btn_alert_test.pack(side="left", padx=(16, 0))
+        self.btn_audit = ctk.CTkButton(
+            rf, text="🔍  AUDIT SITE",
+            fg_color="#8a5a1a", hover_color="#a8721f",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_site_audit,
+        )
+        self.btn_audit.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -719,6 +727,35 @@ class TrafficBotUI(ctk.CTk):
             print(f"[Export] ✅ Đã lưu {path} ({n} dòng {label})")
             if n == 0:
                 print(f"[Export]    Chưa có dữ liệu {label} — file chỉ có tiêu đề.")
+
+    # ═══════════════════════════════════════════════════════════════
+    # AUDIT ON-PAGE (F6)
+    # ═══════════════════════════════════════════════════════════════
+
+    def run_site_audit(self):
+        """Nút 🔍: crawl chính site bằng requests (HTML tĩnh) — không mở trình duyệt."""
+        if self.is_running:
+            print("[Audit] ⚠️ Bot đang treo máy — đợi phiên traffic xong rồi audit.")
+            return
+        if self._audit_running:
+            return
+        self._audit_running = True
+        self.btn_audit.configure(state="disabled", text="⏳ Đang audit...")
+        threading.Thread(target=self._site_audit_worker, daemon=True).start()
+
+    def _site_audit_worker(self):
+        try:
+            from utils.site_auditor import run_audit_cli
+            from utils.exporter import export_audit
+            if run_audit_cli() == 0:
+                path, n = export_audit()
+                print(f"[Audit] 📤 Báo cáo CSV: {path} ({n} dòng)")
+        except Exception as e:
+            print(f"[Audit] Lỗi: {e}")
+        finally:
+            self._audit_running = False
+            self.after(0, lambda: self.btn_audit.configure(
+                state="normal", text="🔍  AUDIT SITE"))
 
     # ═══════════════════════════════════════════════════════════════
     # TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE (F2)
