@@ -56,6 +56,7 @@ class TrafficBotUI(ctk.CTk):
         self._rank_running = False
         self._gsc_running = False
         self._audit_running = False
+        self._backlinks_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -503,6 +504,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_site_audit,
         )
         self.btn_audit.pack(side="left", padx=(16, 0))
+        self.btn_backlinks = ctk.CTkButton(
+            rf, text="🔗  CHECK BACKLINK",
+            fg_color="#1a6b5a", hover_color="#248a74",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.run_backlink_check,
+        )
+        self.btn_backlinks.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -756,6 +764,35 @@ class TrafficBotUI(ctk.CTk):
             self._audit_running = False
             self.after(0, lambda: self.btn_audit.configure(
                 state="normal", text="🔍  AUDIT SITE"))
+
+    # ═══════════════════════════════════════════════════════════════
+    # BACKLINK AUTO-CHECK (F7)
+    # ═══════════════════════════════════════════════════════════════
+
+    def run_backlink_check(self):
+        """Nút 🔗: verify danh sách link đã đặt — requests tĩnh ≤5 luồng, không mở browser."""
+        if self.is_running:
+            print("[Backlink] ⚠️ Bot đang treo máy — đợi phiên traffic xong rồi check backlink.")
+            return
+        if self._backlinks_running:
+            return
+        self._backlinks_running = True
+        self.btn_backlinks.configure(state="disabled", text="⏳ Đang check backlink...")
+        threading.Thread(target=self._backlink_worker, daemon=True).start()
+
+    def _backlink_worker(self):
+        try:
+            from utils.backlink_checker import run_backlink_check_cli
+            from utils.exporter import export_backlinks
+            if run_backlink_check_cli() == 0:
+                path, n = export_backlinks()
+                print(f"[Backlink] 📤 Báo cáo CSV: {path} ({n} dòng)")
+        except Exception as e:
+            print(f"[Backlink] Lỗi: {e}")
+        finally:
+            self._backlinks_running = False
+            self.after(0, lambda: self.btn_backlinks.configure(
+                state="normal", text="🔗  CHECK BACKLINK"))
 
     # ═══════════════════════════════════════════════════════════════
     # TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE (F2)

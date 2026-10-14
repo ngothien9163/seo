@@ -280,3 +280,24 @@ def run_backlink_check_cli(limit=None, refresh: bool = False, url: str = "",
               "không có --backlink-limit để xem tiếp (link đã check thì dùng cache)")
     print("[Backlink] 💾 Đã lưu kết quả — mở bằng Excel: python main.py --export backlinks")
     return 0
+
+
+def run_backlink_add_cli(url: str, note: str = "") -> int:
+    """`--backlink-add "URL"` — thêm một link đã thật sự đặt vào danh sách theo dõi."""
+    ok, msg = bl.add_link(url, note=note)
+    print(f"[Backlink] {'✅' if ok else '⚠️'} {msg}")
+    if ok:
+        print("[Backlink] Check ngay: python main.py --backlink-check")
+    return 0 if ok else 2
+
+
+def run_backlink_import_cli(path: str) -> int:
+    """`--backlink-import <file.csv>` — nạp CSV "External links" tải tay từ Search Console."""
+    added, msg = bl.import_gsc_csv(path)
+    # message mở đầu bằng "Đã thêm" = file đọc được và nhận ra URL, kể cả khi cả thảy
+    # đã có trong danh sách (không phải lỗi); còn lại là file thiếu/hổng/không có URL.
+    ok = msg.startswith("Đã thêm")
+    print(f"[Backlink] {'✅' if ok else '⚠️'} {msg}")
+    if ok and added:
+        print("[Backlink] Check ngay: python main.py --backlink-check")
+    return 0 if ok else 2

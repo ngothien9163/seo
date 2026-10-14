@@ -132,14 +132,22 @@
 
 **Files:** Modify `main.py`, `ui.py`, `README.md`, `backlinks/tracker.py` (chỉ docstring, ghi rõ cơ hội ≠ link đã đặt), Modify `_quick_backlink_test.py`.
 
-- [ ] Step 1 — Test fail trước: `main.py` có `"--backlink-check"`, `"--backlink-add"`, `"--backlink-import"`, `"--backlink-refresh"` + help in đủ dòng (AST); GUI `btn_backlinks` + `run_backlink_check`; README needle `--backlink-check`, `config/backlinks.json`, `backlink_status.json`, `BACKLINK_PARALLEL`, "External links", "Cơ hội" vs "đã đặt"; bảng PHẦN I.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement wiring.
-- [ ] Step 4 — GUI: nút **🔗  CHECK BACKLINK** trong hàng nút tab 📈 Xếp Hạng (cùng pattern `_audit_running`: guard `is_running`, thread nền, tự xuất CSV xong in đường dẫn).
-- [ ] Step 5 — README: mục **"### 13. Backlink auto-check"** (nguồn link, cache, CSV, importer, giới hạn "không đo DA/DR, không tự tìm link"), bảng PHẦN I, cây project + `data/backlink_status.json`.
-- [ ] Step 6 — **Verify thật**: `--backlink-add https://nankybeauty.com/` (link nội bộ của chính site — sự thật HTTP kiểm được) rồi `--backlink-check` → exit 0, in `có link=True`, chạy lần 2 trong ngày → fetcher không gọi lại (cache); `--backlink-refresh` → gọi lại. **Ghi rõ chưa verify với backlink bên thứ ba thật vì owner chưa có danh sách link đã đặt** — không bịa URL để cho đẹp báo cáo.
-- [ ] Step 7 — GUI probe (mainloop thật + stub network, như F6 Task 4 Step 7).
-- [ ] Step 8 — Commit: `feat: F7 cli --backlink-check/add/import + nut GUI + README`
+- [x] Step 1 — Test fail trước: `main.py` có `"--backlink-check"`, `"--backlink-add"`, `"--backlink-import"`, `"--backlink-refresh"` + help in đủ dòng (AST); GUI `btn_backlinks` + `run_backlink_check`; README needle `--backlink-check`, `config/backlinks.json`, `backlink_status.json`, `BACKLINK_PARALLEL`, "External links", "Cơ hội" vs "đã đặt"; bảng PHẦN I.
+- [x] Step 2 — Chạy → FAIL (13 test Task 4 đỏ: thiếu CLI wrapper/nhánh main/nút GUI/README; 56 test Task 1–3 vẫn xanh — RED sạch, không lan).
+- [x] Step 3 — Implement wiring: `run_backlink_add_cli`/`run_backlink_import_cli` trong checker (không đụng network — AST pin), `_flag_value()` + 3 nhánh `main.py` (`--backlink-check|refresh` chung một nhánh, `--backlink-add`/`--backlink-import` tách), 5 dòng help.
+- [x] Step 4 — GUI: nút **🔗  CHECK BACKLINK** trong hàng nút tab 📈 Xếp Hạng (cùng pattern `_audit_running`: guard `is_running`, thread nền, tự xuất CSV xong in đường dẫn).
+- [x] Step 5 — README: mục **"### 13. Backlink auto-check"** (nguồn link, cache, CSV, importer, giới hạn "không đo DA/DR, không tự tìm link"), bảng PHẦN I (5 key `BACKLINK_*`), cây project + `data/backlink_status.json` + `config/backlinks.json`, bullet xử lý sự cố 403/cache, paragraph F7-không-thêm-dependency.
+- [x] Step 6 — **Verify thật (network, chính site owner)**: `--backlink-add https://nankybeauty.com/` → exit 0; `--backlink-check` → exit 0, `1/1 còn sống, 1/1 còn link, 1/1 dofollow`, `✅ ... 62 link — anchor: "Nanky Beauty"`; chạy lần 2 trong ngày → in `ℹ️ 1 link dùng cache trong 24h` (fetcher không gọi lại); `--backlink-refresh` → cache note biến mất (refetch thật); `--export backlinks` → CSV BOM đúng 10 cột khoá. **Chưa verify với backlink bên thứ ba thật vì owner chưa có danh sách link đã đặt** — không bịa URL.
+- [x] Step 7 — GUI probe (mainloop thật + stub network, như F6 Task 4 Step 7): `calls={check:1,export:1}`, nút disabled khi chạy → normal khi xong, `_backlinks_running` nhả cờ, 2 dòng log xuống box, mép phải nút 1415px < khung 1474px (6 nút vừa hàng, không cắt).
+- [x] Step 8 — Commit: `feat: F7 cli --backlink-check/add/import + nut GUI + README`
+
+**Kết quả Task 4 (2026-10-14):** 72 test ALL PASS (thêm 16 test wiring), mutation **13/13 CAUGHT** (0 survived, 0 skipped — battery đã sửa để so anchor trên bản `\n` vì repo checkout CRLF), 7 suite cũ nguyên xanh (sửa 1 needle `--export rank|gsc|audit|backlinks|all` ở `_quick_export_test.py` cho khớp dòng help mới). Verify thật qua network + GUI probe đạt; **chỉ** chưa có số liệu với backlink bên thứ ba thật (owner chưa provide danh sách link đã đặt).
+
+**Deviation so với plan:**
+- `run_backlink_add_cli`/`run_backlink_import_cli` đặt trong `utils/backlink_checker.py` (lớp CLI của feature) thay vì `main.py` inline — để test exit code không cần spawn subprocess.
+- `main.py` thêm helper `_flag_value(name)` (trước đây mỗi branch tự parse argv tay) dùng riêng cho 3 branch mới; branch cũ giữ nguyên.
+- Exit code import CLI: file hợp lệ nhưng toàn bộ URL đã có trong danh sách → **exit 0** (thành công, không có gì mới), chỉ file thiếu/hổng/không nhận ra URL nào → exit 2. Plan ghi "file không có URL nào → exit 2" — đúng, nhưng tách riêng case "có URL mà trùng hết".
+- Nhánh `--backlink-refresh` gộp chung dispatch với `--backlink-check` (`refresh=True`) vì một mình nó nghĩa là "refresh rồi check"; test AST pin cả hai token trong cùng điều kiện.
 
 ## Tiêu chí hoàn thành (card F7)
 

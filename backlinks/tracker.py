@@ -5,6 +5,14 @@ G?m:
 - Danh sách backlink m?c tiêu (theo ngành làm ?p)
 - Theo dõi tr?ng thái (dã liên h?, ?ã có backlink, b? t? ch?i)
 - G?i ý chi?n d?ch guest post, PR, ??i tác
+
+CHÚ Ý (F7): `BACKLINK_OPPORTUNITIES` dưới đây là danh sách **cơ hội** — nơi *muốn* đặt
+link, `status: "todo"`, URL là homepage của facebook.com/toplist.vn... chứ **không phải
+link đã đặt**. Muốn verify link thật ("trang đó còn sống và còn link tới site mình không?")
+danh sách nằm ở `config/backlinks.json` (thêm bằng `--backlink-add` / `--backlink-import`
+CSV "External links" của Search Console) và chạy `python main.py --backlink-check`
+(`utils/backlinks.py` + `utils/backlink_checker.py`). Con số "20 backlink/tháng" của planner
+đếm **cơ hội**, không đếm link sống — hai việc khác nhau, đừng đọc lẫn.
 """
 from datetime import datetime
 

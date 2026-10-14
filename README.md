@@ -117,6 +117,19 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 13. Backlink auto-check — link bạn đã đặt còn sống không? (F7)
+
+- Danh sách link để check là **`config/backlinks.json`** — tức những chỗ bạn **đã thật sự đặt link** (bài guest post, danh bạ, forum...), không phải `BACKLINK_OPPORTUNITIES` trong `backlinks/tracker.py` (đó là danh sách **cơ hội** `status: "todo"`, verify thì 100% báo "không có link tới site").
+- `python main.py --backlink-check` trả lời ba câu cho từng link: trang đích **còn sống** (HTTP 2xx/3xx)? trên trang **có** link tới domain trong `TARGET_URL`? link đó **dofollow** hay `nofollow`/`sponsored`/`ugc` (ba giá trị sau không chuyển uy tín)? Kèm anchor text và số link tìm thấy.
+- "Có link" so theo **hostname đã parse**: `nankybeauty.com` và mọi subdomain đều tính, `nankybeauty.com.evil.io` thì không (bẫy `endswith` trên chuỗi). Redirect sang domain khác vẫn được verify trên HTML trả về và ghi lại `url cuối`.
+- **Lịch sự với site người khác**: tối đa `BACKLINK_PARALLEL` luồng (5), timeout `BACKLINK_TIMEOUT` giây (15), **một request mỗi URL mỗi lần chạy**, UA desktop tĩnh (`AUDIT_USER_AGENT`). 403/429 → ghi "bị chặn" rồi đi tiếp, **không** retry, **không** đổi UA, **không** giải CAPTCHA — đó là lớp anti-detect đã tuyên bố không đụng tới. 404/410/timeout là **dữ liệu**, không làm dừng cả đợt.
+- Kết quả lưu `data/backlink_status.json`; URL đã check trong `BACKLINK_CACHE_HOURS` (24h) được **dùng cache** — chạy lại trong ngày không refetch. `--backlink-refresh` mới check lại hết, `--backlink-limit N` giới hạn N link mỗi đợt.
+- `python main.py --export backlinks` ra CSV mở Excel (UTF-8 BOM, dòng có vấn đề xếp trước). GUI: tab **📈 Xếp Hạng** → nút **🔗 CHECK BACKLINK** (thread nền, chạy xong tự xuất CSV và in đường dẫn).
+- Thêm link: `--backlink-add "https://blog-nguoi-khac/bai-cua-ban"`, hoặc nạp cả loạt bằng `--backlink-import <file.csv>` đọc từ CSV **"External links"** tải tay trong Search Console (Properties → Links). **API của GSC không có endpoint external links** nên con đường duy nhất là tay export; parser không tin tiêu đề cột (GSC đổi tên cột theo phiên bản) mà nhận ra URL trong **mọi ô**, bỏ trang của chính site mình và URL đã có.
+- **Giới hạn**: không đo DA/DR/traffic của trang đặt link (Ahrefs/Moz API trả phí) nên không xếp được "link này tốt hay xấu", không tự tìm backlink mới, không tự đặt link. Chỉ đọc HTML tĩnh — link render bằng JS (widget, iframe lazy) không được đếm. Check link chỉ trả lời "trang đó còn tồn tại và còn link tới site mình không", không chứng minh Google đã index hay tính giá trị link.
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -158,7 +171,7 @@ Giao diện CustomTkinter dark mode với 7 tab cấu hình:
 | 🎯 Hành Vi SEO | Thời gian onsite min/max, pogo-stick, third page, warm-up search |
 | 🤖 AI Engine | URL Ollama, chọn model, kiểm tra kết nối |
 | 🔥 Nuôi Nick | Bật/tắt từng kênh warm-up (YouTube, báo, wiki, shopping, FB, IG) |
-| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, nút audit site, khung từ khóa đề xuất, khung lịch tự động |
+| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, nút audit site, nút check backlink, khung từ khóa đề xuất, khung lịch tự động |
 
 Sidebar hiển thị: đếm session ✅/❌, đồng hồ đếm ngược treo máy, trạng thái Ollama.
 
@@ -177,12 +190,16 @@ python main.py --gsc        # Lấy dữ liệu Search Console (clicks/impressio
 python main.py --gsc-report # Xem báo cáo Search Console đã lưu
 python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Console (chưa theo dõi)
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
-python main.py --export rank|gsc|audit|all  # Xuất CSV (mở Excel) lịch sử xếp hạng + Search Console + audit
+python main.py --export rank|gsc|audit|backlinks|all  # Xuất CSV (mở Excel); `all` = rank + gsc (audit/backlinks phải chạy trước)
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
 python main.py --pagespeed [URL]  # Core Web Vitals (LCP/CLS/INP) từ PageSpeed Insights — số LAB
+python main.py --backlink-check [--backlink-limit 20]  # Verify link đã đặt: còn sống + còn link tới site + dofollow
+python main.py --backlink-add "https://site-khac/bai-cua-ban"  # Thêm 1 backlink vào config/backlinks.json
+python main.py --backlink-import <file.csv>  # Nạp CSV "External links" tải tay từ Search Console
+python main.py --backlink-refresh  # Check lại toàn bộ, bỏ qua cache 24h
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -223,11 +240,20 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `PAGESPEED_TIMEOUT` | `90` | PageSpeed: giây/lượt — PSI tự chạy Lighthouse nên chậm hơn crawl nhiều |
 | `PAGESPEED_STATE_DIR` | `data` | Nơi lưu `pagespeed.json` (chỉ số gọn, không chứa response thô) |
 | `PAGESPEED_API_KEY` | `""` | PageSpeed: để trống vẫn chạy; điền key miễn phí khi quota ẩn danh (dùng chung toàn cầu) hết. **Secret** — đừng commit, đừng in ra log |
+| `BACKLINK_PARALLEL` | `5` | Backlink: số luồng tối đa khi check — mức lịch sự với site người khác, không bao giờ vượt số URL của đợt |
+| `BACKLINK_TIMEOUT` | `15` | Backlink: giây/request — một trang treo không được giữ cả đợt check |
+| `BACKLINK_CACHE_HOURS` | `24` | Backlink: URL đã check trong N giờ thì dùng kết quả cũ (`--backlink-refresh` để bỏ qua) |
+| `BACKLINK_STATE_DIR` | `data` | Nơi lưu `backlink_status.json` (kết quả check, để `--export backlinks` đọc lại) |
+| `BACKLINK_STORE_FILE` | `backlinks.json` | Tên file danh sách link đã đặt, nằm trong `config/` — **đã gitignore** vì là dữ liệu kinh doanh |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
 nút **+ Thêm** ở khung đề xuất tab 📈 Xếp Hạng, hoặc `python main.py --gsc-add-keyword "..."`.
 Sửa tay file này phải giữ JSON hợp lệ — mã hỏng thì tool coi như danh sách rỗng.
+
+Danh sách backlink đã đặt cũng **không nằm trong settings.py**: nó ở `config/backlinks.json`
+(`{"site": "...", "links": [{"url", "note", "added"}]}`), thêm qua `--backlink-add` /
+`--backlink-import`, còn kết quả check nằm ở `data/backlink_status.json`.
 
 ## Cấu trúc project
 
@@ -238,7 +264,8 @@ seo-by-Tung/
 ├── fix_encoding.py          # Tool sửa lỗi encoding tiếng Việt trong source
 ├── config/
 │   ├── settings.py          # Toàn bộ cấu hình
-│   └── keywords.json        # Danh sách từ khóa đang theo dõi (nguồn sự thật duy nhất)
+│   ├── keywords.json        # Danh sách từ khóa đang theo dõi (nguồn sự thật duy nhất)
+│   └── backlinks.json       # Danh sách backlink **đã đặt** (--backlink-add/import; gitignore vì là dữ liệu riêng)
 ├── core/
 │   └── browser_manager.py   # Launch browser, fingerprint anti-detect, profile
 ├── scenarios/
@@ -258,6 +285,8 @@ seo-by-Tung/
 │   ├── html_probe.py        # Audit: HTML string → dict (stdlib html.parser, không dependency mới)
 │   ├── site_auditor.py      # Audit: 20 rule on-page + crawler chỉ chạm domain mục tiêu, có robots.txt
 │   ├── pagespeed.py         # Core Web Vitals qua PageSpeed Insights API (số LAB, lưu data/pagespeed.json)
+│   ├── backlinks.py         # Backlink: store config/backlinks.json + state + verify thuần (tái dùng html_probe)
+│   ├── backlink_checker.py  # Backlink: batch fetch requests ≤5 luồng, cache 24h, báo cáo %sống/%link/dofollow
 │   ├── automation.py        # 1 session traffic — main.py --auto và scheduler dùng chung
 │   └── rate_limiter.py      # Giới hạn 25 session/ngày + cooldown
 ├── tests/
@@ -267,11 +296,11 @@ seo-by-Tung/
 │   ├── planner.py           # Content plan 30 ngày
 │   └── keyword_research.py  # Volume/difficulty/intent + funnel
 ├── backlinks/
-│   └── tracker.py           # Backlink 3 tier + guest post targets
+│   └── tracker.py           # Backlink 3 tier + guest post targets = danh sách **cơ hội** (todo), không phải link đã đặt
 ├── profiles/                # (sinh ra khi chạy) cookie/localStorage theo profile
 ├── reports/                 # (sinh ra khi chạy) CSV xuất từ --export / nút XUẤT CSV
 └── data/                    # (sinh ra khi chạy) alerts_state.json + scheduler_state.json/scheduler.lock
-                             #   + audit_last.json + pagespeed.json
+                             #   + audit_last.json + pagespeed.json + backlink_status.json
 ```
 
 ## Xử lý sự cố
@@ -282,9 +311,12 @@ seo-by-Tung/
 - **Ký tự tiếng Việt hiển thị `?` trong source**: một số file comment bị hỏng encoding (lịch sử lưu ANSI). Chạy `python fix_encoding.py` để sửa các chuỗi quen thuộc, hoặc mở file và lưu lại với encoding UTF-8.
 - **`--audit` báo "Không đọc được trang nào" (exit 1)**: sai `TARGET_URL` hoặc mất mạng; nếu site tự chặn UA desktop thì crawler chỉ ghi nhận 403/429 thành một dòng báo cáo — **không** retry và **không** đổi UA để lọt qua (đó là việc của lớp anti-detect, đã tuyên bố không đụng tới).
 - **`--pagespeed` trả 429 "hết quota"**: quota ẩn danh của PSI là *Queries per day* dùng chung toàn cầu — hết thì chờ hoặc tạo key miễn phí rồi điền `PAGESPEED_API_KEY`; báo cáo audit HTML không liên quan vẫn chạy.
+- **`--backlink-check` báo "Bị chặn (403)" hoặc "không đọc được"**: site đó chặn UA desktop hoặc mạng chậm — đó là **một dòng báo cáo**, không phải link chết, và tool **không** retry hay đổi UA để lọt qua. Muốn check lại ngay: `--backlink-refresh` (bỏ cache 24h). Danh sách trống thì lệnh exit 2 và chỉ cách thêm (`--backlink-add`, `--backlink-import`).
 
 ## Giới hạn phụ thuộc
 
 `requirements.txt` gồm: `playwright`, `playwright-stealth`, `customtkinter`, `requests`, `fake-useragent`. `playwright-stealth` là tùy chọn — nếu chưa cài, tool vẫn chạy nhưng bỏ qua lớp stealth bổ sung.
 
 Audit (F6) **không thêm dependency nào**: bóc HTML dùng `html.parser` của stdlib (`utils/html_probe.py`) thay vì beautifulsoup4, crawl bằng `requests` đã có sẵn, PageSpeed gọi thẳng API không cần thư viện Google.
+
+Backlink check (F7) cũng **không thêm dependency**: tái dùng `html_probe` để bóc link và `requests` (ThreadPool của stdlib) để fetch — không Playwright, vì backlink là HTML tĩnh của trang người khác, không cần render.

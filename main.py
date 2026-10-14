@@ -59,14 +59,31 @@ def show_strategy():
     print("  python main.py --gsc-report Xem bao cao Search Console da luu")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
-    print("  python main.py --export rank|gsc|all  Xuat bao cao CSV mo bang Excel")
+    print("  python main.py --export rank|gsc|audit|backlinks|all  Xuat bao cao CSV mo bang Excel")
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --run-job rank|gsc|traffic  Goi 1 job (Windows Task Scheduler)")
     print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
     print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
+    print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
+    print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
+    print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
+    print("  python main.py --backlink-refresh [--backlink-limit N]  Check lai het, bo qua cache 24h")
     print("-" * 65)
+
+
+def _flag_value(name: str) -> str:
+    """Giá trị đứng ngay sau một flag ('--backlink-add URL').
+
+    Flag kế tiếp ('' khi thiếu) hoặc token bắt đầu bằng '-' nghĩa là flag đó không
+    có giá trị — gọi hàm CLI với chuỗi trống để nó tự in cách dùng, không đoán bừa.
+    """
+    if name not in sys.argv:
+        return ""
+    i = sys.argv.index(name)
+    nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+    return nxt if nxt and not nxt.startswith("-") else ""
 
 
 if __name__ == "__main__":
@@ -155,6 +172,19 @@ if __name__ == "__main__":
         nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
         target = nxt if nxt and not nxt.startswith("-") else ""
         sys.exit(run_pagespeed_cli(target))
+
+    elif "--backlink-check" in sys.argv or "--backlink-refresh" in sys.argv:
+        from utils.backlink_checker import run_backlink_check_cli
+        sys.exit(run_backlink_check_cli(limit=_flag_value("--backlink-limit") or None,
+                                        refresh="--backlink-refresh" in sys.argv))
+
+    elif "--backlink-add" in sys.argv:
+        from utils.backlink_checker import run_backlink_add_cli
+        sys.exit(run_backlink_add_cli(_flag_value("--backlink-add")))
+
+    elif "--backlink-import" in sys.argv:
+        from utils.backlink_checker import run_backlink_import_cli
+        sys.exit(run_backlink_import_cli(_flag_value("--backlink-import")))
 
     else:
         show_strategy()
