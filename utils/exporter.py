@@ -102,8 +102,13 @@ def gsc_rows() -> tuple[list[str], list[list[str]]]:
 # ─── GHI FILE ────────────────────────────────────────────────────────────────
 
 def _unique_path(kind: str) -> str:
-    """reports/export_<ngày>_<giờ>_<kind>[._N].csv — không bao giờ trả tên đã dùng."""
-    base = f"export_{datetime.now():%Y%m%d_%H%M%S}_{kind}"
+    """reports/[<site>_]export_<ngày>_<giờ>_<kind>[._N].csv — không bao giờ trả tên đã dùng.
+
+    Đơn site: prefix rỗng → tên y hệt F1. Multi-site: prepend '<slug>_' để hai site
+    xuất cùng giây không lẫn file.
+    """
+    from utils import site_paths  # import trong hàm: giữ exporter không phụ heavyweight ở top level
+    base = f"{site_paths.report_prefix()}export_{datetime.now():%Y%m%d_%H%M%S}_{kind}"
     path = os.path.join(REPORTS_DIR, f"{base}.csv")
     n = 1
     while path in _ISSUED or os.path.exists(path):

@@ -47,6 +47,21 @@ def site_slug() -> str:
     return slug
 
 
+def site_domain() -> str:
+    """Domain thuần của cfg.TARGET_URL ('nankybeauty.com') — cho CLI --site suy GSC property."""
+    return _domain()
+
+
+def known_site_slugs() -> list[str]:
+    """Các site đã migrate = thư mục con trong data/ (data/<slug>/). Rỗng nếu DATA_ROOT chưa có."""
+    if not os.path.isdir(DATA_ROOT):
+        return []
+    return sorted(
+        d for d in os.listdir(DATA_ROOT)
+        if os.path.isdir(os.path.join(DATA_ROOT, d)) and not d.startswith(".")
+    )
+
+
 def _site_data_dir() -> str:
     return os.path.join(DATA_ROOT, site_slug())
 

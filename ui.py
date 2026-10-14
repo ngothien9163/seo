@@ -14,6 +14,7 @@ from tkinter import END
 from core.browser_manager import BrowserManager
 from tests.test_direct_access import run_deep_session
 from utils.keywords import load_keywords, save_keywords
+from utils import site_paths
 import config.settings as cfg
 
 _real_stderr = sys.stderr  # preserve before any redirect
@@ -225,6 +226,57 @@ class TrafficBotUI(ctk.CTk):
         _kws = load_keywords()
         if _kws:
             self.txt_keywords.insert("0.0", "\n".join(_kws))
+
+        # ── Multi-site (F10) — chọn site bằng cách sửa Target URL ở trên rồi bấm áp ──
+        sf_frame = ctk.CTkFrame(t, fg_color="transparent")
+        sf_frame.grid(row=8, column=0, sticky="w", padx=12, pady=(12, 2))
+        ctk.CTkButton(sf_frame, text="🔀 Áp dụng site (theo Target URL ở trên)", height=28,
+                      font=ctk.CTkFont(size=11), command=self.apply_site).pack(side="left")
+        self.lbl_known_sites = ctk.CTkLabel(
+            t, text="", font=ctk.CTkFont(size=10), text_color="gray",
+            anchor="w", justify="left", wraplength=360)
+        self.lbl_known_sites.grid(row=9, column=0, sticky="w", padx=12, pady=(0, 12))
+        self._refresh_known_sites()
+
+    def _known_sites_text(self) -> str:
+        slugs = site_paths.known_site_slugs()
+        return "Site đã migrate: " + (", ".join(slugs) if slugs else "(chưa có — chạy --migrate-multi-site)")
+
+    def _refresh_known_sites(self):
+        try:
+            self.lbl_known_sites.configure(text=self._known_sites_text())
+        except Exception:
+            pass
+
+    def apply_site(self):
+        """Đổi site đang làm việc: đặt cfg.TARGET_URL theo Target URL, module tự re-resolve lúc gọi."""
+        if self.is_running:
+            print("[Site] ⏳ Đang chạy job — dừng hẳn rồi mới đổi site.")
+            return
+        url = self.entry_url.get().strip()
+        if not url:
+            print("[Site] Target URL trống — nhập domain (vd shoplanhdep.com) rồi bấm Áp dụng.")
+            return
+        cfg.TARGET_URL = url if "://" in url else f"https://{url}"
+        dom = site_paths.site_domain()
+        if dom:
+            cfg.GSC_SITE_URL = f"sc-domain:{dom}"
+        mode = "BẬT (dùng data/<slug>/)" if site_paths.is_multi_site() else \
+               "TẮT (dùng file flat gốc — site này chưa migrate)"
+        print(f"[Site] Đã chuyển sang: {dom or cfg.TARGET_URL}  | per-site={mode}")
+        self._refresh_known_sites()
+        try:
+            self.txt_keywords.delete("0.0", END)
+            _k = load_keywords()
+            if _k:
+                self.txt_keywords.insert("0.0", "\n".join(_k))
+        except Exception as e:
+            print(f"[Site] Không nạp lại từ khóa: {e}")
+        try:
+            self.entry_url.delete(0, END)
+            self.entry_url.insert(0, cfg.TARGET_URL)
+        except Exception:
+            pass
 
     # ═══════════════════════════════════════════════════════════════
     # TAB: TREO MÁY

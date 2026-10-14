@@ -15,6 +15,9 @@ gsc_history.json
 config/gsc_service_account.json
 # F7: danh sách backlink của site — dữ liệu kinh doanh, không push lên repo
 config/backlinks.json
+# F10 multi-site: per-site bản copy vẫn giữ nguyên chính sách — backlink riêng tư không push
+config/*/backlinks.json
+config/*/gsc_service_account.json
 reports/
 _test_*
 *.log

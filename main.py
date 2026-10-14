@@ -75,6 +75,7 @@ def show_strategy():
     print("  python main.py --generate \"kw\" --dry-run  Chi in prompt, khong goi Ollama")
     print("  python main.py --migrate-multi-site  Chep du lieu site hien tai vao data/<slug>/ (khong xoa goc)")
     print("  python main.py --migrate-multi-site --dry-run  Chi xem se copy gi, khong ghi")
+    print("  python main.py --site domain.com --rank  Chay lenh cho MOTE site khac (da migrate) trong cung project")
     print("-" * 65)
 
 
@@ -92,6 +93,21 @@ def _flag_value(name: str) -> str:
 
 
 if __name__ == "__main__":
+    if "--site" in sys.argv:
+        # Chọn site cho cả phiên — phải áp TRƯỚC khi branch nào import module state,
+        # vì default path tính lúc import. Module cũng re-resolve lúc gọi nên an toàn 2 lớp.
+        import config.settings as cfg
+        from utils import site_paths
+        _sel = _flag_value("--site")
+        if _sel:
+            cfg.TARGET_URL = _sel if "://" in _sel else f"https://{_sel}"
+            _dom = site_paths.site_domain()
+            if _dom:
+                cfg.GSC_SITE_URL = f"sc-domain:{_dom}"
+            print(f"[Site] Site đang làm việc: {_dom}  (nhà dữ liệu: data/{site_paths.site_slug()}/)")
+        else:
+            print("[Site] --site cần domain/URL, ví dụ: --site shoplanhdep.com")
+
     if "--auto" in sys.argv or "--search" in sys.argv:
         # 20% Automation — 1 session, giới hạn phiên vẫn do utils/rate_limiter.py quyết
         from utils.automation import run_one_session
