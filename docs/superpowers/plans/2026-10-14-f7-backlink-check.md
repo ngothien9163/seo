@@ -85,11 +85,25 @@
 
 **Interfaces:** `check_links(links, state, fetcher=None, refresh=False, now=None) -> (new_state, report_rows)`; `default_fetcher(url) -> (status, html, final_url)`; `_pool_size()`; `format_report(rows) -> str`; `run_backlink_check_cli(limit=None, refresh=False, url="") -> int`; `check_rows(rows) -> (header, rows)` cho exporter.
 
-- [ ] Step 1 — Test fail trước (fake fetcher đếm lời gọi): mọi URL có mặt trong báo cáo kể cả URL lỗi; `max_workers` ≤ số URL; 404 → `status=404, has_link=False, error=""`; timeout/exception → `status=0, error=<tên exception>`; final_url khác host (redirect sang domain khác) vẫn verify trên HTML trả về nhưng ghi `final_url`; URL tươi trong cache + `refresh=False` → fetcher **không** được gọi; `refresh=True` → gọi lại; quá `limit` thì cắt, báo cáo ghi "còn N link chưa check"; rỗng → exit 2 + hướng dẫn `--backlink-add`.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement ThreadPool + cache.
-- [ ] Step 4 — Test ALL PASS + mutation.
-- [ ] Step 5 — Commit: `feat: F7 backlink batch check (ThreadPool 5, cache 24h, loi la du lieu)`
+- [x] Step 1 — Test fail trước (fake fetcher đếm lời gọi): mọi URL có mặt trong báo cáo kể cả URL lỗi; `max_workers` ≤ số URL; 404 → `status=404, has_link=False, error=""`; timeout/exception → `status=0, error=<tên exception>`; final_url khác host (redirect sang domain khác) vẫn verify trên HTML trả về nhưng ghi `final_url`; URL tươi trong cache + `refresh=False` → fetcher **không** được gọi; `refresh=True` → gọi lại; quá `limit` thì cắt, báo cáo ghi "còn N link chưa check"; rỗng → exit 2 + hướng dẫn `--backlink-add`.
+- [x] Step 2 — Chạy → FAIL (16 test Task 2 ERROR `No module named 'utils.backlink_checker'`, 26 test Task 1 vẫn PASS — RED sạch, không lan).
+- [x] Step 3 — Implement ThreadPool + cache.
+- [x] Step 4 — Test ALL PASS + mutation.
+- [x] Step 5 — Commit: `feat: F7 backlink batch check (ThreadPool 5, cache 24h, loi la du lieu)`
+
+**Kết quả Task 2 (2026-10-14):** 45 test ALL PASS (thêm 19 test cho checker), mutation **21/21 CAUGHT**, restore byte-exact, 7 suite cũ nguyên xanh.
+
+**Deviations so với plan:**
+1. `check_links(...)` nhận thêm `domain=None` — CLI truyền `bl.target_domain()`, test truyền DOMAIN tường minh nên không phải sửa `cfg.TARGET_URL` giả.
+2. `fetcher` là tham số tiêm được ở **cả** `check_links` và `run_backlink_check_cli` — giống `crawl(fetcher=)` của F6, nhờ vậy CLI test được mà không đụng network.
+3. `_fetch_one` bắt MỌI exception (kể cả fetcher trả về shape sai) -> `status=0, error="TypeName: message"` (clip 120 ký tự). Link lỗi vẫn là một dòng báo cáo, không bao giờ biến mất.
+4. **Pruning state đặt ở CLI, không ở `check_links`**: `check_links` merge vào state cũ để `--backlink-limit` không xóa cache của những link chưa check; CLI mới là nơi đối chiếu với danh sách đầy đủ (`known`) và bỏ entry của link đã bị owner xóa — nhờ vậy `--export backlinks` không liệt kê link không còn trong danh sách.
+5. `default_fetcher` **không** `raise_for_status`, **không** retry, **không** đổi UA — test `test_default_fetcher_one_polite_request_no_retry_no_ua_swap` đếm đúng 1 lời gọi `requests.get` và kiểm tra timeout/UA/allow_redirects lấy từ PHẦN I + `AUDIT_USER_AGENT`.
+6. Header CSV nằm trong checker (`CSV_HEADER`) vì checker là nơi biết row shape; exporter chỉ ghi (Task 3).
+7. Report có thêm dòng cảnh báo riêng cho "link không đọc được (lỗi FETCH)" tách khỏi "link chết" — 404 và timeout không được gộp một nhóm, owner cần biết cái nào phải check lại.
+
+**Hai mutation round 1 sống → thành test:** cả hai ở `format_report`. Kiểm tra chuỗi "2/3" hoặc "66.7%" rời rạc không phân biệt được số nào là ratio nào (dòng summary có ba cặp a/b), nên mutant đếm 404 vào nhóm "còn sống" và mutant chia `_pct(alive, linked)` đều qua mặt. Test mới parse `(a/b, nhãn, %)` thành dict theo nhãn rồi so từng nhãn.
+
 
 ### Task 3: CSV + importer CSV "External links" của GSC
 
