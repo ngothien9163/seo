@@ -78,11 +78,14 @@
 
 **Interfaces:** `base_from_url(url=None) -> str`, `generate_url(base=None) -> str`, `check_connection(post=None, url=None) -> dict` (`{"ok","models","message"}`), `generate(prompt, model=None, timeout=None, retries=None, post=None, url=None) -> tuple[str|None, str]` (text, lỗi), `_post` mặc định (lazy `requests`).
 
-- [ ] Step 1 — Test fail trước (tiêm `post`): `base_from_url("http://h:11434/api/generate")` → `"http://h:11434"`, giữ path gốc nếu URL lạ; `check_connection` ConnectionError → `ok False` + message chứa host, **không raise**; OK → `models` đếm từ `{"models":[{"name":...}]}`; `generate` timeout 1 lần rồi OK → `post` gọi **2** lần + text đúng; ConnectionError → gọi **1** lần; HTTP != 200 / JSON rác / thiếu `response` → `(None, message)`; text có fence ```json bọc → strip; `model` mặc định đọc `cfg.CONTENT_MODEL` **lúc gọi** (đổi cfg giữa 2 test có tác dụng); payload `stream` **phải** `False`.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement (retry chỉ cho `requests.exceptions.Timeout`, giữ import `requests` trong hàm).
-- [ ] Step 4 — Test ALL PASS + mutation (retry cho mọi exception, `stream:True`, nuốt message lỗi → trả `""`, quên strip fence).
-- [ ] Step 5 — Commit: `feat: F8 ollama client dung chung (timeout 300s, retry chi khi timeout)`
+- [x] Step 1 — Test fail trước (tiêm `post`): `base_from_url("http://h:11434/api/generate")` → `"http://h:11434"`, giữ path gốc nếu URL lạ; `check_connection` ConnectionError → `ok False` + message chứa host, **không raise**; OK → `models` đếm từ `{"models":[{"name":...}]}`; `generate` timeout 1 lần rồi OK → `post` gọi **2** lần + text đúng; ConnectionError → gọi **1** lần; HTTP != 200 / JSON rác / thiếu `response` → `(None, message)`; text có fence ```json bọc → strip; `model` mặc định đọc `cfg.CONTENT_MODEL` **lúc gọi** (đổi cfg giữa 2 test có tác dụng); payload `stream` **phải** `False`.
+- [x] Step 2 — Chạy → FAIL.
+- [x] Step 3 — Implement (retry chỉ cho `requests.exceptions.Timeout`, giữ import `requests` trong hàm).
+- [x] Step 4 — Test ALL PASS + mutation (retry cho mọi exception, `stream:True`, nuốt message lỗi → trả `""`, quên strip fence).
+- [x] Step 5 — Commit: `feat: F8 ollama client dung chung (timeout 300s, retry chi khi timeout)`
+
+**Kết quả Task 2 (2026-10-14):** 29 test ALL PASS (thêm 11 test Task 2), mutation **9/9 CAUGHT** (retry-all-exceptions, stream-true, swallow-error→"", no-strip-fence, retry-connection-error, no-retry-timeout, base-keeps-generate-suffix, tags-url-is-generate, non200-ignored). Battery bắt được survivor `non200-ignored` (body 500 không JSON bị fallback JSON-parse che mất) → thêm `test_generate_non_200_with_valid_body_still_fails` (503 kèm `{"response":...}` vẫn phải fail).
+**Deviation:** (a) seam của `check_connection` là `get=None` (GET `/api/tags`), không phải `post` — generate dùng `post=None`; (b) `CONTENT_GEN_TIMEOUT/RETRIES/DRAFTS_DIR` (PHẦN J) thêm **ngay Task 2** vì client là nơi dùng đầu tiên (plan để ở Task 4); Task 4 không cần thêm lại; (c) `import requests` ở đầu ollama_client là OK (đây là tầng network — chỉ `content_prompts` mới phải thuần).
 
 ### Task 3: `content/generator.py` — pipeline outline→draft→file + CLI
 

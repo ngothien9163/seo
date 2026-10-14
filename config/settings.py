@@ -165,3 +165,10 @@ BACKLINK_TIMEOUT = 15               # giây/link — một trang treo không đ�
 BACKLINK_CACHE_HOURS = 24           # link vừa check trong vòng này không fetch lại (như snapshot GSC)
 BACKLINK_STATE_DIR = "data"         # nơi lưu backlink_status.json (kết quả check — gitignored)
 BACKLINK_STORE_FILE = "backlinks.json"  # nằm trong config/, danh sách link owner tự thêm
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN J: CONTENT GENERATION (F8) — chỉ nói chuyện với Ollama localhost, chỉ sinh draft
+# ────────────────────────────────────────────────────────────────────────────
+CONTENT_GEN_TIMEOUT = 300           # giây/lượt — model 30b chậm, bản nháp dài cần nhiều thời gian
+CONTENT_GEN_RETRIES = 1             # chỉ retry khi timeout; connection error không retry
+CONTENT_DRAFTS_DIR = "content/drafts"  # nơi lưu bài nháp .md (gitignored — owner duyệt rồi mới dùng)
