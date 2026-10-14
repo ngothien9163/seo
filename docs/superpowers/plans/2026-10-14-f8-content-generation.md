@@ -93,11 +93,14 @@
 
 **Interfaces:** `drafts_dir() -> str`, `plan_item(day=None, keyword="") -> dict|None`, `render_article(keyword, outline_and_draft, item) -> (path, text)` (ghi file, trả nội dung), `generate_article(keyword="", day=None, client=None, out_dir=None) -> (path|None, message)`, `run_generate_cli(keyword="", day=None, dry_run=False) -> int`.
 
-- [ ] Step 1 — Test fail trước (`client` tiêm trả canned text): ghi file UTF-8 **không BOM**, tên `<slug>-<YYYYMMDD-HHMMSS>.md`, 2 lần chạy → **2 file** (không ghi đè), `.tmp` không sót; frontmatter + thân bài có mặt; outline fail → không gọi draft + message rõ; `plan_item(day=3)` đúng mục ngày 3, `day` ngoàirange → None, `day` trùng keyword → match fold; `run_generate_cli(dry_run=True)` **không** gọi `client` và **không** tạo file; Ollama down (client giả trả lỗi) → exit 1; input trống + `load_keywords()` rỗng → exit 2; exit 0 in đường dẫn + `seo_check`.
-- [ ] Step 2 — Chạy → FAIL.
-- [ ] Step 3 — Implement pipeline + atomic write.
-- [ ] Step 4 — Test ALL PASS + mutation.
-- [ ] Step 5 — Commit: `feat: F8 pipeline outline->draft + ghi content/drafts (atomic, khong de)`
+- [x] Step 1 — Test fail trước (`client` tiêm trả canned text): ghi file UTF-8 **không BOM**, tên `<slug>-<YYYYMMDD-HHMMSS>.md`, 2 lần chạy → **2 file** (không ghi đè), `.tmp` không sót; frontmatter + thân bài có mặt; outline fail → không gọi draft + message rõ; `plan_item(day=3)` đúng mục ngày 3, `day` ngoàirange → None, `day` trùng keyword → match fold; `run_generate_cli(dry_run=True)` **không** gọi `client` và **không** tạo file; Ollama down (client giả trả lỗi) → exit 1; input trống + `load_keywords()` rỗng → exit 2; exit 0 in đường dẫn + `seo_check`.
+- [x] Step 2 — Chạy → FAIL.
+- [x] Step 3 — Implement pipeline + atomic write.
+- [x] Step 4 — Test ALL PASS + mutation.
+- [x] Step 5 — Commit: `feat: F8 pipeline outline->draft + ghi content/drafts (atomic, khong de)`
+
+**Kết quả Task 3 (2026-10-14):** 37 test ALL PASS (thêm 8 test Task 3, dùng `FakeClient` tiêm — không network), CJK 0, mutation **8/8 CAUGHT** (overwrite-không-bump, BOM-sig, non-atomic-không-replace, draft-gọi-dù-outline-fail, dry_run-gọi-client, plan-day-ngoai-range-tra-ve-last, keyword-match-exact-thay-fold, draft-dung-outline-lam-prompt). BOM mutant ban đầu SKIP do anchor `\\n` escape sai trong harness → chạy lại đơn lập với anchor `encoding="utf-8", newline=` → **CAUGHT** (test `..._two_distinct_files` assert `not raw.startswith(b"\xef\xbb\xbf")`).
+**Deviation:** (a) `dry_run` đặt ở `generate_article(..., dry_run=True)` (tra (None, msg) chứa 2 prompt, KHÔNG gọi client, KHÔNG tạo file) để CLI chỉ forward — plan chỉ ghi dry_run ở CLI; (b) `render_article(..., out_dir=None)` thêm tham số out_dir cho test ghi vào folder tạm; (c) chuỗi in ra generator.py dùng **full Unicode có dấu** (nhất quán ollama_client), sửa lại bản ASCII-stripped ban đầu.
 
 ### Task 4: CLI + GUI + README + gitignore
 
