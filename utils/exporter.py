@@ -33,9 +33,12 @@ REPORTS_DIR = os.path.join(ROOT, "reports")
 RANK_HEADER = ["Thời gian check", "Từ khóa", "Vị trí", "URL"]
 GSC_HEADER = ["Query", "Clicks", "Impressions", "Vị trí TB", "CTR %", "Khoảng ngày", "Fetch lúc"]
 
-# Đường dẫn đã cấp trong phiên này — chặn hai lần export cùng giây ghi đè nhau
-# (os.path.exists thôi không đủ vì file chưa được ghi ngay lúc cấp tên)
+# Đường dẫn đã cấp trong giây hiện tại — chặn hai lần export cùng giây ghi đè nhau
+# (os.path.exists thôi không đủ vì file chưa được ghi ngay lúc cấp tên). Chỉ giữ
+# path của ĐÚNG giây này: stamp nằm trong tên file nên giây khác không thể trùng,
+# vì vậy set không phình vô hạn qua một phiên GUI dài.
 _ISSUED: set = set()
+_ISSUED_STAMP: str = ""
 
 
 def _clean(v) -> str:
@@ -108,7 +111,12 @@ def _unique_path(kind: str) -> str:
     xuất cùng giây không lẫn file.
     """
     from utils import site_paths  # import trong hàm: giữ exporter không phụ heavyweight ở top level
-    base = f"{site_paths.report_prefix()}export_{datetime.now():%Y%m%d_%H%M%S}_{kind}"
+    global _ISSUED_STAMP
+    stamp = f"{datetime.now():%Y%m%d_%H%M%S}"
+    if stamp != _ISSUED_STAMP:
+        _ISSUED.clear()           # path của giây cũ không còn khả năng trùng tên
+        _ISSUED_STAMP = stamp
+    base = f"{site_paths.report_prefix()}export_{stamp}_{kind}"
     path = os.path.join(REPORTS_DIR, f"{base}.csv")
     n = 1
     while path in _ISSUED or os.path.exists(path):
