@@ -120,3 +120,4 @@
 - `--export gsc` chỉ lấy snapshot mới nhất; muốn chuỗi snapshot theo ngày cần thêm loại `gsc-history` (chưa có nhu cầu thực tế → YAGNI).
 - Module không xuất `session_state.json` (dữ liệu traffic bot) — roadmap F1 chỉ định danh rank + GSC.
 - GUI nút Export in đường dẫn ra console, không mở hộp thoại "Save As" — customtkinter không có file dialog sẵn; owner muốn chọn nơi lưu thì mở `reports/` trong Explorer.
+- **`_ISSUED` trong `exporter._unique_path` (F1) là set chống trùng đường dẫn cùng phiên** — bản cũ giữ mọi path từng cấp → một phiên GUI dài chạy export nhiều sẽ leak. **✅ ĐÃ SỬA (2026-10-15, audit code-health):** giữ **đúng path của giây hiện tại** (stamp nằm trong tên file nên giây khác không thể trùng) → đổi giây là `clear()`. Hành vi chặn đè cùng giây giữ nguyên. Test `_quick_bugfix_test.py` (5/5: 2 path cùng giây vẫn khác nhau; sang giây mới set còn 1); mutation `_mut_bugfix` KILLED (`if stamp != _ISSUED_STAMP` → `if False` → reproduces phình set).

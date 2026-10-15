@@ -37,7 +37,7 @@
 6. Frontmatter: `---` mở & đóng đúng một cặp, `date` dạng ISO, `keyword`/`topic`/`type`/`model` có mặt; `slug` từ keyword chứ **không** từ topic.
 7. Không ghi đè: `_draft_path` với timestamp va nhau → thêm suffix `-2`; file `.tmp` không được sót lại sau khi ghi.
 8. `run_generate_cli("")` khi `load_keywords()` rỗng → exit 2 + hướng dẫn thêm từ khóa (`--gsc-add-keyword` / tab ⚙️). `--dry-run` **không** gọi `post` và **không** ghi file (in prompt + đường dẫn dự kiến).
-9. GUI: guard `_generate_running` chặn双击, nút disable khi chạy, thread nền nhả cờ ở `finally`, log `✍️ Đã lưu <path>`.
+9. GUI: guard `_generate_running` chặn nhấp đúp, nút disable khi chạy, thread nền nhả cờ ở `finally`, log `✍️ Đã lưu <path>`.
 10. Purity (AST): `content_prompts.py` không import `requests`/`ollama_client`/`os`; `ollama_client` chỉ import `requests` **trong hàm**; `generator` không tự gọi `sys.exit`/`os.system`.
 
 ## Quyết định đã chốt
@@ -119,7 +119,7 @@
 
 **Kết quả Task 4 (2026-10-14):** 45 test ALL PASS (thêm phần wiring), CJK 0 trên README/main/ui/gitignore/generator, sibling `_quick_backlink_test` (72) + `_quick_export_test` vẫn xanh. Verify offline qua subprocess: `--generate "nối mi" --dry-run` → rc **0** + in prompt + **không** tạo `content/drafts`; `--generate "nối mi"` (Ollama tắt) → rc **1** + "Chưa chạy Ollama tại localhost:11434", không traceback; `--generate --day 9999` → rc 1 (day ngoài range → rơi về keyword track → Ollama tắt). GUI probe: `generate_article` gọi **1** lần, nút `disabled→normal`, `_generate_running` reset ở `finally`, log có "Đã lưu", file tạm bị xóa. Mutation dispatch main.py **4/4 CAUGHT** (guard-renamed, keyword↔day swap, dry_run=False, flag-value-not-passed).
 **Bug probe bắt được (đã sửa):** `_generate_worker` ban đầu đọc `entry_gen_kw.get()`/`entry_ollama_url.get()` **trong thread nền** → Tk cross-thread, worker treo (calls=1 nhưng `_generate_running` không reset). Sửa: đọc 2 entry ở luồng chính trong `run_generate_content`, truyền `args=(kw, url)` vào worker.
-**Deviation:** (a) dispatch `main.py` chỉ trigger trên `--generate` (bỏ `or "--day"` — mutant `drop --day` sống vì `--day` đứng một mình không phải đường vào có tài liệu); (b) test AST pairing được thay bằng test **chức năng** chạy `main.py --generate … --dry-run` thật (subprocess, không network) để bắt guard + keyword-mapping端到端; (c) README dùng `### 14.` (matching số thứ tự mục tính đến F8).
+**Deviation:** (a) dispatch `main.py` chỉ trigger trên `--generate` (bỏ `or "--day"` — mutant `drop --day` sống vì `--day` đứng một mình không phải đường vào có tài liệu); (b) test AST pairing được thay bằng test **chức năng** chạy `main.py --generate … --dry-run` thật (subprocess, không network) để bắt guard + keyword-mapping từ đầu đến cuối; (c) README dùng `### 14.` (matching số thứ tự mục tính đến F8).
 
 ## Tiêu chí hoàn thành (card F8)
 
@@ -137,3 +137,4 @@
 - Keyword trong `DEFAULT_30D_PLAN` mất dấu (mojibake cũ) → `plan_item(keyword=...)` match theo fold vẫn chạy nhưng `topic/target` planner in ra vẫn có thể thiếu dấu; sửa planner ngoài phạm vi F8.
 - Không tạo ảnh, không meta description riêng, không schema — đó là việc khác (card ghi rõ ngoài phạm vi).
 - Ollama localhost, không auth: client **không** gửi gì ra ngoài máy — nếu owner trỏ `OLLAMA_URL` sang host từ xa thì payload prompt (chứa từ khóa + content plan) rời máy, cân nhắc trước.
+- **`build_frontmatter` (F8 Task 1) bọc value bằng nháy kép nhưng không escape `"`/`\` bên trong** — từ khóa owner gõ chứa nháy kép (vd `--generate 'đào tạo "đẹp"'`) sẽ đóng sớm chuỗi và phá YAML frontmatter. **✅ ĐÃ SỬA (2026-10-15, audit code-health):** helper `_yaml_quote` escape `\` trước rồi `"` (đúng thứ tự để `\"` không hóa `\\"`); value thường/colon giữ nguyên. Test `_quick_bugfix_test.py` (3 test frontmatter); mutation `_mut_bugfix` KILLED (`_yaml_quote` → `str(value)` → cả 2 test escape đỏ).
