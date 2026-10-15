@@ -67,12 +67,19 @@ def draft_prompt(outline: str, keyword: str, topic: str = "",
     return "\n".join(parts)
 
 
+def _yaml_quote(value) -> str:
+    """Escape theo YAML double-quote: \\ trước, rồi " — một dấu nháy/backslash trong
+    value (từ khóa người dùng gõ) không được đóng sớm chuỗi và phá frontmatter."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
 def build_frontmatter(meta: dict) -> str:
-    """Markdown frontmatter '---' bọc các cặp key: value. Giá trị luôn bọc nháy kép
-    để một dấu ':' trong value không phá YAML. Trả về đúng một cặp '---'."""
+    """Markdown frontmatter '---' bọc các cặp key: value. Giá trị bọc nháy kép và
+    escape nháy/backslash để một dấu ':' hay '"' trong value không phá YAML.
+    Trả về đúng một cặp '---'."""
     lines = ["---"]
     for key, value in meta.items():
-        lines.append(f'{key}: "{value}"')
+        lines.append(f'{key}: "{_yaml_quote(value)}"')
     lines.append("---")
     return "\n".join(lines)
 
