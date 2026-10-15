@@ -44,16 +44,30 @@ def _load_state() -> dict:
     path = _state_path()
     if os.path.exists(path):
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
-        except:
-            pass
+        except Exception:
+            pass           # file hỏng → coi như chưa chạy, không nuốt KeyboardInterrupt
     return {"date": "", "count": 0, "last_session": 0}
 
 def _save_state(state: dict):
-    """Ghi trạng thái ra file."""
-    with open(_state_path(), "w") as f:
-        json.dump(state, f)
+    """Ghi nguyên tử (tmp + os.replace) — crash giữa lúc serialize không xoá mất bộ đếm
+    session (cap/ngày reset → chạy quá giới hạn). Cùng idiom rank/scheduler/alerts."""
+    path = _state_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 def can_run_session(max_per_day: int = None, min_interval: int = None) -> tuple[bool, str]:
     """Kiểm tra có được chạy session mới không.
