@@ -7,6 +7,7 @@ import random
 from playwright.async_api import Page
 from utils.mouse_helper import human_move
 from utils.interactions import random_sleep, human_scroll, click_semantic_internal_link
+from utils import dbg
 
 
 # ─── HELPER: dong popup ─────────────────────────────────────────────────────
@@ -23,8 +24,8 @@ async def auto_close_popups(page: Page):
                 if await el.is_visible():
                     await el.click(force=True)
                     await asyncio.sleep(1)
-    except:
-        pass
+    except Exception as e:
+        dbg.warn("auto_close_popups", e)
 
 
 # ─── 1. CLICK CTA BUTTONS ──────────────────────────────────────────────────
@@ -89,7 +90,8 @@ async def click_cta_buttons(page: Page) -> bool:
                         await btn.click(force=True)
                         print(f"   [CTA] Click: '{txt.strip()[:30]}'")
                         return True
-        except:
+        except Exception as e:
+            dbg.warn("click_cta_buttons", e)
             continue
     return False
 
@@ -131,7 +133,8 @@ async def switch_tabs(page: Page) -> bool:
                     await asyncio.sleep(random.uniform(1.5, 3.0))
                     await human_scroll(page, duration=random.randint(5, 12))
                     return True
-        except:
+        except Exception as e:
+            dbg.warn("switch_tabs", e)
             continue
     return False
 
@@ -182,7 +185,8 @@ async def click_visible_image(page: Page) -> bool:
                 print(f"   [IMG] Click anh: '{alt[:25]}'")
                 await asyncio.sleep(random.uniform(1.0, 2.0))
             return True
-        except:
+        except Exception as e:
+            dbg.warn("click_visible_image", e)
             continue
     return False
 
@@ -225,12 +229,13 @@ async def search_on_site(page: Page, keyword: str) -> bool:
                     print(f"   [SEARCH] Noi bo: '{search_term}'")
                     try:
                         await page.wait_for_load_state("domcontentloaded", timeout=10000)
-                    except:
-                        pass
+                    except Exception as e:
+                        dbg.warn("search_on_site wait_load", e)
                     await asyncio.sleep(random.uniform(2, 4))
                     await human_scroll(page, duration=random.randint(8, 15))
                     return True
-        except:
+        except Exception as e:
+            dbg.warn("search_on_site", e)
             continue
     return False
 
@@ -297,9 +302,11 @@ async def fill_subscription_form(page: Page) -> bool:
                                     print(f"   [EMAIL] Dien form: {email}")
                                     await asyncio.sleep(random.uniform(2, 4))
                                     return True
-                        except:
+                        except Exception as e:
+                            dbg.warn("fill_subscription_form submit", e)
                             continue
-        except:
+        except Exception as e:
+            dbg.warn("fill_subscription_form", e)
             continue
     return False
 
@@ -335,7 +342,8 @@ async def scroll_to_content_section(page: Page) -> bool:
                     await random_sleep(0.5, 1.5)
                     await human_scroll(page, duration=random.randint(5, 12))
                     return True
-        except:
+        except Exception as e:
+            dbg.warn("scroll_to_content_section", e)
             continue
     return False
 
@@ -385,12 +393,13 @@ async def click_nav_menu(page: Page) -> bool:
             print(f"   [NAV] Click menu: '{txt.strip()[:25]}'")
             try:
                 await page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except:
-                pass
+            except Exception as e:
+                dbg.warn("click_nav_menu wait_load", e)
             await asyncio.sleep(random.uniform(2, 4))
             await human_scroll(page, duration=random.randint(10, 20))
             return True
-        except:
+        except Exception as e:
+            dbg.warn("click_nav_menu", e)
             continue
     return False
 
@@ -457,15 +466,16 @@ async def rich_on_site_interaction(page: Page, keyword: str, max_pages: int = 3)
     while pages_read < max_pages:
         try:
             clicked = await click_semantic_internal_link(page, keyword)
-        except:
+        except Exception as e:
+            dbg.warn("rich_on_site semantic_click", e)
             clicked = False
         if clicked:
             pages_read += 1
             print(f"   [SITE] Tuong tac — trang {pages_read}...")
             try:
                 await page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except:
-                pass
+            except Exception as e:
+                dbg.warn("rich_on_site wait_load", e)
             await auto_close_popups(page)
             await asyncio.sleep(random.uniform(1, 3))
 
@@ -479,8 +489,8 @@ async def rich_on_site_interaction(page: Page, keyword: str, max_pages: int = 3)
                         if await func(page):
                             actions_done.append(f"{name}(p{pages_read})")
                             await asyncio.sleep(random.uniform(1, 2))
-                    except:
-                        pass
+                    except Exception as e:
+                        dbg.warn("rich_on_site sub_action", e)
         else:
             break
 
@@ -489,8 +499,8 @@ async def rich_on_site_interaction(page: Page, keyword: str, max_pages: int = 3)
         try:
             await back_and_forth(page)
             actions_done.append("back/forth")
-        except:
-            pass
+        except Exception as e:
+            dbg.warn("rich_on_site back_forth", e)
 
     # Summary
     acts = ", ".join(actions_done) if actions_done else "(khong co)"

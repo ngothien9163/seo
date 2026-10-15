@@ -4,6 +4,8 @@ import requests
 import re
 from playwright.async_api import Page
 from utils.mouse_helper import human_move
+from utils import dbg
+import config.settings as cfg
 
 async def random_sleep(min_s=1.0, max_s=3.0):
     await asyncio.sleep(random.uniform(min_s, max_s))
@@ -31,9 +33,10 @@ async def human_typing(page: Page, selector: str, text: str):
 async def human_scroll(page: Page, duration: int):
     """Cuộn trang kết hợp đọc, rung chuột và bôi đen"""
     print(f"   [*] 📖 Đang đọc & tương tác ({duration}s)...")
-    start_time = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
     
-    while asyncio.get_event_loop().time() - start_time < duration:
+    while loop.time() - start_time < duration:
         # Cuộn xuống
         await page.mouse.wheel(0, random.randint(150, 400))
         
@@ -56,7 +59,8 @@ async def random_mouse_jitter(page: Page):
         for _ in range(random.randint(3, 5)):
             await page.mouse.move(x + random.randint(-10, 10), y + random.randint(-10, 10))
             await asyncio.sleep(0.05)
-    except: pass
+    except Exception as e:
+        dbg.warn("random_mouse_jitter", e)
 
 async def random_highlight_text(page: Page):
     """Bôi đen văn bản"""
@@ -77,7 +81,8 @@ async def random_highlight_text(page: Page):
                 
                 await asyncio.sleep(1.0)
                 await page.mouse.click(box['x'] - 20, box['y'])
-    except: pass
+    except Exception as e:
+        dbg.warn("random_highlight_text", e)
 
 async def click_random_internal_link(page: Page):
     """Click link nội bộ an toàn"""
@@ -115,9 +120,8 @@ async def click_random_internal_link(page: Page):
 
 
 async def get_semantic_link_choice(current_keyword: str, links_data: list) -> int:
-    """Gọi Local Ollama (qwen2.5-coder:7b) để chọn link ngữ nghĩa"""
-    """Gọi Local Ollama (qwen2.5-coder:7b) để chọn link ngữ nghĩa"""
-    url = "http://localhost:11434/api/generate"
+    """Gọi Ollama (cfg.SEMANTIC_LINK_MODEL) để chọn link ngữ nghĩa theo từ khóa."""
+    url = cfg.OLLAMA_URL
     
     # Format danh sách link cho AI dễ đọc
     links_text = "\n".join([f"[{i}] {link['text']}" for i, link in enumerate(links_data)])
@@ -130,11 +134,11 @@ Nhiệm vụ: Chọn MỘT link hấp dẫn và liên quan nhất để click đ
 YÊU CẦU BẮT BUỘC: Chỉ trả về ĐÚNG MỘT CON SỐ tương ứng với ID của link trong ngoặc vuông. KHÔNG GIẢI THÍCH GÌ THÊM."""
 
     payload = {
-        "model": "qwen2.5-coder:7b",
+        "model": cfg.SEMANTIC_LINK_MODEL,
         "prompt": prompt,
         "stream": False,
         "options": {
-            "temperature": 0.1 # Nhiệt độ cực thấp để Qwen2.5-coder trả lời chính xác như 1 cỗ máy
+            "temperature": 0.1 # Nhiệt độ cực thấp để model trả lời chính xác như 1 cỗ máy
         }
     }
     

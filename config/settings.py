@@ -92,6 +92,12 @@ PEAK_HOURS = [(9, 11), (14, 16), (19, 22)]  # Khung gi? VN
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen3:30b-a3b"
 
+# Model nhỏ, nhanh dùng riêng cho bước chọn link ngữ nghĩa (khác model sinh content)
+SEMANTIC_LINK_MODEL = "qwen2.5-coder:7b"
+
+# Gỡ lỗi tầng giả lập hành vi: True → in lý do mỗi `except` bắt được (xem utils/dbg.py)
+INTERACTION_DEBUG = False
+
 # Hành vi nâng cao (gi?m thi?u r?i ro)
 POGO_STICK_ENABLE = False          # T?T pogo-stick — nguy c? cao
 POGO_STICK_MAX = 0
