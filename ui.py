@@ -985,7 +985,7 @@ class TrafficBotUI(ctk.CTk):
 
     
     def refresh_ollama_models(self):
-        """L?y danh s�ch model t? Ollama server v� c?p nh?t dropdown."""
+        """Lấy danh sách model từ Ollama server và cập nhật dropdown."""
         from utils.ollama_client import base_from_url
         base = base_from_url(self.entry_ollama_url.get().strip())
         try:
@@ -999,10 +999,10 @@ class TrafficBotUI(ctk.CTk):
                         text=f"? {len(models)} models loaded", text_color="#00cc44"))
                 else:
                     self.after(0, lambda: self.lbl_ollama_status.configure(
-                        text="? Kh�ng c� model n�o", text_color="#cc2222"))
+                        text="? Không có model nào", text_color="#cc2222"))
         except Exception as e:
             self.after(0, lambda: self.lbl_ollama_status.configure(
-                text=f"? L?i: {str(e)[:38]}", text_color="#cc2222"))
+                text=f"? Lỗi: {str(e)[:38]}", text_color="#cc2222"))
     def _inc_ok(self):
         self._session_ok += 1
         self.lbl_ok.configure(text=str(self._session_ok))

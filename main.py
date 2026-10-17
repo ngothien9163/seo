@@ -1,5 +1,5 @@
 """
-SEO2 — Chi?n l??c SEO toàn di?n cho topdev.vn
+SEO2 — Chiến lược SEO toàn diện cho topdev.vn
 
 80% Content & Backlink | 20% Automation
 """
@@ -16,7 +16,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 def show_strategy():
-    """Hi?n th? chi?n l??c t?ng th?."""
+    """Hiển thị chiến lược tổng thể."""
     from content.planner import print_plan, get_plan_summary
     from content.keyword_research import print_keyword_report
     from backlinks.tracker import print_backlink_plan
