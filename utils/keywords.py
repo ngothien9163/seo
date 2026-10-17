@@ -16,7 +16,6 @@ không được kéo theo playwright hay requests (import lười trong hàm).
 """
 import json
 import os
-from urllib.parse import urlparse
 
 import utils.site_paths as _site_paths
 
@@ -45,11 +44,13 @@ def _fold(s: str) -> str:
 
 
 def site_domain() -> str:
-    """Domain mục tiêu từ cfg.TARGET_URL — 'https://WWW.Site.com/x' → 'site.com'."""
-    import config.settings as cfg
-    url = getattr(cfg, "TARGET_URL", "") or ""
-    netloc = (urlparse(url).netloc or url).lower().split(":")[0].strip()
-    return netloc[4:] if netloc.startswith("www.") else netloc
+    """Domain mục tiêu từ cfg.TARGET_URL — 'https://WWW.Site.com/x' → 'site.com'.
+
+    Ủy quyền cho site_paths._domain thay vì giữ bản copy thứ hai: hai bản đã lệch nhau
+    (bản cũ bỏ sót input dạng path trần — 'shoplanhdep.com/blog' trả nguyên cả path) và
+    domain này còn được ghi vào keywords.json nên lệch là lệch dữ liệu.
+    """
+    return _site_paths.site_domain()
 
 
 def load_keywords() -> list[str]:

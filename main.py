@@ -105,6 +105,13 @@ if __name__ == "__main__":
             if _dom:
                 cfg.GSC_SITE_URL = f"sc-domain:{_dom}"
             print(f"[Site] Site đang làm việc: {_dom}  (nhà dữ liệu: data/{site_paths.site_slug()}/)")
+            if not site_paths.is_multi_site():
+                # Chưa migrate = mọi thứ vẫn đọc/ghi file phẳng ở gốc project, tức là
+                # dữ liệu của site KHÁC (hoặc của chính site cũ). Nói thẳng ra thay vì để
+                # owner tưởng đang xem số liệu riêng của site vừa chọn.
+                print(f"[Site] ⚠️  Site chưa migrate: dữ liệu vẫn ở file phẳng gốc project, "
+                      f"KHÔNG phải dữ liệu riêng của {_dom}.")
+                print(f"[Site]     Tách riêng ngay: python main.py --site {_dom} --migrate-multi-site")
         else:
             print("[Site] --site cần domain/URL, ví dụ: --site shoplanhdep.com")
 
