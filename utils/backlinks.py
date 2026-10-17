@@ -73,6 +73,14 @@ def _norm_domain(value: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def _as_status(value) -> int:
+    """HTTP status về int; thiếu/rác (None, '', 'abc') → 0 = "không đọc được"."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _link_host(href: str, base: str) -> str:
     """Host thật của một href nằm trên trang `base`; '' nếu không phải link http(s).
 
@@ -368,12 +376,18 @@ def verify_page(url: str, html: str, status: int, domain: str,
 
     `url` là link owner khai báo, `final_url` là đích sau cùng sau redirect (nếu có)
     — href tương đối phải resolve theo trang THỰC SỰ đã đọc, không theo URL cũ.
+
+    Trang lỗi (>=400) trả về verdict rỗng ngay: HTML của 404/5xx là trang báo lỗi của
+    host, footer/menu của nó trỏ về chính nó nên link tới site mình trong đó KHÔNG
+    chứng minh backlink còn sống — đếm nó là báo "còn link" cho một bài đã bị xóa.
     """
     target = _norm_domain(domain)
     base = final_url or url
     result = {"url": url, "final_url": base, "status": status,
               "has_link": False, "dofollow": False, "links_to_target": 0,
               "anchors": [], "rel_seen": []}
+    if _as_status(status) >= 400:
+        return result
     if not html:
         return result
     for link in probe(html)["links"]:

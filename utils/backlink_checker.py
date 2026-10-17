@@ -8,11 +8,16 @@ MỘT request cho mỗi URL mỗi đợt, tối đa `BACKLINK_PARALLEL` luồng,
 CAPTCHA, không đụng lớp anti-detect. 403/429/404/timeout là DỮ LIỆU — ghi vào báo
 cáo rồi đi tiếp, batch không dừng.
 
+Redirect đi theo thủ công (`default_fetcher`) để soi từng đích trước khi gọi: một
+trang bên thứ ba có thể trỏ Location về file:// hay địa chỉ metadata nội bộ.
+
 `requests` import trong hàm (GUI import module này để bật nút, không được kéo theo
 network stack). CSV không tự viết ở đây: `check_rows()` đưa (header, rows) cho
 `utils/exporter.py` — nơi duy nhất biết `_unique_path` và BOM.
 """
 from concurrent.futures import ThreadPoolExecutor
+import ipaddress
+from urllib.parse import urljoin, urlsplit
 
 import config.settings as cfg
 from utils import backlinks as bl
@@ -20,21 +25,68 @@ from utils import backlinks as bl
 CSV_HEADER = ["trạng thái", "url", "host", "có link", "dofollow", "số link",
               "anchor", "check lúc", "url cuối", "lỗi"]
 _ERROR_CLIP = 120
+_MAX_REDIRECTS = 5            # trần hop redirect đi theo; hết trần thì dừng, status là dữ liệu
 
 
 # ─── fetch ───────────────────────────────────────────────────────────────────
 
 
+def _destination_ok(url: str) -> bool:
+    """Đích redirect có được phép gọi không — chỉ http(s) tới host công khai.
+
+    Trang blog là của người khác, nên Location có thể trỏ bất cứ đâu: file://, địa chỉ
+    metadata nội bộ của cloud (169.254.169.254), localhost, dải private. Bot không đi
+    theo những đích đó chỉ vì một trang bên thứ ba bảo thế.
+
+    Giới hạn có ý thức: chỉ soi phần địa chỉ viết trong Location. Một hostname công
+    khai mà DNS trỏ về IP nội bộ vẫn lọt — đây là chặn đúng cái đọc được, không phải
+    sandbox. URL gốc owner tự khai trong config/backlinks.json thì không soi (đó là
+    lựa chọn của chính owner, và cần cho việc thử ở máy).
+    """
+    try:
+        parts = urlsplit(str(url or "").strip())
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https"):
+        return False
+    host = (parts.hostname or "").strip().lower().strip(".")
+    if not host or host == "localhost" or host.endswith(".localhost"):
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return True                      # tên miền → để DNS/requests quyết định
+    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified)
+
+
+def _get(requests, url: str):
+    """MỘT request cho một URL, không tự đi theo redirect (để tự soi từng hop)."""
+    return requests.get(url, timeout=cfg.BACKLINK_TIMEOUT, allow_redirects=False,
+                        headers={"User-Agent": cfg.AUDIT_USER_AGENT})
+
+
 def default_fetcher(url: str) -> tuple:
-    """(status, html, final_url) của MỘT URL — đúng một request, không tự retry.
+    """(status, html, final_url) của MỘT URL — không tự retry.
+
+    Redirect đi theo THỦ CÔNG (`allow_redirects=False` rồi đọc Location) để soi được
+    từng đích TRƯỚC khi gọi: để `requests` tự đi thì request tới đích nguy hiểm đã
+    xong rồi mới biết nó đi đâu. Gặp đích bị chặn hoặc quá `_MAX_REDIRECTS` hop thì
+    dừng lại và trả status của hop cuối — 3xx là DỮ LIỆU cho báo cáo, không phải lỗi.
 
     404/403 KHÔNG raise: `requests` trả status, và status chính là kết quả owner cần
     thấy. Chỉ lỗi mạng thật (DNS, timeout, connection reset) mới nổi exception —
     `_fetch_one` biến nó thành một dòng báo cáo.
     """
     import requests
-    resp = requests.get(url, timeout=cfg.BACKLINK_TIMEOUT, allow_redirects=True,
-                        headers={"User-Agent": cfg.AUDIT_USER_AGENT})
+    resp = _get(requests, url)
+    hops = 0
+    while getattr(resp, "is_redirect", False) and hops < _MAX_REDIRECTS:
+        nxt = urljoin(resp.url or url, (resp.headers or {}).get("location") or "")
+        if not _destination_ok(nxt):
+            break
+        hops += 1
+        resp = _get(requests, nxt)
     return resp.status_code, resp.text or "", resp.url or url
 
 
