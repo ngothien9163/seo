@@ -60,7 +60,7 @@ Các đầu vào spec ngầm hiểu nhưng không task test nào phủ — mỗi
   - Snapshot: ghi `gsc.DATA_FILE` tạm (trỏ `gsc.DATA_FILE` sang `_test_gsc_history.json` như `_quick_test.py` đã làm với rank) 2 snapshot ngày khác nhau + 1 snapshot cũ 100 ngày → `save_snapshot` lần nữa → file còn ≤ 90 snapshot, ngày mới nhất đúng; fetch lại cùng ngày ghi đè không nhân đôi.
   - Rate limit: state `date` khác hôm nay → `can_run_fetch()` = `(True, "")`; đếm vượt `cfg.GSC_MAX_FETCH_PER_DAY` → `(False, <thông điệp có số>)`.
   - `load_credentials()` khi file không tồn tại → raise `GSCSetupError`, message chứa "SETUP_GSC".
-- [ ] **Step 2: Chạy确认 fail** — `python _quick_gsc_test.py` → FAIL (`ModuleNotFoundError: utils.gsc_client`).
+- [ ] **Step 2: Chạy fail** — `python _quick_gsc_test.py` → FAIL (`ModuleNotFoundError: utils.gsc_client`).
 - [ ] **Step 3: Implement module** — signature đúng mục Interfaces; body theo spec:
   - Auth: `google.oauth2.service_account.Credentials.from_service_account_file(path, scopes=[SCOPE])`; token: `creds.refresh(google.auth.transport.requests.Request())` — fetch trong `requests` header `Authorization: Bearer <token>`.
   - POST `{GSC_API_BASE}/{quote(cfg.GSC_SITE_URL, safe="")}/searchAnalytics/query`, body `{"startDate": (today - timedelta(days-1)).isoformat(), "endDate": today, "dimensions": ["query"], "rowLimit": 250, "dataState": "all"}`; 401 → refresh token 1 lần rồi thử lại.
