@@ -59,6 +59,7 @@ class TrafficBotUI(ctk.CTk):
         self._audit_running = False
         self._backlinks_running = False
         self._generate_running = False
+        self._alert_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -250,8 +251,12 @@ class TrafficBotUI(ctk.CTk):
 
     def apply_site(self):
         """Đổi site đang làm việc: đặt cfg.TARGET_URL theo Target URL, module tự re-resolve lúc gọi."""
-        if self.is_running:
-            print("[Site] ⏳ Đang chạy job — dừng hẳn rồi mới đổi site.")
+        # getattr chứ không self._x: test F10 gọi hàm này unbound trên stub SimpleNamespace.
+        # Đổi cfg giữa lúc worker đang chạy thì nửa việc ghi vào data site cũ, nửa vào site mới.
+        if self.is_running or getattr(self, "_rank_running", False) \
+                or getattr(self, "_gsc_running", False) or getattr(self, "_audit_running", False) \
+                or getattr(self, "_alert_running", False):
+            print("[Site] ⏳ Có job đang chạy — dừng hẳn rồi mới đổi site.")
             return
         url = self.entry_url.get().strip()
         if not url:
@@ -644,21 +649,43 @@ class TrafficBotUI(ctk.CTk):
 
     def run_alert_preview(self):
         """Nút 🧪: gửi một tin thử qua kênh đang cấu hình, không đụng state cảnh báo thật."""
+        if getattr(self, "_alert_running", False):
+            return
+        self._alert_running = True
+        try:
+            self.btn_alert_test.configure(state="disabled", text="⏳ Đang gửi...")
+        except Exception:
+            pass
         threading.Thread(target=self._alert_preview_worker, daemon=True).start()
 
     def _alert_preview_worker(self):
-        from utils.alerts import delivery_mode, is_configured, send
-        mode = delivery_mode()
-        if mode != "telegram":
-            print(f"[Alert] Kênh hiện tại: console — {is_configured()[1]}")
         try:
-            ok = send("🧪 Tin thử từ SEO Bot: kênh cảnh báo tụt hạng đang hoạt động.")
+            from utils.alerts import delivery_mode, is_configured, send
+            mode = delivery_mode()
+            if mode != "telegram":
+                print(f"[Alert] Kênh hiện tại: console — {is_configured()[1]}")
+            try:
+                ok = send("🧪 Tin thử từ SEO Bot: kênh cảnh báo tụt hạng đang hoạt động.")
+            except Exception as e:
+                print(f"[Alert] ❌ Sender raise ngoài dự kiến: {type(e).__name__}: {e}")
+                ok = False
+            print("[Alert] ✅ Tin thử đã được thông báo." if ok
+                  else "[Alert] ❌ Tin thử thất bại — xem mô tả ở trên.")
         except Exception as e:
-            print(f"[Alert] ❌ Sender raise ngoài dự kiến: {type(e).__name__}: {e}")
-            ok = False
-        print("[Alert] ✅ Tin thử đã được thông báo." if ok
-              else "[Alert] ❌ Tin thử thất bại — xem mô tả ở trên.")
-        self.after(0, self._refresh_alert_mode_label)
+            # Thiếu vòng này thì một lỗi bất ngờ để _alert_running kẹt ở True vĩnh viễn:
+            # nút thử cảnh báo chết im lặng cho tới khi khởi động lại GUI.
+            print(f"[Alert] ❌ Không chạy được tin thử: {type(e).__name__}: {e}")
+        finally:
+            self._alert_running = False
+            self.after(0, self._finish_alert_preview)
+
+    def _finish_alert_preview(self):
+        """Trả nút về trạng thái bấm được — chạy trên main thread qua after()."""
+        try:
+            self.btn_alert_test.configure(state="normal", text="🧪  GỬI THỬ BÁO ĐỘNG")
+        except Exception:
+            pass
+        self._refresh_alert_mode_label()
 
     def _refresh_rank_report(self):
         from utils.gsc_client import build_report as build_merged_report
