@@ -1,26 +1,26 @@
-# config/settings.py — C?u hình SEO toàn di?n
+# config/settings.py — Cấu hình SEO toàn diện
 
 # ────────────────────────────────────────────────────────────────────────────
-# PH?N A: CHI?N L??C N?I DUNG (80%)
+# PHẦN A: CHIẾN LƯỢC NỘI DUNG (80%)
 # ────────────────────────────────────────────────────────────────────────────
 
-# M?c tiêu content hàng tháng
+# Mục tiêu content hàng tháng
 CONTENT_GOAL_MONTHLY = 30          # 30 bài/tháng: blog, video, social, review
 CONTENT_FOCUS = "lam dep"          # Ngách chính
-TARGET_URL = "https://nankybeauty.com/"   # Website m?c tiêu
+TARGET_URL = "https://nankybeauty.com/"   # Website mục tiêu
 
 # AI Content Generation
-CONTENT_MODEL = "qwen3:30b-a3b"    # Model cho sinh content (ho?c "deepseek-chat")
+CONTENT_MODEL = "qwen3:30b-a3b"    # Model cho sinh content (hoặc "deepseek-chat")
 
 # ────────────────────────────────────────────────────────────────────────────
-# PH?N B: CHI?N L??C BACKLINK (D?I V?I AUTOMATION)
+# PHẦN B: CHIẾN LƯỢC BACKLINK (ĐỐI VỚI AUTOMATION)
 # ────────────────────────────────────────────────────────────────────────────
 
 BACKLINK_GOAL_MONTHLY = 20         # 20 backlink/tháng
 BACKLINK_MIN_DA = 20               # Minimum Domain Authority
 
 # ────────────────────────────────────────────────────────────────────────────
-# PH?N C: T?I ?U K? THU?T & AUTOMATION (20%)
+# PHẦN C: TỐI ƯU KỸ THUẬT & AUTOMATION (20%)
 # ────────────────────────────────────────────────────────────────────────────
 
 # Proxy
@@ -31,8 +31,8 @@ HEADLESS_MODE = False
 LOAD_IMAGES = True
 VIEWPORT_SIZE = {"width": 1920, "height": 1080}
 
-# Device — H? tr? mobile emulation
-# M?c d?nh "Random Mobile 70" = 70% mobile, 30% desktop
+# Device — Hỗ trợ mobile emulation
+# Mặc định "Random Mobile 70" = 70% mobile, 30% desktop
 DEVICE_NAME = "Random Mobile 70 (70% mobile, 30% desktop)"
 SUPPORTED_DEVICES = [
     "Desktop (Mặc định)",
@@ -44,20 +44,20 @@ SUPPORTED_DEVICES = [
     "iPad Pro 11",
 ]
 
-# Android Emulator (ADB) — t?t m?c d?nh, b?t n?u có ?i?n tho?i ?o
+# Android Emulator (ADB) — tắt mặc định, bật nếu có điện thoại ảo
 ANDROID_EMULATOR_ENABLE = False
-ANDROID_EMULATOR_PORT = 5554  # Port m?c d?nh c?a Android Emulator
+ANDROID_EMULATOR_PORT = 5554  # Port mặc định của Android Emulator
 
-# Th?i gian on-site (gi?i h?n ?? tránh pattern b?t th??ng)
-DURATION_MIN = 45                  # Gi?m xu?ng 45s ?? t? nhiên h?n
-DURATION_MAX = 180                 # T?ng lên 180s ?? có phân tán
+# Thời gian on-site (giới hạn để tránh pattern bất thường)
+DURATION_MIN = 45                  # Giảm xuống 45s để tự nhiên hơn
+DURATION_MAX = 180                 # Tăng lên 180s để có phân tán
 TEST_DURATION = 60
 
-# Gi?i h?n t?n su?t — TRÁNH B? GOOGLE PHÁT HI?N
-MAX_SESSIONS_PER_DAY = 25          # T?i ?a 25 session/ngày (không ph?i 100+)
-MIN_INTERVAL_BETWEEN_SESSIONS = 300 # 5 phút gi?a các session
+# Giới hạn tần suất — TRÁNH BỊ GOOGLE PHÁT HIỆN
+MAX_SESSIONS_PER_DAY = 25          # Tối đa 25 session/ngày (không phải 100+)
+MIN_INTERVAL_BETWEEN_SESSIONS = 300 # 5 phút giữa các session
 
-# Loop (ch? b?t khi c?n)
+# Loop (chỉ bật khi cần)
 LOOP_ENABLE = False
 LOOP_DURATION_MINUTES = 60
 ALWAYS_NEW_USER = True
@@ -71,20 +71,20 @@ WARMUP_SHOPPING = True
 WARMUP_FACEBOOK = True
 WARMUP_INSTAGRAM = True
 
-# Traffic — t?i ?u t? nhiên, tránh phát hi?n
+# Traffic — tối ưu tự nhiên, tránh phát hiện
 TRAFFIC_MODE = "search"  # "direct" | "search" | "aio" | "mix"
 
-# Stagger: m?i lu?ng cách nhau 5-20s thay vì kh?i ??ng ?ng lo?t
-THREAD_STAGGER_MIN = 5        # Giây t?i thi?u gi?a các lu?ng khi kh?i ??ng
+# Stagger: mỗi luồng cách nhau 5-20s thay vì khởi động ồng loạt
+THREAD_STAGGER_MIN = 5        # Giây tối thiểu giữa các luồng khi khởi động
 THREAD_STAGGER_MAX = 25
 
-# Ngh? ng?u nhiên gi?a các session trong cùng 1 lu?ng
+# Nghỉ ngẫu nhiên giữa các session trong cùng 1 luồng
 REST_BETWEEN_SESSIONS_MIN = 10   # Giây
 REST_BETWEEN_SESSIONS_MAX = 45
 
-# Gi? l?p gi? cao ?i?m (peak hours)
-PEAK_HOURS_ENABLE = True          # Ch?y nhi?u h?n vào gi? cao ?i?m
-PEAK_HOURS = [(9, 11), (14, 16), (19, 22)]  # Khung gi? VN
+# Giả lập giờ cao điểm (peak hours)
+PEAK_HOURS_ENABLE = True          # Chạy nhiều hơn vào giờ cao điểm
+PEAK_HOURS = [(9, 11), (14, 16), (19, 22)]  # Khung giờ VN
 # Danh sách từ khóa KHÔNG nằm ở đây nữa — xem config/keywords.json,
 # đọc/ghi qua utils/keywords.py: load_keywords() / save_keywords() / add_keyword().
 
@@ -98,12 +98,12 @@ SEMANTIC_LINK_MODEL = "qwen2.5-coder:7b"
 # Gỡ lỗi tầng giả lập hành vi: True → in lý do mỗi `except` bắt được (xem utils/dbg.py)
 INTERACTION_DEBUG = False
 
-# Hành vi nâng cao (gi?m thi?u r?i ro)
-POGO_STICK_ENABLE = False          # T?T pogo-stick — nguy c? cao
+# Hành vi nâng cao (giảm thiểu rủi ro)
+POGO_STICK_ENABLE = False          # TẮT pogo-stick — nguy cơ cao
 POGO_STICK_MAX = 0
-WARMUP_SEARCH_ENABLE = True        # B?T warmup search — traffic t? search
-KEYWORD_VARIATION_ENABLE = True     # B?T keyword variation
-THIRD_PAGE_ENABLE = False           # T?T third page — d? b? phát hi?n
+WARMUP_SEARCH_ENABLE = True        # BẬT warmup search — traffic từ search
+KEYWORD_VARIATION_ENABLE = True     # BẬT keyword variation
+THIRD_PAGE_ENABLE = False           # TẮT third page — dễ bị phát hiện
 THIRD_PAGE_CHANCE = 0
 
 # ────────────────────────────────────────────────────────────────────────────

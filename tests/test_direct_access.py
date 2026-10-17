@@ -16,10 +16,10 @@ async def auto_fake_conversion(page: Page):
     
     Lý do tắt:
     - Google có thể phát hiện comment AI (pattern, thời gian, nội dung)
-    - Gây hại cho domain nếu bị phát hiện (penalty mềm ho?c c?ng)
-    - T? l? chuy?n ??i t? comment g?n nh? b?ng 0, r?i ro thì cao
+    - Gây hại cho domain nếu bị phát hiện (penalty mềm hoặc cứng)
+    - Tỷ lệ chuyển đổi từ comment gần như bằng 0, rủi ro thì cao
     
-    Thay vào ?ó: t?p trung content th?t, backlink th?t"""
+    Thay vào đó: tập trung content thật, backlink thật"""
     pass
 
 async def run_deep_session(page: Page):

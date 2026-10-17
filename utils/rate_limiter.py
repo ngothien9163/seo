@@ -1,12 +1,12 @@
 """
-utils/rate_limiter.py — Gi?i h?n t?n su?t session ?? tránh b? Google phát hi?n.
+utils/rate_limiter.py — Giới hạn tần suất session để tránh bị Google phát hiện.
 
-Lu?t:
-- T?i ?a 25 session/ngày (c?u hình trong settings.MAX_SESSIONS_PER_DAY)
-- T?i thi?u 5 phút gi?a các session
-- T? ?ó?ng l?i n?u v??t quá gi?i h?n
+Luật:
+- Tối đa 25 session/ngày (cấu hình trong settings.MAX_SESSIONS_PER_DAY)
+- Tối thiểu 5 phút giữa các session
+- Tự đóng lại nếu vượt quá giới hạn
 
-L?u tr?ng thái vào file JSON ?? không b? reset khi restart.
+Lưu trạng thái vào file JSON để không bị reset khi restart.
 """
 import json
 import os
