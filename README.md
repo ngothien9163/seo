@@ -144,13 +144,13 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 ### 15. Multi-site — nhiều website trong cùng một bộ máy (F10)
 
 - **Ý tưởng**: một project chạy cho nhiều site, mỗi site có dữ liệu riêng (`rank_history`, GSC, keywords, backlink, audit, scheduler...) để chúng không ghi đè nhau. Nhận diện site bằng **domain** lấy từ `cfg.TARGET_URL` (bỏ `www.`, bỏ scheme/path), slug hoá thành tên thư mục (vd `shoplanhdep.com` → `shoplanhdep-com`).
-- **Bật per-site = có thư mục `data/<slug>/`**. Đây là quyết định duy nhất (QĐ B): khi chưa có thư mục đó, mọi đường dẫn rơi về **file phẳng gốc** như cũ → bạn chỉ có 1 site và chưa migrate thì hành vi y hệt hôm nay, không đổ vỡ gì.
+- **Bật per-site = có dấu `data/<slug>/.migrated`** (migrate ghi ở bước cuối, khi đã copy xong). Đây là quyết định duy nhất (QĐ B): khi thiếu dấu đó, mọi đường dẫn rơi về **file phẳng gốc** như cũ → bạn chỉ có 1 site và chưa migrate thì hành vi y hệt hôm nay, không đổ vỡ gì.
 - **Di chuyển dữ liệu (không phá)**: `python main.py --migrate-multi-site --dry-run` xem trước sẽ copy gì, rồi `python main.py --migrate-multi-site` chạy thật. Lệnh **chỉ copy**, **không bao giờ xoá/dời file gốc** — bạn tự kiểm tra `data/<slug>/` đọc đúng rồi hãy tự tay dọn file phẳng. `config/gsc_service_account.json` (credential) **cố ý nằm ngoài** danh sách migrate.
 - **Chọn site khi chạy CLI**: `python main.py --site domain.com --rank` — `--site` áp dụng trước khi nạp module nên cả phiên đó trỏ đúng site (site phải đã migrate mới có dữ liệu riêng).
 - **GUI**: tab **⚙️ Cấu hình** → nhập Target URL rồi bấm **🔀 Áp dụng site**; chuyển `cfg.TARGET_URL` + `GSC_SITE_URL` ngay trong phiên, reload từ khóa, in ra chế độ per-site BẬT/TẮT và danh sách site đã biết. Đang chạy job thì nút từ chối đổi (tránh dữ liệu lẫn lộn giữa chừng).
 - **Báo cáo CSV**: multi-site thì tên file có prefix `<slug>_export_...`; đơn site thì không — giữ nguyên như F1.
 - **Nhân vật trình duyệt dùng chung (QĐ C)**: F10 chỉ đổi **đường dẫn dữ liệu**, **không** đụng cơ chế fingerprint/persona. Ổ khoá scheduler cũng **dùng chung** (QĐ lock) — hai job đồng thời vẫn chặn nhau đúng như cũ.
-- **Chưa làm / giới hạn**: không có registry `sites.json` — site "đã biết" chỉ là các thư mục con trong `data/`; muốn thêm site mới thì tự chạy `--migrate-multi-site` cho site đó (hoặc tạo tay `data/<slug>/`). Việc migrate dữ liệu thật của bạn là thao tác thủ công có duyệt trước, tool không tự xoá gì.
+- **Chưa làm / giới hạn**: không có registry `sites.json` — site "đã biết" là các thư mục con trong `data/` **có dấu `.migrated`**; muốn thêm site mới thì chạy `--migrate-multi-site` cho site đó (tạo tay thư mục `data/<slug>/` **không đủ** — phải có dấu `.migrated` mới bật). Việc migrate dữ liệu thật của bạn là thao tác thủ công có duyệt trước, tool không tự xoá gì.
 
 ---
 
@@ -355,7 +355,7 @@ seo-by-Tung/
 - **`--audit` báo "Không đọc được trang nào" (exit 1)**: sai `TARGET_URL` hoặc mất mạng; nếu site tự chặn UA desktop thì crawler chỉ ghi nhận 403/429 thành một dòng báo cáo — **không** retry và **không** đổi UA để lọt qua (đó là việc của lớp anti-detect, đã tuyên bố không đụng tới).
 - **`--pagespeed` trả 429 "hết quota"**: quota ẩn danh của PSI là *Queries per day* dùng chung toàn cầu — hết thì chờ hoặc tạo key miễn phí rồi điền `PAGESPEED_API_KEY`; báo cáo audit HTML không liên quan vẫn chạy.
 - **`--backlink-check` báo "Bị chặn (403)" hoặc "không đọc được"**: site đó chặn UA desktop hoặc mạng chậm — đó là **một dòng báo cáo**, không phải link chết, và tool **không** retry hay đổi UA để lọt qua. Muốn check lại ngay: `--backlink-refresh` (bỏ cache 24h). Danh sách trống thì lệnh exit 2 và chỉ cách thêm (`--backlink-add`, `--backlink-import`).
-- **`--site domain.com` nhưng dữ liệu vẫn là của site cũ / rỗng**: site đó **chưa migrate** — khi `data/<slug>/` chưa tồn tại, resolver rơi về file phẳng gốc (1 site). Chạy `python main.py --migrate-multi-site` cho site muốn tách, rồi `--site` mới trỏ vào dữ liệu riêng. GUI báo rõ `per-site=BẬT/TẮT` khi bấm **🔀 Áp dụng site**.
+- **`--site domain.com` nhưng dữ liệu vẫn là của site cũ / rỗng**: site đó **chưa migrate** — khi thiếu dấu `data/<slug>/.migrated`, resolver rơi về file phẳng gốc (1 site). Chạy `python main.py --migrate-multi-site` cho site muốn tách, rồi `--site` mới trỏ vào dữ liệu riêng. GUI báo rõ `per-site=BẬT/TẮT` khi bấm **🔀 Áp dụng site**.
 - **Lo sợ migrate làm mất dữ liệu**: `--migrate-multi-site` **chỉ `shutil.copy2`**, không `os.remove`/`move` file gốc bao giờ; muốn an toàn chạy `--dry-run` trước. Credential `config/gsc_service_account.json` không nằm trong danh sách copy.
 
 ## Giới hạn phụ thuộc

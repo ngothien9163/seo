@@ -64,6 +64,9 @@ Owner đang chạy 1 site. Phương án:
 
 → Cần owner chọn. Mặc định **(fallback)**.
 
+> Cập nhật 2026-10-18: điều kiện bật per-site không phải "thư mục `data/<slug>/` tồn tại" mà là
+> dấu `data/<slug>/.migrated` (chỉ ghi khi mọi file copy xong) — xem `docs/superpowers/plans/2026-10-14-f10-multi-site.md` §"Hardening pass".
+
 ### Quyết định C — browser profile có scope theo site không?
 
 Profile giờ keyed theo `profile_id` (persona) trong `browser_manager.py:289-405`, **không** theo site.
