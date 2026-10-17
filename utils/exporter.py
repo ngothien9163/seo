@@ -7,8 +7,10 @@ utils/exporter.py — F1: xuất dữ liệu SEO đã thu ra CSV mở bằng Exc
 - audit_last.json    → các finding của lần `--audit` gần nhất
 - backlink_status.json → kết quả `--backlink-check` gần nhất (link chết/nofollow đầu bảng)
 
-File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<kind>.csv`, mã UTF-8 có BOM
-(Excel bản tiếng Việt cần BOM để không lỗi dấu), mỗi lần export một file mới.
+File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<kind>.csv` (multi-site thì thêm tiền
+tố slug: `<slug>_export_...`), mã UTF-8 có BOM (Excel bản tiếng Việt cần BOM để không
+lỗi dấu), mỗi lần export một file mới. Tên file được GIÀNH bằng `os.open(O_EXCL)` nên
+hai process export cùng một giây (GUI + CLI) không bao giờ ghi đè nhau.
 
 Chạy:
     python main.py --export rank       # chỉ xếp hạng
@@ -33,13 +35,6 @@ REPORTS_DIR = os.path.join(ROOT, "reports")
 RANK_HEADER = ["Thời gian check", "Từ khóa", "Vị trí", "URL"]
 GSC_HEADER = ["Query", "Clicks", "Impressions", "Vị trí TB", "CTR %", "Khoảng ngày", "Fetch lúc"]
 
-# Đường dẫn đã cấp trong giây hiện tại — chặn hai lần export cùng giây ghi đè nhau
-# (os.path.exists thôi không đủ vì file chưa được ghi ngay lúc cấp tên). Chỉ giữ
-# path của ĐÚNG giây này: stamp nằm trong tên file nên giây khác không thể trùng,
-# vì vậy set không phình vô hạn qua một phiên GUI dài.
-_ISSUED: set = set()
-_ISSUED_STAMP: str = ""
-
 
 def _clean(v) -> str:
     """None/rỗng → '' (Excel hiểu là ô trống); mọi thứ khác → str."""
@@ -48,20 +43,36 @@ def _clean(v) -> str:
     return str(v)
 
 
+def _as_dict(v) -> dict:
+    """v là dict thì lấy, ngược lại {} — file state là JSON người sửa được, schema có thể lệch."""
+    return v if isinstance(v, dict) else {}
+
+
+def _fnum(v, default: float = 0.0) -> float:
+    """Số thực từ ô có thể bẩn (None, 'abc', '14,3') — không parse được thì trả default.
+
+    Một ô hỏng trong history không được làm nổ cả lần export (owner mất luôn phần còn lại).
+    """
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 # ─── SERIALIZE: rank history ────────────────────────────────────────────────
 
 def rank_rows() -> tuple[list[str], list[list[str]]]:
     """Toàn bộ lịch sử xếp hạng → (header, rows). Không có history → rows = []."""
     from utils.rank_tracker import _load_history  # import lười (kéo playwright nếu ở đầu file)
 
-    checks = _load_history().get("checks", {}) or {}
+    checks = _as_dict(_as_dict(_load_history()).get("checks"))
     rows: list[list[str]] = []
-    for checked_at in sorted(checks.keys()):
+    for checked_at in sorted(checks.keys(), key=str):
         stamp = str(checked_at)[:19].replace("T", " ")
-        results = checks[checked_at] or {}
-        for kw in sorted(results.keys()):
-            r = results[kw] or {}
-            rows.append([stamp, kw, _clean(r.get("pos")), _clean(r.get("url"))])
+        results = _as_dict(checks[checked_at])
+        for kw in sorted(results.keys(), key=str):
+            r = _as_dict(results[kw])
+            rows.append([stamp, _clean(kw), _clean(r.get("pos")), _clean(r.get("url"))])
     return list(RANK_HEADER), rows
 
 
@@ -75,27 +86,27 @@ def gsc_rows() -> tuple[list[str], list[list[str]]]:
     """
     from utils.gsc_client import _load_history  # import lười (đọc file key chỉ lúc cần)
 
-    snaps = _load_history().get("snapshots", {}) or {}
+    snaps = _as_dict(_as_dict(_load_history()).get("snapshots"))
     if not snaps:
         return list(GSC_HEADER), []
 
-    snap = snaps[sorted(snaps.keys())[-1]]
-    rows = snap.get("rows", {}) or {}
-    span = f"{snap.get('start_date', '?')} → {snap.get('end_date', '?')}"
+    snap = _as_dict(snaps[sorted(snaps.keys(), key=str)[-1]])
+    rows = _as_dict(snap.get("rows"))
+    span = f"{snap.get('start_date') or '?'} → {snap.get('end_date') or '?'}"
     fetched = _clean(snap.get("fetched_at"))
 
     def _sort_key(q: str):
-        return (-(rows[q].get("impressions") or 0), q)
+        return (-_fnum(_as_dict(rows[q]).get("impressions")), q)
 
     out = []
     for q in sorted(rows.keys(), key=_sort_key):
-        r = rows[q] or {}
+        r = _as_dict(rows[q])
         out.append([
-            q,
+            _clean(q),
             _clean(r.get("clicks")),
             _clean(r.get("impressions")),
-            f"{float(r.get('position') or 0):.1f}",
-            f"{float(r.get('ctr') or 0) * 100:.2f}",
+            f"{_fnum(r.get('position')):.1f}",
+            f"{_fnum(r.get('ctr')) * 100:.2f}",
             span,
             fetched,
         ])
@@ -105,25 +116,36 @@ def gsc_rows() -> tuple[list[str], list[list[str]]]:
 # ─── GHI FILE ────────────────────────────────────────────────────────────────
 
 def _unique_path(kind: str) -> str:
-    """reports/[<site>_]export_<ngày>_<giờ>_<kind>[._N].csv — không bao giờ trả tên đã dùng.
+    """reports/[<slug>_]export_<ngày>_<giờ>_<kind>[_N].csv — tên trả về đã được GIÀNH.
 
-    Đơn site: prefix rỗng → tên y hệt F1. Multi-site: prepend '<slug>_' để hai site
-    xuất cùng giây không lẫn file.
+    Tên được tạo bằng `os.open(O_CREAT|O_EXCL)`: hai process export trong cùng một
+    giây (GUI + CLI, hai cửa sổ) thì process thứ hai ăn FileExistsError và tự nhảy
+    sang `_2`. Kiểu "kiểm tra os.path.exists rồi mới ghi" không chống được vì cả hai
+    đều thấy "chưa có" trước khi ai kịp tạo file.
+
+    File trả về đã tồn tại (0 byte); `_write_csv` mở lại bằng "w" nên ghi đè bình
+    thường. Vì tên bị giành ngay lúc gọi, các hàm export_* phải tính rows TRƯỚC —
+    nếu không, một lỗi khi đọc history sẽ để lại file CSV rỗng trong reports/.
     """
     from utils import site_paths  # import trong hàm: giữ exporter không phụ heavyweight ở top level
-    global _ISSUED_STAMP
     stamp = f"{datetime.now():%Y%m%d_%H%M%S}"
-    if stamp != _ISSUED_STAMP:
-        _ISSUED.clear()           # path của giây cũ không còn khả năng trùng tên
-        _ISSUED_STAMP = stamp
     base = f"{site_paths.report_prefix()}export_{stamp}_{kind}"
-    path = os.path.join(REPORTS_DIR, f"{base}.csv")
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    if hasattr(os, "O_BINARY"):  # Windows: không để '\n' trong tên file bị đổi thành '\r\n'
+        flags |= os.O_BINARY
     n = 1
-    while path in _ISSUED or os.path.exists(path):
-        n += 1
-        path = os.path.join(REPORTS_DIR, f"{base}_{n}.csv")
-    _ISSUED.add(path)
-    return path
+    while True:
+        path = os.path.join(REPORTS_DIR, f"{base}.csv" if n == 1 else f"{base}_{n}.csv")
+        try:
+            fd = os.open(path, flags)
+        except FileExistsError:
+            if n >= 999:  # 999 lần trong một giây = có gì đó sai, không quay vô hạn
+                raise RuntimeError(f"không giành được tên file mới trong {REPORTS_DIR}")
+            n += 1
+            continue
+        os.close(fd)
+        return path
 
 
 def _write_csv(path: str, header: list[str], rows: list[list]) -> int:
@@ -141,14 +163,14 @@ def _write_csv(path: str, header: list[str], rows: list[list]) -> int:
 # ─── EXPORT ─────────────────────────────────────────────────────────────────
 
 def export_rank() -> tuple[str, int]:
+    header, rows = rank_rows()   # tính trước khi giành tên (xem _unique_path)
     path = _unique_path("rank")
-    header, rows = rank_rows()
     return path, _write_csv(path, header, rows)
 
 
 def export_gsc() -> tuple[str, int]:
-    path = _unique_path("gsc")
     header, rows = gsc_rows()
+    path = _unique_path("gsc")
     return path, _write_csv(path, header, rows)
 
 
@@ -165,8 +187,8 @@ def audit_rows() -> tuple[list[str], list[list[str]]]:
 
 
 def export_audit() -> tuple[str, int]:
-    path = _unique_path("audit")
     header, rows = audit_rows()
+    path = _unique_path("audit")
     return path, _write_csv(path, header, rows)
 
 
@@ -184,8 +206,8 @@ def backlink_rows() -> tuple[list[str], list[list[str]]]:
 
 
 def export_backlinks() -> tuple[str, int]:
-    path = _unique_path("backlinks")
     header, rows = backlink_rows()
+    path = _unique_path("backlinks")
     return path, _write_csv(path, header, rows)
 
 

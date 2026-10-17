@@ -601,8 +601,19 @@ def save_last_audit(findings: list, url: str = "", pages: int = 0) -> str:
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False, indent=1)
+    # Write-then-rename: audit có thể bị Ctrl-C giữa lúc ghi, JSON cụt làm load_last_audit()
+    # trả [] im lặng → --export audit ra file chỉ có tiêu đề mà không ai biết vì sao.
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
     return path
 
 

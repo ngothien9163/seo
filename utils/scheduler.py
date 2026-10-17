@@ -7,7 +7,7 @@ utils/scheduler.py — F4: để lịch tự động chạy mà không cần m�
     python main.py --run-job gsc       # 09:00
 
 Module này KHÔNG tự đếm giới hạn ngày và KHÔNG tự thức khuya: nó chỉ
-1. chặn hai job chồng nhau (file lock theo PID + heartbeat),
+1. chặn hai job chồng nhau (lock tạo bằng O_EXCL, theo PID + heartbeat),
 2. hỏi đúng hàm guard của module gốc (can_run_check / can_run_fetch / can_run_session),
 3. ghi lại dấu vết vào data/scheduler_state.json để CLI --scheduler-status và GUI đọc.
 
@@ -126,42 +126,113 @@ def recent_runs(limit: int = 10) -> list:
 
 # ─── LOCK (chống hai job chồng nhau) ─────────────────────────────────────────
 
+_STEAL_ATTEMPTS = 3   # số lần thử tạo/giật lock trước khi bỏ lượt (có process khác nhanh chân hơn)
+
+
 def _read_lock() -> dict:
-    if os.path.exists(LOCK_FILE):
-        try:
-            with open(LOCK_FILE, encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
-        except Exception:
-            return {}            # lock hỏng = không có chủ, giành được
+    """Nội dung lock; {} = KHÔNG có chủ hợp lệ (file thiếu, hoặc rác không parse được)."""
+    if not os.path.exists(LOCK_FILE):
         return {}
-    return {}
+    try:
+        with open(LOCK_FILE, encoding="utf-8") as f:
+            raw = f.read()
+    except OSError:
+        return {}
+    if not raw.strip():
+        # File vừa được os.open(O_CREAT|O_EXCL) tạo, payload chưa kịp ghi (cửa sổ
+        # vài micro-giây). Coi là ĐANG GIỮ, heartbeat lấy theo mtime: process khác
+        # không giật mất lock vừa tạo, mà lock cụt thật (chủ chết giữa chừng) vẫn
+        # hết hạn được theo tuổi file.
+        try:
+            return {"pid": None, "job": "", "heartbeat": os.path.getmtime(LOCK_FILE)}
+        except OSError:
+            return {}
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return {}            # rác (crash đúng lúc ghi) = không có chủ, được phép giật
+    return data if isinstance(data, dict) else {}
+
+
+def _lock_age(lock: dict) -> float:
+    """Tuổi lock tính theo heartbeat; heartbeat rác → vô cùng (coi như đã chết)."""
+    try:
+        return time.time() - float(lock.get("heartbeat") or 0)
+    except (TypeError, ValueError):
+        return float("inf")
 
 
 def lock_holder() -> str:
     """Job đang chạy (theo lock còn sống), hoặc '' / None khi không có."""
     lock = _read_lock()
-    if not lock:
-        return None
-    if time.time() - float(lock.get("heartbeat") or 0) > _lock_stale_after():
+    if not lock or _lock_age(lock) > _lock_stale_after():
         return None
     return lock.get("job") or None
 
 
-def acquire_lock(job: str) -> tuple:
-    """(được chạy hay không, lý do tiếng Việt khi không được)."""
-    lock = _read_lock()
-    if lock:
-        age = time.time() - float(lock.get("heartbeat") or 0)
-        if age <= _lock_stale_after():
-            return False, (f"job '{lock.get('job', '?')}' đang chạy "
-                           f"(PID {lock.get('pid', '?')}, {int(age)}s trước)")
+def _create_lock_exclusive(job: str) -> bool:
+    """Tạo lock bằng O_CREAT|O_EXCL — nhiều process cùng gọi thì CHỈ MỘT thắng.
+
+    Cách cũ (đọc-thấy-trống-rồi-ghi) có khe hở: hai process cùng đọc ra "chưa ai
+    giữ" rồi cùng ghi, kẻ sau đè lock kẻ trước → hai job chạy chồng nhau.
+    """
     parent = os.path.dirname(LOCK_FILE)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    _write_lock(job)
-    return True, ""
+    payload = json.dumps({"pid": os.getpid(), "job": job, "heartbeat": time.time()})
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY          # Windows: byte thô, không đổi \n thành \r\n
+    try:
+        fd = os.open(LOCK_FILE, flags, 0o644)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, payload.encode("utf-8"))
+        os.fsync(fd)                  # payload xuống đĩa trước khi process khác đọc
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+    return True
+
+
+def _steal_lock() -> None:
+    """Dọn lock hết hạn/rác: rename sang tên riêng rồi xóa.
+
+    Không xóa thẳng: giữa lúc đọc và lúc xóa, chủ cũ có thể đã nhả lock và ta sẽ
+    xóa nhầm lock MỚI của người khác. os.replace nguyên tử nên chỉ một process
+    giật được mỗi lần; kẻ thua nhận FileNotFoundError và bỏ qua.
+    """
+    victim = f"{LOCK_FILE}.stale.{os.getpid()}.{time.time_ns()}"
+    try:
+        os.replace(LOCK_FILE, victim)
+    except OSError:
+        return
+    try:
+        os.remove(victim)
+    except OSError:
+        pass
+
+
+def acquire_lock(job: str) -> tuple:
+    """(được chạy hay không, lý do tiếng Việt khi không được).
+
+    Trần số lần thử: thua O_EXCL vì lock còn sống → trả lý do ngay; thua vì lock
+    hết hạn/rác → giật rồi thử lại. Hết trần = có process khác cũng đang giành →
+    bỏ lượt này (thà mất một lần chạy hơn để hai job chạy chồng nhau).
+    """
+    for _ in range(_STEAL_ATTEMPTS):
+        if _create_lock_exclusive(job):
+            return True, ""
+        lock = _read_lock()
+        if lock:
+            age = _lock_age(lock)
+            if age <= _lock_stale_after():
+                return False, (f"job '{lock.get('job') or '?'}' đang chạy "
+                               f"(PID {lock.get('pid') or '?'}, {int(age)}s trước)")
+        _steal_lock()
+    return False, "không giành được lock (process khác đang chạy cùng lúc) — bỏ lượt này"
 
 
 def _write_lock(job: str) -> None:

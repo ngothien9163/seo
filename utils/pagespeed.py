@@ -144,8 +144,19 @@ def save(report: dict) -> str:
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, ensure_ascii=False, indent=2)
+    # Ghi qua .tmp rồi os.replace: chết giữa chừng (Ctrl-C, scheduler kill) không để lại
+    # JSON cụt — load_saved() gặp file hỏng là trả None im lặng nên báo cáo cũ sẽ mất sạch.
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(report, handle, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
     return path
 
 
