@@ -996,13 +996,13 @@ class TrafficBotUI(ctk.CTk):
                     self.combo_model.configure(values=models)
                     self.combo_model.set(models[0])
                     self.after(0, lambda: self.lbl_ollama_status.configure(
-                        text=f"? {len(models)} models loaded", text_color="#00cc44"))
+                        text=f"✅ {len(models)} models loaded", text_color="#00cc44"))
                 else:
                     self.after(0, lambda: self.lbl_ollama_status.configure(
-                        text="? Không có model nào", text_color="#cc2222"))
+                        text="❌ Không có model nào", text_color="#cc2222"))
         except Exception as e:
             self.after(0, lambda: self.lbl_ollama_status.configure(
-                text=f"? Lỗi: {str(e)[:38]}", text_color="#cc2222"))
+                text=f"❌ Lỗi: {str(e)[:38]}", text_color="#cc2222"))
     def _inc_ok(self):
         self._session_ok += 1
         self.lbl_ok.configure(text=str(self._session_ok))
