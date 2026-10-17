@@ -1,57 +1,57 @@
 """
-content/keyword_research.py — Research t? khóa cho content plan.
+content/keyword_research.py — Research từ khóa cho content plan.
 
 Phân tích keyword theo:
-- Volume (l??ng tìm ki?m)
-- Difficulty (?? c?nh tranh)
+- Volume (lượng tìm kiếm)
+- Difficulty (độ cạnh tranh)
 - Intent (search intent)
-- G?i ý content d?a trên t? khóa
+- Gợi ý content dựa trên từ khóa
 """
 import json
 import random
 
-# M?u d? li?u keyword cho ngành làm ?p m?t
+# Mẫu dữ liệu keyword cho ngành làm đẹp mắt
 SAMPLE_KEYWORDS = [
-    # Head terms (volume cao, c?nh tranh cao)
-    {"keyword": "n?i mi",              "volume": 14800, "difficulty": 72, "intent": "commercial"},
-    {"keyword": "n?i mi ? Sài Gòn",    "volume": 9900,  "difficulty": 65, "intent": "commercial"},
-    {"keyword": "n?i mi ? ?u",          "volume": 8100,  "difficulty": 58, "intent": "commercial"},
+    # Head terms (volume cao, cạnh tranh cao)
+    {"keyword": "nối mi",              "volume": 14800, "difficulty": 72, "intent": "commercial"},
+    {"keyword": "nối mi ở Sài Gòn",    "volume": 9900,  "difficulty": 65, "intent": "commercial"},
+    {"keyword": "nối mi ở đâu",          "volume": 8100,  "difficulty": 58, "intent": "commercial"},
 
     # Body terms (volume TB, intent cao)
     {"keyword": "nối mi tự nhiên giá bao nhiêu", "volume": 3200, "difficulty": 45, "intent": "transactional"},
-    {"keyword": "n?i mi Hàn Qu?c",               "volume": 2900, "difficulty": 48, "intent": "commercial"},
+    {"keyword": "nối mi Hàn Quốc",               "volume": 2900, "difficulty": 48, "intent": "commercial"},
     {"keyword": "uốn mi ở đâu đẹp",                "volume": 2400, "difficulty": 35, "intent": "commercial"},
-    {"keyword": "n?i mi cho cô dâu",             "volume": 1800, "difficulty": 30, "intent": "transactional"},
-    {"keyword": "cách ch?m sóc mi n?i",          "volume": 1600, "difficulty": 28, "intent": "informational"},
-    {"keyword": "n?i mi ???c bao lâu",           "volume": 2200, "difficulty": 32, "intent": "informational"},
-    {"keyword": "review n?i mi topdev",          "volume": 890,  "difficulty": 12, "intent": "commercial"},
+    {"keyword": "nối mi cho cô dâu",             "volume": 1800, "difficulty": 30, "intent": "transactional"},
+    {"keyword": "cách chăm sóc mi nối",          "volume": 1600, "difficulty": 28, "intent": "informational"},
+    {"keyword": "nối mi được bao lâu",           "volume": 2200, "difficulty": 32, "intent": "informational"},
+    {"keyword": "review nối mi topdev",          "volume": 890,  "difficulty": 12, "intent": "commercial"},
 
-    # Long-tail (volume th?p, intent r?t cao)
-    {"keyword": "nối mi tự nhiên không h? mi t?i salon qu?n 1", "volume": 420, "difficulty": 8, "intent": "transactional"},
-    {"keyword": "??a ch? n?i mi ?n tay g?n ??y",               "volume": 380, "difficulty": 10, "intent": "commercial"},
-    {"keyword": "n?i mi cho ng??i m?t m?t mí 1 mí",            "volume": 320, "difficulty": 15, "intent": "informational"},
-    {"keyword": "cách bi?t n?i mi chu?n hay không chu?n",      "volume": 280, "difficulty": 10, "intent": "informational"},
+    # Long-tail (volume thấp, intent rất cao)
+    {"keyword": "nối mi tự nhiên không hại mi tại salon quận 1", "volume": 420, "difficulty": 8, "intent": "transactional"},
+    {"keyword": "địa chỉ nối mi ưng tay gần đây",               "volume": 380, "difficulty": 10, "intent": "commercial"},
+    {"keyword": "nối mi cho người mắt một mí 1 mí",            "volume": 320, "difficulty": 15, "intent": "informational"},
+    {"keyword": "cách biết nối mi chuẩn hay không chuẩn",      "volume": 280, "difficulty": 10, "intent": "informational"},
 ]
 
-# T? khóa d?nh h??ng theo funnel (ph?u chuy?n ??i)
+# Từ khóa định hướng theo funnel (phễu chuyển đổi)
 FUNNEL_KEYWORDS = {
-    "TOFU (Nh?n th?c)": [
-        "n?i mi là gì", "nối mi tự nhiên là gì", "n?i mi có t?t không",
-        "các lo?i n?i mi", "n?i mi Hàn Qu?c vs Nh?t B?n"
+    "TOFU (Nhận thức)": [
+        "nối mi là gì", "nối mi tự nhiên là gì", "nối mi có tốt không",
+        "các loại nối mi", "nối mi Hàn Quốc vs Nhật Bản"
     ],
-    "MOFU (Cân nh?c)": [
-        "n?i mi giá bao nhiêu", "n?i mi ? ?u t?t", "n?i mi ???c bao lâu",
-        "review n?i mi", "cách ch?n salon n?i mi"
+    "MOFU (Cân nhắc)": [
+        "nối mi giá bao nhiêu", "nối mi ở đâu tốt", "nối mi được bao lâu",
+        "review nối mi", "cách chọn salon nối mi"
     ],
-    "BOFU (Quy?t ??nh)": [
-        "??t l?ch n?i mi", "n?i mi t?i topdev", "khuy?n mãi n?i mi",
-        "n?i mi giá r? ? Sài Gòn", "d?ch v? n?i mi t?i nhà"
+    "BOFU (Quyết định)": [
+        "đặt lịch nối mi", "nối mi tại topdev", "khuyến mãi nối mi",
+        "nối mi giá rẻ ở Sài Gòn", "dịch vụ nối mi tại nhà"
     ],
 }
 
 
 def get_keyword_opportunities(min_volume=300, max_difficulty=50):
-    """L?y keyword có c? h?i t?t: volume khá + khó v?a ph?i."""
+    """Lấy keyword có cơ hội tốt: volume khá + khó vừa phải."""
     opportunities = [k for k in SAMPLE_KEYWORDS
                      if k["volume"] >= min_volume and k["difficulty"] <= max_difficulty]
     opportunities.sort(key=lambda x: -x["volume"])
@@ -62,7 +62,7 @@ def print_keyword_report():
     """In báo cáo keyword ra console."""
     print("=" * 80)
     print("  KEYWORD RESEARCH REPORT — topdev.vn")
-    print("  Ngành: N?i mi, U?n mi, Làm ?p m?t")
+    print("  Ngành: Nối mi, Uốn mi, Làm đẹp mắt")
     print("=" * 80)
 
     print(f"\n{'Keyword':<40} {'Volume':<10} {'Khó':<6} {'Intent':<15}")
@@ -71,12 +71,12 @@ def print_keyword_report():
         vol_str = f"{kw['volume']:,}"
         print(f"{kw['keyword']:<40} {vol_str:<10} {kw['difficulty']:<6} {kw['intent']:<15}")
 
-    print(f"\n--- C? h?i t?t (Volume >= 500, Khó <= 50) ---")
+    print(f"\n--- Cơ hội tốt (Volume >= 500, Khó <= 50) ---")
     for kw in sorted(get_keyword_opportunities(500, 50), key=lambda x: -x["volume"]):
         vol_str = f"{kw['volume']:,}"
         print(f"  + {kw['keyword']:<38} {vol_str:<10} {kw['difficulty']}/100")
 
-    print(f"\n--- Ph?u Content theo Funnel ---")
+    print(f"\n--- Phễu Content theo Funnel ---")
     for stage, kws in FUNNEL_KEYWORDS.items():
         print(f"  [{stage}]")
         for kw in kws[:3]:
