@@ -195,3 +195,12 @@ CONTENT_DRAFTS_DIR = "content/drafts"  # nơi lưu bài nháp .md (gitignored �
 AEO_BRANDS = ["Nanky Beauty", "nankybeauty.com", "nanky beauty"]  # biến thể brand cần nhận ra
 AEO_HISTORY_KEEP = 500            # số bản ghi tối đa — cũ nhất bị cắt (theo ngày dán)
 
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN L: WORDPRESS DRAFT (C1) — tool chỉ đẩy bài NHÁP, owner duyệt rồi publish
+# ────────────────────────────────────────────────────────────────────────────
+# App Password tạo trong WP admin (Users → Profile → Application Passwords);
+# đây KHÔNG phải mật khẩu đăng nhập — dùng riêng cho tool, dễ thu hồi.
+WP_URL = ""                       # VD "https://nankybeauty.com" — không có /wp-json
+WP_USER = ""                      # username trong WP (không phải email nếu WP yêu cầu)
+WP_APP_PASSWORD = ""              # App Password — preferBiến môi trường WP_APP_PASSWORD (thắng settings, không commit)
+

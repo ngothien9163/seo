@@ -68,6 +68,7 @@ def show_strategy():
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
+    print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
@@ -179,6 +180,16 @@ if __name__ == "__main__":
     elif "--audit-actions" in sys.argv:
         from utils.audit_actions import run_audit_actions_cli
         sys.exit(run_audit_actions_cli())
+
+    elif "--wp-push" in sys.argv:
+        from utils.wp_publisher import run_push_cli
+        i = sys.argv.index("--wp-push")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        path = nxt if nxt and not nxt.startswith("-") else ""
+        status = "pending" if "--status" in sys.argv and "pending" in sys.argv else "draft"
+        title = _flag_value("--title")
+        excerpt = _flag_value("--excerpt")
+        sys.exit(run_push_cli(path, status=status, title=title, excerpt=excerpt))
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
