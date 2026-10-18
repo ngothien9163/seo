@@ -68,6 +68,7 @@ def show_strategy():
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
+    print("  python main.py --audit-diff       Loi moi phat hien vs da sua giua 2 lan audit gan nhat")
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
     print("  python main.py --internal-links  Goi y link noi bo tu du lieu audit + rank hien co")
@@ -188,6 +189,10 @@ if __name__ == "__main__":
     elif "--audit-actions" in sys.argv:
         from utils.audit_actions import run_audit_actions_cli
         sys.exit(run_audit_actions_cli())
+
+    elif "--audit-diff" in sys.argv:
+        from utils.audit_diff import run_audit_diff_cli
+        sys.exit(run_audit_diff_cli())
 
     elif "--wp-push" in sys.argv:
         from utils.wp_publisher import run_push_cli

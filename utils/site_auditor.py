@@ -614,7 +614,49 @@ def save_last_audit(findings: list, url: str = "", pages: int = 0) -> str:
                 os.remove(tmp)
             except OSError:
                 pass
+    _append_history(payload)
     return path
+
+
+AUDIT_HISTORY_KEEP = 20   # mốc audit lưu tối đa — đủ so 3, đủ nhìn tiến bộ
+
+
+def _history_path() -> str:
+    """cùng nhà với audit_last.json: data/audit_history.json (per-site khi migrate)."""
+    p = _state_path()
+    return os.path.join(os.path.dirname(p), "audit_history.json")
+
+
+def _append_history(payload: dict) -> None:
+    """Chụp mỗi lần save_last_audit vào audit_history.json — không bao giờ raise:
+    history hỏng/chết không được làm chết kết quả audit chính."""
+    try:
+        history = _load_history()
+        history.append(payload)
+        history = history[-AUDIT_HISTORY_KEEP:]
+        tmp = _history_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(history, fh, ensure_ascii=False, indent=1)
+        os.replace(tmp, _history_path())
+    except OSError:
+        pass
+
+
+def _load_history() -> list:
+    """audit_history.json — file thiếu/hỏng/rác → [] (không raise)."""
+    try:
+        with open(_history_path(), encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(raw, list):
+        return []
+    return [m for m in raw if isinstance(m, dict) and isinstance(m.get("findings"), list)]
+
+
+def load_audit_history() -> list:
+    """Công khai cho audit_diff — tối đa AUDIT_HISTORY_KEEP mốc, cũ trước mới sau."""
+    return _load_history()
 
 
 def load_last_audit() -> list:
