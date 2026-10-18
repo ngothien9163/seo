@@ -229,6 +229,8 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+**Cách 1 lệnh (Windows):** double-click **`run.bat`** — tự tìm Python (`python`/`py -3`), tạo `venv` nếu chưa có, `pip install -r requirements.txt`, `playwright install chromium`, rồi mở **GUI** (`ui.py`). Truyền tham số thì chạy CLI thay GUI: `run.bat --rank` → `python main.py --rank`. Mỗi lần chạy lại dùng venv có sẵn — các bước cài đặt bị bỏ qua nên nhanh.
+
 **Tùy chọn — AI Engine (Ollama)**: persona hiện sinh bằng thuật toán có chủ ý, không cần LLM. Muốn dùng Ollama (dự phòng cho content generation):
 
 ```bash
