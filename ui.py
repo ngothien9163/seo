@@ -64,6 +64,7 @@ class TrafficBotUI(ctk.CTk):
         self._intlinks_running = False
         self._actions_running = False
         self._doctor_running = False
+        self._clustgsc_running = False
         self._planprog_running = False
         self._gscalerts_running = False
 
@@ -629,6 +630,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_gsc_alerts_now,
         )
         self.btn_gscalerts.pack(side="left", padx=(16, 0))
+        self.btn_clustgsc = ctk.CTkButton(
+            rf2, text="⚖️  CỤM × GSC",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_cluster_gsc_now,
+        )
+        self.btn_clustgsc.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -1052,6 +1060,25 @@ class TrafficBotUI(ctk.CTk):
             self._gscalerts_running = False
             self.after(0, lambda: self.btn_gscalerts.configure(
                 state="normal", text="📉  GSC ALERTS"))
+
+    def run_cluster_gsc_now(self):
+        """Nút ⚖️: cụm từ khóa × dữ liệu Google thật (imps/clicks + cụm mù GSC)."""
+        if self._clustgsc_running:
+            return
+        self._clustgsc_running = True
+        self.btn_clustgsc.configure(state="disabled", text="⏳ Đang ghép...")
+        threading.Thread(target=self._clustgsc_worker, daemon=True).start()
+
+    def _clustgsc_worker(self):
+        try:
+            from utils.cluster_gsc import run_cluster_gsc_cli
+            run_cluster_gsc_cli()
+        except Exception as e:
+            print(f"[ClusterGSC] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._clustgsc_running = False
+            self.after(0, lambda: self.btn_clustgsc.configure(
+                state="normal", text="⚖️  CỤM × GSC"))
 
     # ═══════════════════════════════════════════════════════════════
     # CONTENT GENERATION (F8) — chỉ sinh bản nháp bằng Ollama, không tự đăng
