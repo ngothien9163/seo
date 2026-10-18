@@ -355,6 +355,17 @@ def _run_backlink() -> int:
     return run_backlink_check_cli()
 
 
+def _guard_report() -> tuple:
+    """Report đọc lại dữ liệu có sẵn — luôn chạy được, không guard chặn."""
+    return True, ""
+
+
+def _run_report() -> int:
+    """Ghẽ data/report.html mới nhất — đọc mọi nguồn dữ liệu hiện có, không request."""
+    from utils.html_report import run_html_report_cli
+    return run_html_report_cli()
+
+
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
@@ -366,6 +377,10 @@ JOBS = {
     "backlink": {"desc": "Verify backlink đã đặt còn sống",
                  "hours": list(getattr(cfg, "SCHEDULER_BACKLINK_HOURS", [])),
                  "guard": "_guard_backlink", "runner": "_run_backlink"},
+    "report": {"desc": "Xuất report.html gộp SERP+GSC+audit+backlink (đọc dữ liệu có sẵn)",
+               "hours": list(getattr(cfg, "SCHEDULER_REPORT_HOURS", [])
+                             or getattr(cfg, "SCHEDULER_GSC_HOURS", [9])),
+               "guard": "_guard_report", "runner": "_run_report"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},
