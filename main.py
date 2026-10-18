@@ -65,6 +65,7 @@ def show_strategy():
     print("  python main.py --export rank|gsc|audit|backlinks|plan|all  Xuat bao cao CSV mo bang Excel")
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --weekly     Bao cao tuan gop SERP+GSC+AEO -> Telegram (1 lan/tuan)")
+    print("  python main.py --daily-report [-save]  Bao cao buoi sang 1 tin: rank tail + GSC tail + viec hom nay")
     print("  python main.py --run-job rank|gsc|traffic  Goi 1 job (Windows Task Scheduler)")
     print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
     print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
@@ -269,6 +270,10 @@ if __name__ == "__main__":
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
         sys.exit(run_weekly_cli(force="--force" in sys.argv))
+
+    elif "--daily-report" in sys.argv:
+        from utils.daily_report import run_daily_cli
+        sys.exit(run_daily_cli(save_to_disk="--save" in sys.argv))
 
     elif "--run-job" in sys.argv:
         from utils.scheduler import run_job

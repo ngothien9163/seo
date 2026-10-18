@@ -366,6 +366,17 @@ def _run_report() -> int:
     return run_html_report_cli()
 
 
+def _guard_daily() -> tuple:
+    """Báo cáo ngày không chặn gì — trống dữ liệu thì tin tự nói thiếu cái gì."""
+    return True, ""
+
+
+def _run_daily() -> int:
+    """Báo cáo buổi sáng gộp rank/GSC/việc-hôm-nay — qua kênh alerts (console khi TẮT)."""
+    from utils.daily_report import run_daily_cli
+    return run_daily_cli()
+
+
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
@@ -381,6 +392,9 @@ JOBS = {
                "hours": list(getattr(cfg, "SCHEDULER_REPORT_HOURS", [])
                              or getattr(cfg, "SCHEDULER_GSC_HOURS", [9])),
                "guard": "_guard_report", "runner": "_run_report"},
+    "daily": {"desc": "Báo cáo buổi sáng gộp 1 tin (rank tail + GSC tail + việc hôm nay)",
+              "hours": [7],
+              "guard": "_guard_daily", "runner": "_run_daily"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},

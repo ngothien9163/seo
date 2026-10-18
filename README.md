@@ -92,13 +92,14 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - GUI có nút **🧪 GỬI THỬ BÁO ĐỘNG** để xác nhận tin tới điện thoại, kèm nhãn "Cảnh báo: Telegram/console".
 - **Cảnh báo sớm theo xu hướng (C4)**: ngoài rule so 2 lần check, engine còn nhìn **14 lần check gần nhất** (`RANK_ALERT_TREND_WINDOW`) — trung bình hạng của 4 mốc mới nhất so với 4 mốc ngay trước đó; xấu đi **≥ `RANK_ALERT_TREND_DROP`** (mặc định 3) vị trí → tin 🌡️ "xu hướng giảm dần, dự báo sẽ rớt" **trước khi** chạm ngưỡng tụt đột ngột. Chuỗi phải đủ 4+4 mốc đo được liên tục — đứt giữa (không vào top N) thì không ước lượng. Tắt bằng `RANK_ALERT_TREND_ENABLE = False`.
 - **Báo cáo tuần (C3)**: `python main.py --weekly` gộp SERP + Search Console + AEO thành 1 tin Telegram ≤ 4096 ký tự, **1 lần/tuần** (state `data/weekly_digest.json`); nguồn nào chưa có dữ liệu thì bị bỏ, không nguồn nào chết cả báo cáo; `--force` gửi lại. Gửi hỏng mạng thì tuần chưa đánh dấu — lần chạy kế tự thử lại.
+- **Báo cáo buổi sáng (F10d)**: `python main.py --daily-report` gộp 1 tin/ngày nhẹ hơn `--weekly` — **tail 10 dòng xếp hạng** + **tail GSC** + **"Việc hôm nay"** (5 mục kế của content plan, số draft CHỜ DUYỆT chưa push WP, nhắc đặt backlink khi danh sách trống). Khác `--weekly`: **không đánh dấu ngày nào trong state** — chạy 2 lần là gửi 2 tin (chạy tay lúc nào cũng được); `--save` ghi thêm `data/<slug>/daily_<ngày>.md`. Scheduler có sẵn job **`daily`** lúc 07:00 (`--run-job daily`), employ `_guard_daily` không chặn gì — tin tự nói phần nào thiếu dữ liệu.
 - **Cảnh báo sớm qua dữ liệu GSC (G-B3)**: sau MỖI lần `--gsc`, bộ này so **impressions từng query giữa 2 snapshot gần nhất** — query mốc trước có ≥ 30 imps (được phơi đáng kể) mà mốc mới **< 50%** hoặc biến mất hẳn (imps 0 = Google ngừng phơi) → tin 📉 **trước** khi hạng SERP thật rớt (site tụt khỏi top 100 thì đây là tín hiệu duy nhất còn lại). Query mốc trước đã dưới 30 imps là noise, query mới xuất hiện là tăng trưởng — không tin. Chống spam: 1 tin/ngày/query (key `gscdrop:<query>`), gửi hỏng tự thử lại lần fetch sau, lỗi bộ cảnh báo không làm chết fetch. Xem chủ động: `python main.py --gsc-alerts`.
 
 ---
 
 ### 11. Lịch chạy tự động — Windows Task Scheduler (F4)
 
-- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|backlink|report|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`. Job **`report`** (P3-3): xuất `data/report.html` gộp từ dữ liệu có sẵn, `SCHEDULER_REPORT_HOURS` rỗng (mặc định) = khớp giờ GSC — GSC kéo xong là report hơi nóng giá.
+- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|backlink|report|daily|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`. Job **`report`** (P3-3): xuất `data/report.html` gộp từ dữ liệu có sẵn, `SCHEDULER_REPORT_HOURS` rỗng (mặc định) = khớp giờ GSC — GSC kéo xong là report hơi nóng giá.
 - **Không tự nới giới hạn.** Job `rank` vẫn bị `RANK_CHECK_MAX_PER_DAY`/`RANK_CHECK_MIN_INTERVAL` chặn, `gsc` vẫn bị `GSC_MAX_FETCH_PER_DAY`, `backlink` chạy đúng engine `--backlink-check` (không fetch thêm, không retry 403/429), `traffic` vẫn bị rate limiter — scheduler gọi lại đúng hàm check của module gốc chứ không đếm riêng.
 - **Job `backlink` mặc định không tự chạy** (`SCHEDULER_BACKLINK_HOURS = []`): điền ví dụ `[9]` như `SCHEDULER_GSC_HOURS` và đăng ký task tương tự nếu muốn verify link hàng tuần; danh sách link rỗng thì job tự dừng và nhắc lệnh `--backlink-add`.
 - **Traffic mặc định TẮT tự chạy** (`SCHEDULER_TRAFFIC_ENABLE = False`): bật lên là quyết định của bạn, vì chạy lúc không có ai nhìn thì lỗi tích âm thầm.
@@ -278,7 +279,8 @@ python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào
 python main.py --export rank|gsc|audit|backlinks|plan|all  # Xuất CSV (mở Excel); `all` = cả 5 loại, trống vẫn ra file
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --weekly    # Báo cáo tuần gộp SERP+GSC+AEO → 1 tin Telegram (1 lần/tuần, --force gửi lại)
-python main.py --run-job rank|gsc|backlink|report|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
+python main.py --daily-report [-save]  # Báo cáo buổi sáng 1 tin: rank tail + GSC tail + việc hôm nay
+python main.py --run-job rank|gsc|backlink|report|daily|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 python main.py --doctor [--net]  # Kiểm tra môi trường 1 lệnh: site/từ khóa, GSC, Telegram, Ollama, backlink, WP, nháp
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
