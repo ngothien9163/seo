@@ -97,7 +97,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ### 11. Lịch chạy tự động — Windows Task Scheduler (F4)
 
-- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|backlink|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`.
+- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|backlink|report|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`. Job **`report`** (P3-3): xuất `data/report.html` gộp từ dữ liệu có sẵn, `SCHEDULER_REPORT_HOURS` rỗng (mặc định) = khớp giờ GSC — GSC kéo xong là report hơi nóng giá.
 - **Không tự nới giới hạn.** Job `rank` vẫn bị `RANK_CHECK_MAX_PER_DAY`/`RANK_CHECK_MIN_INTERVAL` chặn, `gsc` vẫn bị `GSC_MAX_FETCH_PER_DAY`, `backlink` chạy đúng engine `--backlink-check` (không fetch thêm, không retry 403/429), `traffic` vẫn bị rate limiter — scheduler gọi lại đúng hàm check của module gốc chứ không đếm riêng.
 - **Job `backlink` mặc định không tự chạy** (`SCHEDULER_BACKLINK_HOURS = []`): điền ví dụ `[9]` như `SCHEDULER_GSC_HOURS` và đăng ký task tương tự nếu muốn verify link hàng tuần; danh sách link rỗng thì job tự dừng và nhắc lệnh `--backlink-add`.
 - **Traffic mặc định TẮT tự chạy** (`SCHEDULER_TRAFFIC_ENABLE = False`): bật lên là quyết định của bạn, vì chạy lúc không có ai nhìn thì lỗi tích âm thầm.
@@ -188,7 +188,8 @@ Một cụm tính năng cùng nguyên tắc: **đọc lại dữ liệu đã có
 - **`--html-report`** (P1-1): gộp Xếp hạng + Search Console + Audit + Backlink thành **1 file HTML tự chứa** (`data/report.html`, per-site khi đã migrate) — không JS, không asset ngoài, mọi giá trị render qua `html.escape` (dữ liệu GSC/audit là text của bên thứ ba). Nguồn nào chưa có dữ liệu → section gợi ý lệnh cần chạy; nguồn nào lỗi không làm report chết. Ghi **atomic** (tmp + `os.replace`).
 - **`--internal-links`** (P1-2): gợi ý link nội bộ — mỗi từ khóa ghép với các trang site của mình (URL lấy từ audit + rank history), khớp ≥ 2 token có nghĩa (cùng kỹ thuật so không dấu của `--audit-actions`), xếp theo số token khớp. Tool chỉ IN gợi ý — bạn tự chèn link trong bài.
 - **`--competitors`** (P2-1): đếm tần suất **domain đối thủ** trong top URLs mà rank tracker đã lưu (từ lần `--rank` sau khi có tính năng; các lần cũ chưa lưu top URLs bị bỏ qua, không migrate). Tự loại domain của mình khỏi bảng; cần ≥ 2 lần check mới có số.
-- **`--keyword-groups`** (P2-2): nhóm từ khóa **trùng ≥ 2 token** thành cụm (mỗi từ khóa thuộc đúng 1 cụm — thứ tự nhập thắng), kèm **danh sách bài nên refresh**: hạng hiện tại trong vùng 5–15 và từng vào Top 10 trước đây, xếp theo tiềm năng (đỉnh cũ − hiện tại). Dữ liệu từ rank history, không gọi mạng.
+- **`--keyword-groups`** (P2-2): nhóm từ khóa **trùng ≥ 2 token** thành cụm (mỗi từ khóa thuộc đúng 1 cụm — thứ tự nhập thắng), kèm **danh sách bài nên refresh**: hạng hiện tại trong vùng 5–15 và từng vào Top 10 trước đây, xếp theo tiềm năng (đỉnh cũ − hiện tại). Dữ liệu từ rank history, không gọi mạng. **Hiệu năng theo cụm** (P3-2): section thứ ba đếm từng cụm có bao nhiêu member đang Top 10, hạng trung bình và xu hướng (+/−) so với mốc trước — cụm nào mạnh cụm nào kẹt nhìn một phát.
+- **`--rank-urls`** (P3-1): trang nào đang xếp hạng cho từ khóa nào — rank tracker từ bản P2-1 lưu **top 10 URL** mỗi từ khóa mỗi lần check, lệnh này đọc lại (không request mới): bảng kw → trang đang rank (path), gắn cờ **"đa trang SERP"** khi > 1 trang cùng site nằm trong Top 10, và **cảnh báo "đổi trang rank"** khi 2 lần check gần nhất rank bằng URL khác nhau (dấu hiệu Google chưa chốt trang "chính" — xem `--internal-links` hoặc hợp nhất nội dung). Các mốc cũ không có top_urls bị bỏ qua, không migrate.
 - **`--aeo-questions "kw"`** (P2-3): sinh **biến thể câu hỏi AEO** theo angle — `best` (kinh điển), `compare` (có kình địch), `how` (thông tin), `local` (vùng địa danh), `url` (đòi URL site) — `--aeo-angle best,compare` để chọn nhóm khác. Tool chỉ PHÁT câu, bạn dán tay vào engine như F9.
 - **GUI**: tab **📈 Xếp Hạng** có thêm hàng nút **🌐 XUẤT REPORT HTML / 🧩 GỢI Ý LINK NỘI BỘ / 📝 VIỆC ƯU TIÊN TỪ AUDIT / 🩺 DOCTOR** — cùng cơ chế thread nền với các nút cũ.
 - **WP đẩy kèm category/tag mặc định** (P2-4): điền `WP_DEFAULT_CATEGORIES` / `WP_DEFAULT_TAGS` (TÊN, owner tự chọn) trong settings PHẦN L — mỗi lần `--wp-push`, tên được tra id qua REST (`GET /wp-json/wp/v2/categories|tags?search=...`), khớp tên chính xác (bỏ hoa/thường) → gán vào payload; term **chưa có trên WP bị bỏ qua + cảnh báo**, **KHÔNG tự tạo term**, bài vẫn đẩy. `[]` = không gán. Frontmatter không nặn term — defaults là quyết định của owner.
@@ -258,7 +259,7 @@ python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào
 python main.py --export rank|gsc|audit|backlinks|all  # Xuất CSV (mở Excel); `all` = rank + gsc (audit/backlinks phải chạy trước)
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --weekly    # Báo cáo tuần gộp SERP+GSC+AEO → 1 tin Telegram (1 lần/tuần, --force gửi lại)
-python main.py --run-job rank|gsc|backlink|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
+python main.py --run-job rank|gsc|backlink|report|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 python main.py --doctor [--net]  # Kiểm tra môi trường 1 lệnh: site/từ khóa, GSC, Telegram, Ollama, backlink, WP, nháp
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
@@ -280,7 +281,8 @@ python main.py --aeo-check file.txt --aeo-keyword "nối mi" --aeo-engine ChatGP
 python main.py --html-report  # Gộp rank + GSC + audit + backlink → data/report.html (1 file, mở offline)
 python main.py --internal-links  # Gợi ý trang site nên chèn link nội bộ theo từng từ khóa (từ audit + rank history)
 python main.py --competitors  # Domain đối thủ xuất hiện nhiều nhất trong top URLs đã lưu
-python main.py --keyword-groups  # Nhóm từ khóa trùng token + danh sách bài nên refresh (hạng 5–15 từng top 10)
+python main.py --keyword-groups  # Nhóm từ khóa trùng token + bài nên refresh + hiệu năng theo cụm
+python main.py --rank-urls  # Trang nào đang rank cho từ nào + cảnh báo đổi trang (từ top_urls đã lưu)
 python main.py --aeo-questions "nối mi quận 7" [--aeo-angle best,compare,local]  # Sinh biến thể câu hỏi AEO để dán tay
 ```
 
