@@ -163,6 +163,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - **Báo cáo CSV**: multi-site thì tên file có prefix `<slug>_export_...`; đơn site thì không — giữ nguyên như F1.
 - **Nhân vật trình duyệt dùng chung (QĐ C)**: F10 chỉ đổi **đường dẫn dữ liệu**, **không** đụng cơ chế fingerprint/persona. Ổ khoá scheduler cũng **dùng chung** (QĐ lock) — hai job đồng thời vẫn chặn nhau đúng như cũ.
 - **Sổ site (F10b)**: `config/sites.json` — danh sách site của bạn tại một nhà. `python main.py --sites` in sổ kèm đối chiếu site nào **dữ liệu đã tách riêng** (✓ — có dấu `.migrated`) hay sổ có tên nhưng chưa migrate (✗); `python main.py --site-add "https://web.com" [--label "..."]` thêm site (khử trùng theo domain gấp không dấu, thêm trùng bị từ chối), `--site-remove "https://web.com"` bỏ khỏi **sổ thôi** — dữ liệu `data/<slug>/` không bị xóa theo. Sổ chỉ GHI NHỚ, không tự migrate và không thay đổi cơ chế resolve của F10.
+- **Chạy lệnh qua cả sổ (F10c)**: `python main.py --sites-run "--rank"` mở **process con mỗi site** (`python main.py --site <url> --rank`) — đúng luật F10 "một phiên một site", không nhảy cfg giữa phiên. Site nào lỗi thì các site kế tiếp vẫn chạy; cuối bảng tổng hợp ✅/❌ từng site. Nhiều lệnh một phát: `--sites-run "--rank --gsc"`. Timeout mỗi site 30 phút (treo không cản sổ); các lệnh quản sổ/migrate/automation (`--site* --migrate-multi-site --auto --search`) bị từ chối bên trong để không tự lặp vô hạn.
 - **Chưa làm / giới hạn**: muốn thêm site mới thì chạy `--migrate-multi-site` cho site đó (tạo tay thư mục `data/<slug>/` **không đủ** — phải có dấu `.migrated` mới bật). Việc migrate dữ liệu thật của bạn là thao tác thủ công có duyệt trước, tool không tự xoá gì.
 
 ### 16. AEO tracking — AI có nhắc brand mình không? (F9)
@@ -297,6 +298,7 @@ python main.py --site domain.com --rank  # Chạy lệnh cho MỘT site khác (s
 python main.py --sites  # Xem sổ site (config/sites.json) + site nào dữ liệu đã tách riêng
 python main.py --site-add "https://web.com" [--label "..."]  # Thêm site vào sổ (site nên đã migrate)
 python main.py --site-remove "https://web.com"  # Bỏ site khỏi sổ (dữ liệu data/<slug>/ không bị xóa)
+python main.py --sites-run "--rank"  # Chạy lệnh qua TỪNG site trong sổ (process con mỗi site)
 python main.py --aeo-report  # Xem AI engine nào đang nhắc brand (theo từ khóa dán tay)
 python main.py --aeo-check file.txt --aeo-keyword "nối mi" --aeo-engine ChatGPT  # Lưu 1 câu trả lời AI đã copy
 python main.py --html-report  # Gộp rank + GSC + audit + backlink → data/report.html (1 file, mở offline)

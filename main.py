@@ -96,6 +96,7 @@ def show_strategy():
     print("  python main.py --sites    Xem so site (config/sites.json) + site nao du lieu da tach rieng")
     print('  python main.py --site-add "https://web.com"    Them site vao so (site nen da migrate truoc)')
     print('  python main.py --site-remove "https://web.com" Bo site khoi so (khong xoa du lieu)')
+    print('  python main.py --sites-run "--rank"  Chay 1 lenh qua TUNG site trong so (process con moi site)')
     print("  python main.py --aeo-report           AI engine co nhac brand khong (du lieu da paste)")
     print('  python main.py --aeo-check file.txt --aeo-keyword "kw" [--aeo-engine ChatGPT]  Luu 1 cau tra loi')
     print("-" * 65)
@@ -333,6 +334,14 @@ if __name__ == "__main__":
     elif "--site-remove" in sys.argv:
         from utils.site_registry import run_site_remove_cli
         sys.exit(run_site_remove_cli(_flag_value("--site-remove")))
+
+    elif "--sites-run" in sys.argv:
+        # F10c — chạy 1 lệnh qua TỪNG site trong sổ (process con mỗi site):
+        # args sau --sites-run, vd: --sites-run "--rank"  /  --sites-run "--rank --gsc"
+        from utils.sites_run import run_sites_run_cli
+        _i = sys.argv.index("--sites-run")
+        _rest = sys.argv[_i + 1:]
+        sys.exit(run_sites_run_cli(_rest))
 
     elif "--aeo-check" in sys.argv or "--aeo-report" in sys.argv:
         # F9 — phân tích câu trả lời AI dán tay; không gửi request nào ra ngoài
