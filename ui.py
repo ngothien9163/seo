@@ -72,6 +72,8 @@ class TrafficBotUI(ctk.CTk):
         self._tools_running = {tag: False for tag in
                                ("doctor-net", "page-impact", "content-gap",
                                 "refresh-diff", "content-brief", "daily-report")}
+        self._chart_running = False
+        self._chart_visible = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -739,6 +741,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_ctr_ops_now,
         )
         self.btn_ctrops.pack(side="left", padx=(16, 0))
+        self.btn_chart = ctk.CTkButton(
+            rf2, text="📈  CHART",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_chart_now,
+        )
+        self.btn_chart.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -748,6 +757,13 @@ class TrafficBotUI(ctk.CTk):
         self.txt_rank.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
         t.grid_rowconfigure(2, weight=1)
         t.grid_columnconfigure(0, weight=1)
+
+        # F10k — CHART: canvas vẽ đường hạng thật (ẩn/dấu theo nút)
+        import tkinter as tk
+        self.canvas_chart = tk.Canvas(t, height=220, bg="#181820",
+                                      highlightthickness=0)
+        self.canvas_chart.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
+        self.canvas_chart.grid_remove()  # mặc định ẩn — texttrước
 
         sf = ctk.CTkFrame(t)
         sf.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 4))
@@ -876,6 +892,74 @@ class TrafficBotUI(ctk.CTk):
             label = self.TOOLS_LABELS[tag][0]
             if btn is not None:
                 self.after(0, lambda: btn.configure(state="normal", text=label))
+
+    # ── F10k — CHART: đường hạng thật bằng canvas (hạng nhỏ = ở trên) ──
+    def run_chart_now(self):
+        """📈: vẽ hạng 8 mốc gần nhất vào canvas — toggle hiện/ẩn."""
+        if self._chart_running:
+            return
+        if self._chart_visible:
+            self._chart_visible = False
+            self.canvas_chart.grid_remove()
+            self.txt_rank.grid()
+            self.btn_chart.configure(text="📈  CHART")
+            return
+        self._chart_running = True
+        self.btn_chart.configure(state="disabled", text="⏳ Đang vẽ...")
+        threading.Thread(target=self._chart_worker, daemon=True).start()
+
+    def _chart_worker(self):
+        try:
+            from utils.rank_tracker import _load_history
+            from utils.gui_charts import rank_series_from_history
+            series = rank_series_from_history(_load_history())
+            self.after(0, lambda: self._chart_render(series))
+        except Exception as e:
+            print(f"[Chart] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._chart_running = False
+            self.after(0, lambda: self.btn_chart.configure(
+                state="normal", text="📈  CHART"))
+
+    def _chart_render(self, series: dict):
+        """Chạy trong main thread — dịch items → create_* trên canvas."""
+        self._chart_visible = True
+        try:
+            self.txt_rank.grid_remove()
+            self.canvas_chart.grid()
+        except Exception:
+            pass
+        cvs = self.canvas_chart
+        cvs.delete("all")
+        w = max(cvs.winfo_width() or 700, 400)
+        h = max(cvs.winfo_height() or 220, 160)
+        if not series:
+            cvs.create_text(w // 2, h // 2, text="Chưa có hạng để vẽ — chạy KIỂM TRA XẾP HẠNG trước",
+                            fill="#8a8a96", font=("Consolas", 11))
+            return
+        from utils.gui_charts import chart_items
+        items = chart_items(series, w, h)
+        seen_grid = set()
+        for it in items:
+            kind = it[0]
+            if kind == "grid":
+                _, y, txt = it
+                if y not in seen_grid:
+                    seen_grid.add(y)
+                    cvs.create_line(20, y, w - 12, y, fill="#3a3a44")
+                    cvs.create_text(8, y, text=txt, fill="#cfcfd8", anchor="e",
+                                    font=("Consolas", 9))
+            elif kind == "line":
+                cvs.create_line(it[2], it[3], it[4], it[5],
+                                fill=it[1], width=2, smooth=True)
+            elif kind == "dot":
+                x, y, r = it[1], it[2], 3
+                cvs.create_oval(x - r, y - r, x + r, y + r, fill=it[1], outline="")
+            elif kind == "label":
+                if len(it) >= 5:
+                    x, y, txt, anchor = it[1], it[2], it[3], "start"
+                    cvs.create_text(x, y, text=txt, fill="#cfcfd8", anchor=anchor,
+                                    font=("Consolas", 9))
 
     def _refresh_alert_mode_label(self):
         from utils.alerts import delivery_mode
