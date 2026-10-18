@@ -106,6 +106,71 @@ def refresh_text(rows: list, n_checks: int = 0) -> str:
     return "\n".join(lines)
 
 
+# ─── HIỆU NĂNG THEO CỤM (P3-2) ───────────────────────────────────────────────
+
+TOP10 = 10
+
+
+def cluster_performance(history: dict, keywords: list) -> list[dict]:
+    """Gộp hạng theo cụm (dùng lại build_clusters):
+    {anchor, members, n_kw, top10, avg_pos, trend, n_measured}
+    - top10: số member mốc MỚI NHẤT đang Top TOP10 (pos None không đếm);
+    - avg_pos: hạng trung bình các member có số (1 dấu thập phân, None nếu chịu);
+    - trend: '+' mốc mới tốt hơn mốc trước (hạng trung bình nhỏ hơn),
+      '-' xấu hơn, '=' giữ / không so được (chỉ 1 mốc, cụm không có số liên tiếp).
+    Sắp top10 giảm → avg_pos tăng → anchor. Không những thế, kw char ở mốc không có
+    (pos None) vẫn đếm trong n_kw — trend chỉ tính trên member có số.
+    """
+
+    checks = history.get("checks") or {}
+    stamps = sorted(checks.keys())
+    if not stamps or not keywords:
+        return []
+    latest = checks[stamps[-1]] or {}
+    prev = (checks[stamps[-2]] or {}) if len(stamps) >= 2 else {}
+
+    out = []
+    for cluster in build_clusters(keywords):
+        members = cluster["members"]
+        cur_positions = [((latest.get(m) or {}).get("pos")) for m in members]
+        top10 = sum(1 for p in cur_positions if isinstance(p, int) and p <= TOP10)
+        known = [p for p in cur_positions if isinstance(p, int)]
+        prev_positions = [((prev.get(m) or {}).get("pos")) for m in members]
+        prev_known = [p for p in prev_positions if isinstance(p, int)]
+        avg_cur = round(sum(known) / len(known), 1) if known else None
+        avg_prev = round(sum(prev_known) / len(prev_known), 1) if prev_known else None
+        trend = "="
+        if avg_cur is not None and avg_prev is not None and avg_cur != avg_prev:
+            trend = "+" if avg_cur < avg_prev else "-"
+        out.append({"anchor": cluster["anchor"], "members": members,
+                    "n_kw": len(members), "top10": top10,
+                    "avg_pos": avg_cur, "trend": trend,
+                    "n_measured": len(known)})
+    out.sort(key=lambda r: (-r["top10"], r["avg_pos"] if r["avg_pos"] is not None else 999,
+                            r["anchor"]))
+    return out
+
+
+def performance_text(rows: list, n_checks: int = 0, keywords: list = None) -> str:
+    if not rows and not keywords:
+        return "  Chưa có cụm nào hợp lệ — cụm cần ≥ 2 kw chia sẻ ≥ CLUSTER_MIN_SHARED token."
+    if not rows and keywords:
+        if n_checks < 1:
+            return ("  Hiệu năng theo cụm chưa có — chưa có mốc xếp hạng nào."
+                    "\n  Chạy `python main.py --rank` rồi xem lại.")
+        # clusters truy được mà rows rỗng: mots kw check không có trong cụm → lạ, hiếm
+        return "  Chưa có cụm nào hợp lệ — cụm cần ≥ 2 kw chia sẻ ≥ CLUSTER_MIN_SHARED token."
+    lines = [f"  HIỆU NĂNG THEO CỤM ({len(rows)} cụm, mốc mới nhất)",
+             "  " + "-" * 68,
+             f"  {'Cụm (anchor)':<34}{'n_kw':>5}{'Top10':>6}{'Hạng TB':>8}{'Δ':>2}"]
+    for r in rows:
+        avg = f'{r["avg_pos"]:.1f}' if r["avg_pos"] is not None else "—"
+        partial = f' ({r["n_measured"]}/{r["n_kw"]} kw có số)' if r["n_measured"] < r["n_kw"] else ""
+        lines.append(f'  {r["anchor"][:34]:<34}{r["n_kw"]:>5}{r["top10"]:>6}{avg:>8}{r["trend"]:>2}{partial}')
+    lines.append("  Top10 = số kw của cụm đang trong Top 10; Δ + = cụm đang tốt lên, - = xấu đi.")
+    return "\n".join(lines)
+
+
 def run_keyword_groups_cli() -> int:
     """`--keyword-groups`: cụm + refresh, đọc từ dữ liệu có sẵn."""
     import config.settings as cfg
@@ -124,5 +189,8 @@ def run_keyword_groups_cli() -> int:
     print(clusters_text(clusters))
     print()
     print(refresh_text(rows, n_checks=n_checks))
+    perf = cluster_performance(history, keywords)
+    print()
+    print(performance_text(perf, n_checks=n_checks, keywords=keywords))
     print("=" * 76)
     return 0
