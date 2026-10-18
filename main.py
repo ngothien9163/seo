@@ -78,6 +78,7 @@ def show_strategy():
     print("  python main.py --internal-links  Goi y link noi bo tu du lieu audit + rank hien co")
     print("  python main.py --competitors     Domain doi thu xuat hien nhieu nhat tren SERP (tu rank history)")
     print("  python main.py --keyword-groups  Cum tu khoa + danh sach bai nen refresh (tu du lieu co san)")
+    print("  python main.py --cluster-gsc  Cum tu khoa theo du lieu Google that (imps/clicks GSC, cum mù GSC)")
     print("  python main.py --rank-urls       Trang nao dang rank cho tu nao + canh bao doi trang")
     print("  python main.py --ctr-ops         Query duoc thay ma it nguoi click - goi y sua title/meta (tu GSC)")
     print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
@@ -244,6 +245,10 @@ if __name__ == "__main__":
     elif "--keyword-groups" in sys.argv:
         from utils.keyword_groups import run_keyword_groups_cli
         sys.exit(run_keyword_groups_cli())
+
+    elif "--cluster-gsc" in sys.argv:
+        from utils.cluster_gsc import run_cluster_gsc_cli
+        sys.exit(run_cluster_gsc_cli())
 
     elif "--rank-urls" in sys.argv:
         from utils.rank_urls import run_rank_urls_cli
