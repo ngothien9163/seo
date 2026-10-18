@@ -69,6 +69,9 @@ class TrafficBotUI(ctk.CTk):
         self._ctrops_running = False
         self._planprog_running = False
         self._gscalerts_running = False
+        self._tools_running = {tag: False for tag in
+                               ("doctor-net", "page-impact", "content-gap",
+                                "refresh-diff", "content-brief", "daily-report")}
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -162,6 +165,7 @@ class TrafficBotUI(ctk.CTk):
         self.tab_ai       = self.tabs.add("🤖 AI Engine")
         self.tab_warmup   = self.tabs.add("🔥 Nuôi Nick")
         self.tab_rank     = self.tabs.add("📈 Xếp Hạng")
+        self.tab_tools    = self.tabs.add("🧰 Phân Tích")
 
         self._setup_tab_general()
         self._setup_tab_loop()
@@ -170,6 +174,7 @@ class TrafficBotUI(ctk.CTk):
         self._setup_tab_ai()
         self._setup_tab_warmup()
         self._setup_tab_rank()
+        self._setup_tab_tools()
 
         # Log
         log_frame = ctk.CTkFrame(main)
@@ -792,6 +797,85 @@ class TrafficBotUI(ctk.CTk):
             lines = [f"[Scheduler] Không đọc được trạng thái: {type(e).__name__}: {e}"]
         self.txt_scheduler.delete("0.0", "end")
         self.txt_scheduler.insert("0.0", "\n".join(lines))
+
+    # ── F10 — tab 🧰 Phân Tích: mỗi nút chạy 1 lệnh CLI báo cáo đọc-only ──
+    TOOLS_LABELS = {
+        "doctor-net": ("🩺  DOCTOR --net", "run_extra_cli"),
+        "page-impact": ("⚖️  PAGE IMPACT", "--page-impact"),
+        "content-gap": ("🕳️  CONTENT GAP", "--content-gap"),
+        "refresh-diff": ("🔁  REFRESH DIFF", "--refresh-diff"),
+        "content-brief": ("📰  CONTENT BRIEF", "--content-brief"),
+        "daily-report": ("🌅  DAILY REPORT", "--daily-report"),
+    }
+    TOOLS_DESC = {
+        "doctor-net": "Kiểm tra môi trường kèm ping Ollama (--doctor --net)",
+        "page-impact": "Sức nặng theo trang: trang VIP, phơi không ai click (--page-impact)",
+        "content-gap": "Query Google phơi mà site chưa có trang riêng (--content-gap)",
+        "refresh-diff": "Bài nên refresh đã đến bước nào (--refresh-diff)",
+        "content-brief": "Brief trộn dữ liệu cho 1 từ khóa dưới ô nhập (--content-brief)",
+        "daily-report": "Báo cáo buổi sáng gộp 1 tin (--daily-report)",
+    }
+
+    def _setup_tab_tools(self):
+        t = self.tab_tools
+        ctk.CTkLabel(
+            t, text="Phân tích đọc-only — chạy lệnh CLI và in kết quả vào System Logs bên dưới.",
+            font=ctk.CTkFont(size=12), text_color="gray",
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(16, 4))
+
+        self.entry_brief_kw = ctk.CTkEntry(t, width=340, height=32,
+                                           placeholder_text="Từ khóa cho CONTENT BRIEF (vd: nối mi quận 2)")
+        self.entry_brief_kw.grid(row=1, column=0, sticky="w", padx=20, pady=(4, 8))
+
+        tf = ctk.CTkFrame(t, fg_color="transparent")
+        tf.grid(row=2, column=0, sticky="w", padx=20, pady=6)
+        for i, tag in enumerate(("doctor-net", "page-impact", "content-gap",
+                                 "refresh-diff", "content-brief", "daily-report")):
+            label = self.TOOLS_LABELS[tag][0]
+            btn = ctk.CTkButton(tf, text=label, height=32, width=150,
+                                fg_color="#1a5a7a", hover_color="#2478a8",
+                                font=ctk.CTkFont(size=12, weight="bold"),
+                                command=lambda tag=tag: self.run_tool_now(tag))
+            btn.grid(row=i // 3, column=i % 3, padx=(0 if i % 3 == 0 else 12, 0),
+                     pady=(0, 8), sticky="w")
+            setattr(self, f"btn_tool_{tag}", btn)
+            note = ctk.CTkLabel(tf, text=self.TOOLS_DESC[tag],
+                                font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
+            note.grid(row=(i // 3) * 10 + 1, column=i % 3, sticky="w", padx=2, pady=(0, 6))
+
+    def run_tool_now(self, tag: str):
+        """Nút tab 🧰 — mô hình của các nút khác: guard → disable → thread → enable."""
+        if self._tools_running.get(tag):
+            return
+        if tag == "content-brief" and not (self.entry_brief_kw.get() or "").strip():
+            print("[Tools] Nhập từ khóa ở ô trên rồi mới bấm CONTENT BRIEF.")
+            return
+        self._tools_running[tag] = True
+        btn = getattr(self, f"btn_tool_{tag}", None)
+        if btn is not None:
+            btn.configure(state="disabled", text="⏳ Đang chạy...")
+        threading.Thread(target=self._tool_worker, args=(tag,), daemon=True).start()
+
+    def _tool_worker(self, tag: str):
+        try:
+            if tag == "doctor-net":
+                from utils.doctor import run_doctor_cli
+                run_doctor_cli(net=True)
+            elif tag == "content-brief":
+                from utils.content_brief import run_content_brief_cli
+                run_content_brief_cli(keyword=self.entry_brief_kw.get().strip(),
+                                      save_to_disk=True)
+            else:
+                from utils.dispatch_tools import dispatch_tools
+                dispatch_tools(tag)
+        except Exception as e:
+            print(f"[Tools] Lỗi {tag}: {type(e).__name__}: {e}")
+        finally:
+            self._tools_running[tag] = False
+            btn = getattr(self, f"btn_tool_{tag}", None)
+            label = self.TOOLS_LABELS[tag][0]
+            if btn is not None:
+                self.after(0, lambda: btn.configure(state="normal", text=label))
 
     def _refresh_alert_mode_label(self):
         from utils.alerts import delivery_mode
