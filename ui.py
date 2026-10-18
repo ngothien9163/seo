@@ -60,6 +60,10 @@ class TrafficBotUI(ctk.CTk):
         self._backlinks_running = False
         self._generate_running = False
         self._alert_running = False
+        self._htmlreport_running = False
+        self._intlinks_running = False
+        self._actions_running = False
+        self._doctor_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -579,6 +583,36 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_backlink_check,
         )
         self.btn_backlinks.pack(side="left", padx=(16, 0))
+        rf2 = ctk.CTkFrame(t, fg_color="transparent")
+        rf2.grid(row=1, column=0, sticky="w", padx=20, pady=(2, 0))
+        self.btn_htmlreport = ctk.CTkButton(
+            rf2, text="🌐  XUẤT REPORT HTML",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_html_report_now,
+        )
+        self.btn_htmlreport.pack(side="left")
+        self.btn_intlinks = ctk.CTkButton(
+            rf2, text="🧩  GỢI Ý LINK NỘI BỘ",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_internal_links_now,
+        )
+        self.btn_intlinks.pack(side="left", padx=(16, 0))
+        self.btn_actions = ctk.CTkButton(
+            rf2, text="📝  VIỆC ƯU TIÊN TỪ AUDIT",
+            fg_color="#8a5a1a", hover_color="#a8721f",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_audit_actions_now,
+        )
+        self.btn_actions.pack(side="left", padx=(16, 0))
+        self.btn_doctor = ctk.CTkButton(
+            rf2, text="🩺  DOCTOR",
+            fg_color="#5a5a6a", hover_color="#6d6d80",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_doctor_now,
+        )
+        self.btn_doctor.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -883,6 +917,87 @@ class TrafficBotUI(ctk.CTk):
             self._backlinks_running = False
             self.after(0, lambda: self.btn_backlinks.configure(
                 state="normal", text="🔗  CHECK BACKLINK"))
+
+    # ═══════════════════════════════════════════════════════════════
+    # CÔNG CỤ BÁO CÁO / GỢI Ý — CLI làm phần nặng, GUI chỉ bấm và in ra
+    # ═══════════════════════════════════════════════════════════════
+
+    def run_html_report_now(self):
+        """Nút 🌐: xuất data/report.html (SERP+GSC+Audit+Backlink) — thread nền."""
+        if self._htmlreport_running:
+            return
+        self._htmlreport_running = True
+        self.btn_htmlreport.configure(state="disabled", text="⏳ Đang xuất...")
+        threading.Thread(target=self._htmlreport_worker, daemon=True).start()
+
+    def _htmlreport_worker(self):
+        try:
+            from utils.html_report import run_html_report_cli, _report_path
+            run_html_report_cli()
+            print(f"[HTML] 💡 Mở bằng double-click file hoặc: start {_report_path()}")
+        except Exception as e:
+            print(f"[HTML] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._htmlreport_running = False
+            self.after(0, lambda: self.btn_htmlreport.configure(
+                state="normal", text="🌐  XUẤT REPORT HTML"))
+
+    def run_internal_links_now(self):
+        """Nút 🧩: gợi ý link nội bộ từ audit + rank history — chỉ đọc, không tự sửa."""
+        if self._intlinks_running:
+            return
+        self._intlinks_running = True
+        self.btn_intlinks.configure(state="disabled", text="⏳ Đang phân tích...")
+        threading.Thread(target=self._intlinks_worker, daemon=True).start()
+
+    def _intlinks_worker(self):
+        try:
+            from utils.internal_links import run_internal_links_cli
+            run_internal_links_cli()
+        except Exception as e:
+            print(f"[InternalLinks] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._intlinks_running = False
+            self.after(0, lambda: self.btn_intlinks.configure(
+                state="normal", text="🧩  GỢI Ý LINK NỘI BỘ"))
+
+    def run_audit_actions_now(self):
+        """Nút 📝: findings audit → việc ưu tiên theo từ khóa (CAO trước)."""
+        if self._actions_running:
+            return
+        self._actions_running = True
+        self.btn_actions.configure(state="disabled", text="⏳ Đang xếp việc...")
+        threading.Thread(target=self._actions_worker, daemon=True).start()
+
+    def _actions_worker(self):
+        try:
+            from utils.audit_actions import run_audit_actions_cli
+            run_audit_actions_cli()
+        except Exception as e:
+            print(f"[Actions] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._actions_running = False
+            self.after(0, lambda: self.btn_actions.configure(
+                state="normal", text="📝  VIỆC ƯU TIÊN TỪ AUDIT"))
+
+    def run_doctor_now(self):
+        """Nút 🩺: kiểm tra môi trường — mỗi mục tự nuốt lỗi, không crash."""
+        if self._doctor_running:
+            return
+        self._doctor_running = True
+        self.btn_doctor.configure(state="disabled", text="⏳ Đang kiểm tra...")
+        threading.Thread(target=self._doctor_worker, daemon=True).start()
+
+    def _doctor_worker(self):
+        try:
+            from utils.doctor import run_doctor_cli
+            run_doctor_cli(net=False)
+        except Exception as e:
+            print(f"[Doctor] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._doctor_running = False
+            self.after(0, lambda: self.btn_doctor.configure(
+                state="normal", text="🩺  DOCTOR"))
 
     # ═══════════════════════════════════════════════════════════════
     # CONTENT GENERATION (F8) — chỉ sinh bản nháp bằng Ollama, không tự đăng
