@@ -178,3 +178,13 @@ BACKLINK_STORE_FILE = "backlinks.json"  # nằm trong config/, danh sách link o
 CONTENT_GEN_TIMEOUT = 300           # giây/lượt — model 30b chậm, bản nháp dài cần nhiều thời gian
 CONTENT_GEN_RETRIES = 1             # chỉ retry khi timeout; connection error không retry
 CONTENT_DRAFTS_DIR = "content/drafts"  # nơi lưu bài nháp .md (gitignored — owner duyệt rồi mới dùng)
+
+# ────────────────────────────────────────────────────────────────────────────
+# PHẦN K: AEO TRACKING (F9) — hỏi AI engine theo từ khóa, dán tay câu trả lời
+# ────────────────────────────────────────────────────────────────────────────
+# Hướng đã chốt trong roadmap: KHÔNG tự hỏi AI bằng browser (lớp anti-detect bị
+# loại) — người dùng gặp AI thường ngày, copy câu trả lời vào file rồi chạy
+# --aeo-check; công cụ chỉ phân tích text, KHÔNG gửi request nào.
+AEO_BRANDS = ["Nanky Beauty", "nankybeauty.com", "nanky beauty"]  # biến thể brand cần nhận ra
+AEO_HISTORY_KEEP = 500            # số bản ghi tối đa — cũ nhất bị cắt (theo ngày dán)
+

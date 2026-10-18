@@ -164,7 +164,7 @@
 
 ## F9 — AEO tracking (đo AI visibility)
 
-**Trạng thái: ⏳ CHƯA LÀM — đã chốt hướng (2026-10-14).** Phương án **(a) bị loại**: hỏi AI bằng Playwright tái dùng profile anti-detect = đúng lớp né phát hiện bot đã tuyên bố không động từ đầu phiên (cùng lý do với F5 ở trên). F9 **chỉ** đi theo (b) API có key (owner tự cấp, trả phí) hoặc (c) dán tay câu trả lời AI vào tool rồi phân tích brand mention — cả hai không tự động hóa hành vi vượt CAPTCHA. (a)/(b)/(c) là quyết định owner còn phải xác nhận bằng lời trước khi code; đến lúc đó mới viết spec + plan riêng.
+**Trạng thái: ✅ XONG (code) 2026-10-18 — dán tay (phương án c), toàn bộ offline.** `utils/aeo.py` (phân tích brand-mention thuần + `aeo_history.json` per-site qua site_paths, ghi atomic) + CLI `--aeo-check <file.txt> --aeo-keyword "kw" [--aeo-engine Tên]` + `--aeo-report` + cột "AI" trong báo cáo gộp (`✓2/3` = 2 engine nhắc trên 3 đã hỏi; chưa dán lần nào → báo cáo gộp y như cũ, không breaking). Phương án **(a) browser Playwright bị loại** — rơi đúng lớp né phát hiện bot đã tuyên bố không động (giống F5); phương án **(b) API có key** chưa làm — owner chốt engine + key thì mới thêm (input là text đã có, nên thêm sau không đụng gì). Test `_quick_aeo_test.py` (19 test, offline). **CHƯA** dùng với câu trả lời thật — owner tự hỏi AI hằng ngày, dán rồi chạy.
 
 **Mục tiêu:** theo từng từ khóa, hỏi các AI engine "câu trả lời có nhắc đến brand/domain X không?" → lưu `aeo_history.json` song song rank history, hiển thị cạnh cột SERP/GSC trong báo cáo gộp.
 

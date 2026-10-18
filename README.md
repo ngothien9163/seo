@@ -152,6 +152,15 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - **Nhân vật trình duyệt dùng chung (QĐ C)**: F10 chỉ đổi **đường dẫn dữ liệu**, **không** đụng cơ chế fingerprint/persona. Ổ khoá scheduler cũng **dùng chung** (QĐ lock) — hai job đồng thời vẫn chặn nhau đúng như cũ.
 - **Chưa làm / giới hạn**: không có registry `sites.json` — site "đã biết" là các thư mục con trong `data/` **có dấu `.migrated`**; muốn thêm site mới thì chạy `--migrate-multi-site` cho site đó (tạo tay thư mục `data/<slug>/` **không đủ** — phải có dấu `.migrated` mới bật). Việc migrate dữ liệu thật của bạn là thao tác thủ công có duyệt trước, tool không tự xoá gì.
 
+### 16. AEO tracking — AI có nhắc brand mình không? (F9)
+
+- **Đo AI visibility bằng dán tay**: bạn tự hỏi một AI engine (ChatGPT/Gemini/Perplexity/…) theo từng từ khóa, **copy câu trả lời vào file** rồi chạy `python main.py --aeo-check file.txt --aeo-keyword "nối mi" [--aeo-engine ChatGPT]`. Tool phân tích text đã có — **không gửi request nào ra ngoài, không key, không phí**.
+- **Vì sao không tự động hỏi AI bằng browser**: rơi đúng lớp né phát hiện bot mà project tuyên bố không động (giống lý do bỏ F5) — dán tay là phương án đã chốt trong roadmap; phương án API-có-key chỉ thêm khi bạn chốt engine + key (mọi wiring đều xử lý text nên thêm sau không đụng gì).
+- **So brand theo từ trọn vẹn + bỏ dấu** (`AEO_BRANDS` trong settings): "nanky beauty" viết không dấu vẫn nhận ra; `nankybeautyva` không bị đếm nhầm là "nanky beauty". Thêm biến thể brand (viết tắt, tên khác, domain) bằng cách thêm vào `AEO_BRANDS`.
+- **1 bản ghi/ngày/từ khóa/engine**: dán lại trong cùng ngày là cập nhật, không spam; history lưu tối đa `AEO_HISTORY_KEEP` (500) bản ghi, ghi atomic vào `aeo_history.json` (per-site khi đã migrate).
+- **Xem kết quả**: `python main.py --aeo-report` hoặc cột **AI** trong báo cáo gộp (`--gsc-report`) — hiện `✓1/1` (số engine nhắc / số engine đã hỏi). **Chưa dán lần nào → báo cáo gộp y như cũ**, không breaking.
+- Hướng dẫn từng bước: **[`docs/USE_AEO.md`](docs/USE_AEO.md)**.
+
 ---
 
 ## Cài đặt
@@ -230,6 +239,8 @@ python main.py --generate "kw" --dry-run  # Chỉ in prompt, không gọi Ollama
 python main.py --migrate-multi-site --dry-run  # Xem trước: sẽ copy dữ liệu site hiện tại vào data/<slug>/ gì (không ghi)
 python main.py --migrate-multi-site  # Copy (CHỈ copy, không xoá gốc) vào data/<slug>/ + config/<slug>/ → bật per-site
 python main.py --site domain.com --rank  # Chạy lệnh cho MỘT site khác (site phải đã migrate) trong cùng project
+python main.py --aeo-report  # Xem AI engine nào đang nhắc brand (theo từ khóa dán tay)
+python main.py --aeo-check file.txt --aeo-keyword "nối mi" --aeo-engine ChatGPT  # Lưu 1 câu trả lời AI đã copy
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -279,6 +290,8 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `CONTENT_GEN_TIMEOUT` | `300` | Content: giây/lượt gọi Ollama — model 30b chậm, draft dài cần thời gian |
 | `CONTENT_GEN_RETRIES` | `1` | Content: số lần retry, **chỉ khi timeout**; connection error báo ngay không retry |
 | `CONTENT_DRAFTS_DIR` | `content/drafts` | Content: nơi lưu bản nháp `.md` (UTF-8, **gitignore** — dữ liệu nháp riêng) |
+| `AEO_BRANDS` | `["Nanky Beauty", "nankybeauty.com", "nanky beauty"]` | AEO: biến thể brand cần nhận ra (so bỏ dấu, từ trọn vẹn) — thêm biến thể mới của bạn vào đây |
+| `AEO_HISTORY_KEEP` | `500` | AEO: số bản ghi tối đa lưu trong `aeo_history.json` — cũ nhất bị cắt |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),

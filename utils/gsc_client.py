@@ -336,6 +336,14 @@ def build_report(tail_spark: int = 8) -> str:
     depth = getattr(cfg, "RANK_CHECK_DEPTH", 100)
     matched, unmatched = _match_keywords(rows, keywords)
 
+    # F9 — cột AI (AEO): chưa dán câu trả lời nào → bảng y như trước (không breaking).
+    try:
+        from utils.aeo import ai_matrix
+        ai = ai_matrix()
+    except Exception:
+        ai = {}
+    has_ai = bool(ai)
+
     # Rank history (có thể không tồn tại — cột SERP sẽ là '—')
     rchecks: dict = {}
     try:
@@ -355,9 +363,6 @@ def build_report(tail_spark: int = 8) -> str:
                  f"  (fetch: {snap.get('fetched_at', '?').replace('T', ' ')})"
                  f"  | Lần check SERP: {rkeys[-1][:19].replace('T', ' ') if rkeys else '—'}")
     lines.append("=" * 104)
-    lines.append(f"  {'Từ khóa':<34}{'SERP':>6}  {'Δ':>5}  {'Xu hướng':<8}"
-                 f"{'Clicks':>7}{'Hiện':>7}{'Vị trí TB':>10}{'CTR':>7}")
-    lines.append("-" * 104)
 
     def _serp_cols(kw: str) -> str:
         cur = (rank_latest.get(kw) or {}).get("pos")
@@ -372,10 +377,27 @@ def build_report(tail_spark: int = 8) -> str:
                 f"{row.get('position', 0.0):>10.1f}"
                 f"{row.get('ctr', 0.0) * 100:>6.1f}%")
 
+    def _ai_cols(kw: str) -> str:
+        # n engine đã hỏi: "✓2/3" = 2 nhắc trên 3 engine; chưa có → '—'
+        per = ai.get(kw) or {}
+        if not per:
+            return f"{'—':>6}"
+        got = sum(1 for v in per.values() if v.get("mentioned"))
+        return f"{f'✓{got}/{len(per)}':>6}"
+
+    if has_ai:
+        lines.append(f"  {'Từ khóa':<34}{'SERP':>6}  {'Δ':>5}  {'Xu hướng':<8}"
+                     f"{'AI':>6}{'Clicks':>7}{'Hiện':>7}{'Vị trí TB':>10}{'CTR':>7}")
+    else:
+        lines.append(f"  {'Từ khóa':<34}{'SERP':>6}  {'Δ':>5}  {'Xu hướng':<8}"
+                     f"{'Clicks':>7}{'Hiện':>7}{'Vị trí TB':>10}{'CTR':>7}")
+    lines.append("-" * (111 if has_ai else 104))
+
     for kw in sorted(set(keywords) | set(matched.keys())):
         row = matched.get(kw)
         gsc_cols = _gsc_cols(row) if row else f"{'—':>7}{'—':>7}{'—':>10}{'—':>7}"
-        lines.append(f"  {kw[:34]:<34}{_serp_cols(kw)}{gsc_cols}")
+        ai_cols = _ai_cols(kw) if has_ai else ""
+        lines.append(f"  {kw[:34]:<34}{_serp_cols(kw)}{ai_cols}{gsc_cols}")
 
     if unmatched:
         lines.append("-" * 104)

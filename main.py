@@ -76,6 +76,8 @@ def show_strategy():
     print("  python main.py --migrate-multi-site  Chep du lieu site hien tai vao data/<slug>/ (khong xoa goc)")
     print("  python main.py --migrate-multi-site --dry-run  Chi xem se copy gi, khong ghi")
     print("  python main.py --site domain.com --rank  Chay lenh cho MOTE site khac (da migrate) trong cung project")
+    print("  python main.py --aeo-report           AI engine co nhac brand khong (du lieu da paste)")
+    print('  python main.py --aeo-check file.txt --aeo-keyword "kw" [--aeo-engine ChatGPT]  Luu 1 cau tra loi')
     print("-" * 65)
 
 
@@ -223,6 +225,17 @@ if __name__ == "__main__":
     elif "--migrate-multi-site" in sys.argv:
         from utils.migrate_sites import run_migrate_cli
         sys.exit(run_migrate_cli(dry_run="--dry-run" in sys.argv))
+
+    elif "--aeo-check" in sys.argv or "--aeo-report" in sys.argv:
+        # F9 — phân tích câu trả lời AI dán tay; không gửi request nào ra ngoài
+        if "--aeo-report" in sys.argv:
+            from utils.aeo import run_aeo_report_cli
+            sys.exit(run_aeo_report_cli())
+        from utils.aeo import run_aeo_check_cli
+        # --aeo-engine chỉ là tên dán nhãn — engine tự do, không hạn chế danh sách
+        sys.exit(run_aeo_check_cli(_flag_value("--aeo-check"),
+                                   engine=_flag_value("--aeo-engine") or "ChatGPT",
+                                   keyword=_flag_value("--aeo-keyword")))
 
     else:
         show_strategy()

@@ -26,3 +26,5 @@ _quick_*.py
 data/
 # F8: bản nháp bài viết sinh bằng Ollama — owner duyệt rồi mới dùng, không commit
 content/drafts/
+# F9: lịch sử AEO dán tay — dữ liệu vận hành riêng (flat ở gốc khi chưa per-site)
+aeo_history.json
