@@ -92,6 +92,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - GUI có nút **🧪 GỬI THỬ BÁO ĐỘNG** để xác nhận tin tới điện thoại, kèm nhãn "Cảnh báo: Telegram/console".
 - **Cảnh báo sớm theo xu hướng (C4)**: ngoài rule so 2 lần check, engine còn nhìn **14 lần check gần nhất** (`RANK_ALERT_TREND_WINDOW`) — trung bình hạng của 4 mốc mới nhất so với 4 mốc ngay trước đó; xấu đi **≥ `RANK_ALERT_TREND_DROP`** (mặc định 3) vị trí → tin 🌡️ "xu hướng giảm dần, dự báo sẽ rớt" **trước khi** chạm ngưỡng tụt đột ngột. Chuỗi phải đủ 4+4 mốc đo được liên tục — đứt giữa (không vào top N) thì không ước lượng. Tắt bằng `RANK_ALERT_TREND_ENABLE = False`.
 - **Báo cáo tuần (C3)**: `python main.py --weekly` gộp SERP + Search Console + AEO thành 1 tin Telegram ≤ 4096 ký tự, **1 lần/tuần** (state `data/weekly_digest.json`); nguồn nào chưa có dữ liệu thì bị bỏ, không nguồn nào chết cả báo cáo; `--force` gửi lại. Gửi hỏng mạng thì tuần chưa đánh dấu — lần chạy kế tự thử lại.
+- **Cảnh báo sớm qua dữ liệu GSC (G-B3)**: sau MỖI lần `--gsc`, bộ này so **impressions từng query giữa 2 snapshot gần nhất** — query mốc trước có ≥ 30 imps (được phơi đáng kể) mà mốc mới **< 50%** hoặc biến mất hẳn (imps 0 = Google ngừng phơi) → tin 📉 **trước** khi hạng SERP thật rớt (site tụt khỏi top 100 thì đây là tín hiệu duy nhất còn lại). Query mốc trước đã dưới 30 imps là noise, query mới xuất hiện là tăng trưởng — không tin. Chống spam: 1 tin/ngày/query (key `gscdrop:<query>`), gửi hỏng tự thử lại lần fetch sau, lỗi bộ cảnh báo không làm chết fetch. Xem chủ động: `python main.py --gsc-alerts`.
 
 ---
 
@@ -299,6 +300,7 @@ python main.py --rank-urls  # Trang nào đang rank cho từ nào + cảnh báo 
 python main.py --ctr-ops  # Query được thấy mà ít người click — nên sửa title/meta (từ snapshot GSC)
 python main.py --gsc-pages  # Query nào do nhiều trang phục vụ / trang nào gánh nhiều query (Google thật)
 python main.py --gsc-trend  # Xu hướng imps/clicks/CTR theo query, 8 mốc gần nhất + cờ sụt sớm
+python main.py --gsc-alerts  # Canh bao imps rut manh (<50% hoac mat) giua 2 snapshot GSC
 python main.py --audit-diff  # Lỗi mới phát hiện vs đã sửa, giữa 2 lần audit gần nhất
 python main.py --plan-progress  # 30 muc plan: muc nao da co draft / da push WP, ke tiep thi generate
 python main.py --aeo-questions "nối mi quận 7" [--aeo-angle best,compare,local]  # Sinh biến thể câu hỏi AEO để dán tay

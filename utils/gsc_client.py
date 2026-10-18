@@ -527,6 +527,14 @@ def run_gsc_fetch_cli():
     save_snapshot(rows, (date.today() - timedelta(days=days - 1)).isoformat(), today,
                   pages=pages)
     mark_fetch_run()
+    # G-B3 — cảnh báo imps rớt qua 2 snapshot gần nhất (Telegram/console).
+    # Lỗi bộ cảnh báo không làm chết kết quả fetch.
+    try:
+        from utils.gsc_alerts import check_and_notify
+        domain = getattr(cfg, "TARGET_URL", "") or ""
+        check_and_notify(history=_load_history(), domain=domain)
+    except Exception:
+        pass
     print()
     print_report()
     from utils.alerts import hint_pending

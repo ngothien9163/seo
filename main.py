@@ -59,6 +59,7 @@ def show_strategy():
     print("  python main.py --gsc-report Xem bao cao Search Console da luu")
     print("  python main.py --gsc-pages  Cannibalization theo Google that: query nao do may trang phuc vu")
     print("  python main.py --gsc-trend   Xu huong imps/clicks/CTR theo query, 8 moc gan nhat")
+    print("  python main.py --gsc-alerts  Canh bao imps rut manh giua 2 snapshot GSC (ve --gsc truoc)")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
     print("  python main.py --export rank|gsc|audit|backlinks|plan|all  Xuat bao cao CSV mo bang Excel")
@@ -174,6 +175,10 @@ if __name__ == "__main__":
     elif "--gsc-trend" in sys.argv:
         from utils.gsc_trend import run_gsc_trend_cli
         sys.exit(run_gsc_trend_cli())
+
+    elif "--gsc-alerts" in sys.argv:
+        from utils.gsc_alerts import run_gsc_alerts_cli
+        sys.exit(run_gsc_alerts_cli())
 
     elif "--gsc-keywords" in sys.argv:
         from utils.gsc_client import run_keyword_suggest_cli
