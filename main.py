@@ -60,6 +60,7 @@ def show_strategy():
     print("  python main.py --gsc-pages  Cannibalization theo Google that: query nao do may trang phuc vu")
     print("  python main.py --page-impact  Suc nang theo trang: trang VIP, trang phoi khong ai click (tu GSC)")
     print("  python main.py --content-gap  Query Google phoi ma site chua co trang rieng (tu GSC)")
+    print("  python main.py --refresh-diff  Bai nen refresh da den buoc nao: chua draft / cho duyet / da push")
     print("  python main.py --gsc-trend   Xu huong imps/clicks/CTR theo query, 8 moc gan nhat")
     print("  python main.py --gsc-alerts  Canh bao imps rut manh giua 2 snapshot GSC (ve --gsc truoc)")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
@@ -187,6 +188,10 @@ if __name__ == "__main__":
     elif "--content-gap" in sys.argv:
         from utils.content_gap import run_content_gap_cli
         sys.exit(run_content_gap_cli())
+
+    elif "--refresh-diff" in sys.argv:
+        from utils.refresh_diff import run_refresh_diff_cli
+        sys.exit(run_refresh_diff_cli())
 
     elif "--gsc-trend" in sys.argv:
         from utils.gsc_trend import run_gsc_trend_cli
