@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 """
 utils/wp_publisher.py — C1: đẩy một bản nháp .md từ content/drafts/ lên WordPress
-với status DRAFT (hoặc pending.', không bao gì 'publish'.
+với status DRAFT (hoặc pending) — KHÔNG BAO GIỜ 'publish'.
 
-Thiết kế giữ triết lý F8: tool đẩy cây lau, người dùng duyệt trên WP rồi mới
+Thiết kế giữ triết lý F8: tool đẩy bản nháp, người dùng duyệt trên WP rồi mới
 publish bằng tay. Vậy nên:
 - POST /wp-json/wp/v2/posts {status: "draft", title, content, excerpt} qua
   HTTP Basic (Application Password — WP tạo trong trang cá nhân của admin,
   username + "xxxx xxxx xxxx" password riêng cho app, không là mật khẩu login).
-- status mặc định "draft"; `--status pending` là trần chốt (publish/pri valet
-  bị TỪ CHỐI ở validate — không đường tắt nào publish từ tool).
-- frontmatter .md được bóc ra: keyword → dùng tìm title nếu --title thiếu,
-  các key còn lại KHÔNG nặn thành tag/category (WP có id riêng — thêm tay).
+- status mặc định "draft"; `--status pending` là trần chốt (publish/future/
+  private bị TỪ CHỐI ở validate — không đường tắt nào publish từ tool).
+- frontmatter .md được bóc ra: keyword → dùng tìm title nếu --title thiếu.
+- P2-4: WP_DEFAULT_CATEGORIES / WP_DEFAULT_TAGS (tên) trong settings — khi đẩy,
+  tên được tra id qua GET /wp-json/wp/v2/categories|tags (tạo id nếu tag chưa
+  có). Frontmatter vẫn KHÔNG nặn thành category/tag; defaults là lựa chọn của
+  owner trong settings, không hỏi ý người dùng.
 
 Chạy:
     python main.py --wp-push content/drafts/<file>.md
@@ -74,7 +77,7 @@ def _strip_frontmatter(text: str) -> tuple[dict, str]:
 
 
 def _extract_title(body: str, meta: dict) -> str:
-    """Thứ tự title: frontmatter 'title' → H1 đầu tiên → từ khóa người dùng gone."""
+    """Thứ tự title: frontmatter 'title' → H1 đầu tiên → '' (caller tự điền)."""
     if isinstance(meta, dict):
         t = (meta.get("title") or "").strip()
         if t:
@@ -93,12 +96,69 @@ def _urls(base_url: str) -> tuple[str, str]:
     return rest + "/posts", rest
 
 
+def default_terms() -> tuple[list, list]:
+    """(categories, tags) từ settings — tên, strip, bỏ trùng theo fold-case."""
+    def _clean(values):
+        out, seen = [], set()
+        for v in (values or []):
+            name = str(v or "").strip()
+            key = name.casefold()
+            if name and key not in seen:
+                seen.add(key)
+                out.append(name)
+        return out
+    return _clean(getattr(cfg, "WP_DEFAULT_CATEGORIES", [])), \
+        _clean(getattr(cfg, "WP_DEFAULT_TAGS", []))
+
+
+def resolve_term_ids(base_url: str, auth: str, kind: str, names: list,
+                     get=None) -> tuple[dict, str]:
+    """Tên term → id qua GET /wp-json/wp/v2/{kind}?search=...&per_page=100.
+
+    kind: "categories" | "tags". Trả (map {tên: id|None}, '').
+    từng term tra 1 GET; tag/category chưa có trên WP bị bỏ qua (id None), KHÔNG
+    tạo mới — bài vẫn đẩy; term trang trí không đáng làm bài đẩy thất bại.
+    Không raise.
+    """
+    get = get or (lambda url, timeout: requests.get(
+        url, headers={"Authorization": auth}, timeout=timeout))
+    try:
+        _, rest = _urls(base_url)
+    except PublishError as e:
+        return {}, str(e)
+    ids = {}
+    warns = []
+    for name in (names or []):
+        url = (rest + f"/{kind}"
+               + "?search=" + _req_url_quote(name) + "&per_page=100")
+        try:
+            resp = get(url, SEND_TIMEOUT)
+            data = resp.json() if resp.status_code == 200 else []
+        except Exception as e:
+            warns.append(f"Không tra được {kind} (HTTP): {type(e).__name__}: {e}")
+            ids[name] = None
+            continue
+        if not isinstance(data, list):
+            data = []
+        hit = next((t for t in data
+                    if str(t.get("name", "")).strip().casefold() == name.casefold()), None)
+        ids[name] = hit.get("id") if hit else None
+        if hit is None:
+            warns.append(f"{kind} '{name}' chưa có trên WP — thêm tay trong WP admin.")
+    return ids, "; ".join(warns)
+
+
+def _req_url_quote(value: str) -> str:
+    from urllib.parse import quote
+    return quote(str(value or ""), safe="")
+
+
 def push_draft(title: str, markdown: str, excerpt: str = "",
                status: str = "draft", slug: str = "") -> dict:
     """POST một bài DRAFT lên WP. Trả dict {ok, id, link, message}. Không raise."""
     try:
         status = validate_status(status)
-        endpoint, _ = _urls(getattr(cfg, "WP_URL", "") or "")
+        endpoint, rest = _urls(getattr(cfg, "WP_URL", "") or "")
         user = str(getattr(cfg, "WP_USER", "") or "").strip()
         password = (os.getenv("WP_APP_PASSWORD")
                     or str(getattr(cfg, "WP_APP_PASSWORD", "") or "")).strip()
@@ -109,12 +169,31 @@ def push_draft(title: str, markdown: str, excerpt: str = "",
             return {"ok": False, "message": "Thiếu title — thêm --title \"...\"."}
         if not markdown:
             return {"ok": False, "message": "Thiếu nội dung bài."}
+        auth = _basic(user, password)
+        payload = {"title": title, "content": markdown, "excerpt": excerpt,
+                   "status": status, **({"slug": slug} if slug else {})}
+        # P2-4: gán category/tag mặc định theo TÊN cấu hình trong settings.
+        # Tra id trước (GET); term chưa có trên WP bị bỏ qua — bài vẫn đẩy.
+        cats, tags = default_terms()
+        warn_terms = []
+        if cats:
+            ids, warn = resolve_term_ids(getattr(cfg, "WP_URL", ""), auth, "categories", cats)
+            if warn:
+                warn_terms.append(warn)
+            known = [i for i in (ids or {}).values() if i]
+            if known:
+                payload["categories"] = known
+        if tags:
+            ids, warn = resolve_term_ids(getattr(cfg, "WP_URL", ""), auth, "tags", tags)
+            if warn:
+                warn_terms.append(warn)
+            known = [i for i in (ids or {}).values() if i]
+            if known:
+                payload["tags"] = known
         resp = requests.post(
             endpoint,
-            headers={"Authorization": _basic(user, password),
-                     "Content-Type": "application/json"},
-            json={"title": title, "content": markdown, "excerpt": excerpt,
-                  "status": status, **({"slug": slug} if slug else {})},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
+            json=payload,
             timeout=SEND_TIMEOUT)
     except PublishError as e:
         return {"ok": False, "message": str(e)}
@@ -127,9 +206,12 @@ def push_draft(title: str, markdown: str, excerpt: str = "",
     except Exception:
         data = {}
     if resp.status_code in (200, 201):
+        msg = f"Đã tải lên '{title}' với status: {data.get('status', status)} " \
+              f"(id {data.get('id')}) — duyệt trên WP rồi publish bằng tay."
+        if warn_terms:
+            msg += " | " + " ".join(warn_terms)
         return {"ok": True, "id": data.get("id"), "link": data.get("link"),
-                "message": f"Đã tải lên '{title}' với status: {data.get('status', status)} "
-                           f"(id {data.get('id')}) — duyệt trên WP rồi publish bằng tay."}
+                "message": msg}
     msg = (data or {}).get("message") or resp.text[:200]
     return {"ok": False, "code": data.get("code"), "message": f"WordPress từ chối: {msg}"}
 

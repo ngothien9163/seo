@@ -205,4 +205,6 @@ AEO_HISTORY_KEEP = 500            # số bản ghi tối đa — cũ nhất bị
 WP_URL = ""                       # VD "https://nankybeauty.com" — không có /wp-json
 WP_USER = ""                      # username trong WP (không phải email nếu WP yêu cầu)
 WP_APP_PASSWORD = ""              # App Password — nên để biến môi trường WP_APP_PASSWORD (thắng settings, không commit)
+WP_DEFAULT_CATEGORIES = []        # TÊN category gán mặc định khi đẩy nháp (VD ["Tin tức"]) — owner tự chọn
+WP_DEFAULT_TAGS = []              # TÊN tag mặc định — tool tra id; term chưa có trên WP bị bỏ qua + cảnh báo, KHÔNG tạo mới
 
