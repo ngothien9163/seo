@@ -321,10 +321,23 @@ def run_backlink_check_cli(limit=None, refresh: bool = False, url: str = "",
           f"tối đa {cfg.BACKLINK_PARALLEL} luồng, timeout {cfg.BACKLINK_TIMEOUT}s/link")
 
     state = bl.load_state()
+    known = {bl._link_key(l["url"]) for l in all_links}
+    # Ảnh state lần trước CHỈ gồm link vẫn có trong danh sách — link owner gỡ
+    # khỏi danh sách không phải "mất backlink", không tạo cảnh báo.
+    prev_state = {k: v for k, v in state.items() if k in known}
     new_state, rows = check_links(links, state, fetcher=fetcher, refresh=refresh,
                                   domain=target)
-    known = {bl._link_key(l["url"]) for l in all_links}
     bl.save_state({k: v for k, v in new_state.items() if k in known})
+
+    # Cảnh báo mất backlink (G-2): so state vừa ghi với lần trước — chạy SAU
+    # khi đã lưu, tự nuốt lỗi, kết quả check không chết theo bộ cảnh báo.
+    try:
+        from utils.backlink_alerts import check_and_notify
+        check_and_notify(prev_state,
+                         {k: v for k, v in new_state.items() if k in known},
+                         domain=target)
+    except Exception:
+        pass
 
     print(format_report(rows))
     if left:
