@@ -340,6 +340,20 @@ def _run_traffic() -> int:
     from utils.automation import run_one_session
     return run_one_session(use_search=True)
 
+def _guard_backlink() -> tuple:
+    """Rỗng = không có gì để verify — chạy tay cũng vô nghĩa, bảo owner thêm link trước."""
+    from utils import backlinks as bl
+    links = bl.load_links()
+    if links:
+        return True, ""
+    return False, ("danh sách backlink trống — thêm link đã thật sự đặt: "
+                   'python main.py --backlink-add "https://site-nguoi-khac/bai-co-link-cua-ban"')
+
+def _run_backlink() -> int:
+    """Verify link đã đặt còn sống — đúng engine --backlink-check, lịch sự với host lạ."""
+    from utils.backlink_checker import run_backlink_check_cli
+    return run_backlink_check_cli()
+
 
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
@@ -349,6 +363,9 @@ JOBS = {
     "gsc": {"desc": "Lấy dữ liệu Search Console (clicks/impressions)",
             "hours": list(getattr(cfg, "SCHEDULER_GSC_HOURS", [9])),
             "guard": "_guard_gsc", "runner": "_run_gsc"},
+    "backlink": {"desc": "Verify backlink đã đặt còn sống",
+                 "hours": list(getattr(cfg, "SCHEDULER_BACKLINK_HOURS", [])),
+                 "guard": "_guard_backlink", "runner": "_run_backlink"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},
@@ -422,7 +439,34 @@ def run_job(name: str) -> int:
         print(f"[Scheduler] {name}: xong.")
     else:
         print(f"[Scheduler] {name}: lỗi — {error}")
+    notify_after_job(name, code, status_txt, error)
     return code
+
+
+# ─── NOTIFY (tin Telegram tóm tắt sau job — mặc định TẮT, owner bật cùng ALERTS) ──
+
+def notify_after_job(name: str, code: int, status_txt: str = "", error: str = "") -> bool:
+    """Gửi 1 tin ngắn sau job. KHÔNG bao giờ raise, không đổi exit code của job.
+
+    Mặc định TẮT (SCHEDULER_NOTIFY_ENABLE=False). Bật chỉ có tác dụng khi
+    ALERTS_ENABLE=True — gửi hay không đều do settings quyết định.
+    """
+    del error  # error đã in ra --scheduler-status; tin Telegram chỉ tóm tắt đủ dùng
+    if not bool(getattr(cfg, "SCHEDULER_NOTIFY_ENABLE", False)):
+        return False
+    try:
+        from utils import alerts
+        status_txt = status_txt or ("ok" if int(code or 0) == 0 else "error")
+        lines = [f"⏱️ Scheduler — job '{name}': {status_txt} (exit {int(code or 0)})"]
+        if name == "rank" and status_txt == "ok":
+            lines.append(f"  Cảnh báo đang chờ: {len(alerts.pending_alerts())}")
+        ok = alerts.send("\n".join(lines))
+        if not ok:
+            print("[Scheduler] Tin tóm tắt chưa gửi được — xem log Telegram trong alerts.")
+        return ok
+    except Exception as e:
+        print(f"[Scheduler] Gửi tin tóm tắt lỗi (job vẫn tính là xong): {type(e).__name__}: {e}")
+        return False
 
 
 # ─── STATUS (CLI --scheduler-status + GUI đọc file, không đọc in-process) ─────
