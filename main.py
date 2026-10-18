@@ -61,6 +61,7 @@ def show_strategy():
     print("  python main.py --page-impact  Suc nang theo trang: trang VIP, trang phoi khong ai click (tu GSC)")
     print("  python main.py --content-gap  Query Google phoi ma site chua co trang rieng (tu GSC)")
     print("  python main.py --refresh-diff  Bai nen refresh da den buoc nao: chua draft / cho duyet / da push")
+    print('  python main.py --content-brief "kw" [-save]  Brief tron du lieu cho 1 tu khoa (khong goi Ollama)')
     print("  python main.py --gsc-trend   Xu huong imps/clicks/CTR theo query, 8 moc gan nhat")
     print("  python main.py --gsc-alerts  Canh bao imps rut manh giua 2 snapshot GSC (ve --gsc truoc)")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
@@ -192,6 +193,11 @@ if __name__ == "__main__":
     elif "--refresh-diff" in sys.argv:
         from utils.refresh_diff import run_refresh_diff_cli
         sys.exit(run_refresh_diff_cli())
+
+    elif "--content-brief" in sys.argv:
+        from utils.content_brief import run_content_brief_cli
+        sys.exit(run_content_brief_cli(keyword=_flag_value("--content-brief"),
+                                       save_to_disk="--save" in sys.argv))
 
     elif "--gsc-trend" in sys.argv:
         from utils.gsc_trend import run_gsc_trend_cli
