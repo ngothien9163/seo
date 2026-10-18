@@ -65,6 +65,8 @@ class TrafficBotUI(ctk.CTk):
         self._actions_running = False
         self._doctor_running = False
         self._clustgsc_running = False
+        self._gsctrend_running = False
+        self._ctrops_running = False
         self._planprog_running = False
         self._gscalerts_running = False
 
@@ -637,6 +639,20 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_cluster_gsc_now,
         )
         self.btn_clustgsc.pack(side="left", padx=(16, 0))
+        self.btn_gsctrend = ctk.CTkButton(
+            rf2, text="📊  GSC TREND",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_gsc_trend_now,
+        )
+        self.btn_gsctrend.pack(side="left", padx=(16, 0))
+        self.btn_ctrops = ctk.CTkButton(
+            rf2, text="🎯  CTR OPS",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_ctr_ops_now,
+        )
+        self.btn_ctrops.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -1079,6 +1095,44 @@ class TrafficBotUI(ctk.CTk):
             self._clustgsc_running = False
             self.after(0, lambda: self.btn_clustgsc.configure(
                 state="normal", text="⚖️  CỤM × GSC"))
+
+    def run_gsc_trend_now(self):
+        """Nút 📊: xu hướng imps/clicks/CTR theo query, 8 mốc GSC gần nhất."""
+        if self._gsctrend_running:
+            return
+        self._gsctrend_running = True
+        self.btn_gsctrend.configure(state="disabled", text="⏳ Đang vẽ...")
+        threading.Thread(target=self._gsctrend_worker, daemon=True).start()
+
+    def _gsctrend_worker(self):
+        try:
+            from utils.gsc_trend import run_gsc_trend_cli
+            run_gsc_trend_cli()
+        except Exception as e:
+            print(f"[GSCTrend] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._gsctrend_running = False
+            self.after(0, lambda: self.btn_gsctrend.configure(
+                state="normal", text="📊  GSC TREND"))
+
+    def run_ctr_ops_now(self):
+        """Nút 🎯: query được thấy mà ít người click → gợi ý sửa title/meta."""
+        if self._ctrops_running:
+            return
+        self._ctrops_running = True
+        self.btn_ctrops.configure(state="disabled", text="⏳ Đang so...")
+        threading.Thread(target=self._ctrops_worker, daemon=True).start()
+
+    def _ctrops_worker(self):
+        try:
+            from utils.ctr_opportunities import run_ctr_cli
+            run_ctr_cli()
+        except Exception as e:
+            print(f"[CTROps] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._ctrops_running = False
+            self.after(0, lambda: self.btn_ctrops.configure(
+                state="normal", text="🎯  CTR OPS"))
 
     # ═══════════════════════════════════════════════════════════════
     # CONTENT GENERATION (F8) — chỉ sinh bản nháp bằng Ollama, không tự đăng
