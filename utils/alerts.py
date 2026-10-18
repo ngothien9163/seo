@@ -95,6 +95,62 @@ def _top10_message(keyword, old, new, delta, domain):
             f'{_suffix(domain)}')
 
 
+def _trend_message(keyword, old_avg, new_avg, delta, n, domain):
+    return (f'🌡️ "{keyword}" xu hướng giảm dần: hạng TB từ {old_avg:.1f} '
+            f'lên {new_avg:.1f} (xấu đi {delta:.1f} vị trí) trong {n} lần check gần '
+            f'nhất — dự báo sẽ rớt nếu không can thiệp{_suffix(domain)}')
+
+
+def _trend_slope(checks: dict, stamps: list[str], keyword: str) -> tuple:
+    """
+    Dốc xu hướng của 1 từ khóa trên chuỗi mốc (stamps đã sort).
+    So trung bình hạng của 4 mốc mới nhất (nhóm "mới") với 4 mốc ngay trước đó
+    (nhóm "cũ"). Trả (old_avg, new_avg, delta, n_mốc_dùng) hoặc None khi thiếu
+    dữ liệu: mỗi nhóm phải đủ 4 mốc CÓ hạng đo được (None/không có entry thì
+    nhóm không đủ — không ước lượng bằng nửa vời).
+    """
+    half = 4
+    # đi ngược từ mốc mới nhất, chỉ thu hạng đo được của từ khóa này
+    series: list[int] = []
+    for st in reversed(stamps):
+        p = _read_pos((checks.get(st) or {}).get(keyword))
+        if p is _MISSING or p is None:
+            break               # đứt chuỗi đo được — chỉ dùng đoạn gần nhất liên tục
+        series.append(p)
+        if len(series) >= half * 2:
+            break
+    if len(series) < half * 2:
+        return None
+    new_pts = series[:half]     # gần nhất nằm trước (đi ngược)
+    old_pts = series[half:half * 2]
+    old_avg = sum(old_pts) / half
+    new_avg = sum(new_pts) / half
+    return old_avg, new_avg, new_avg - old_avg, half * 2
+
+
+def _trend_alerts(checks: dict, stamps: list[str], domain: str) -> list[dict]:
+    """C4: quét từ khóa trong mốc mới nhất, cảnh báo khi dốc trung bình xấu đi >= ngưỡng."""
+    if not bool(getattr(cfg, "RANK_ALERT_TREND_ENABLE", True)):
+        return []
+    drop = int(getattr(cfg, "RANK_ALERT_TREND_DROP", 3))
+    window = max(int(getattr(cfg, "RANK_ALERT_TREND_WINDOW", 14)), 8)
+    usable = stamps[-window:]
+    if len(usable) < 8:
+        return []               # cửa sổ chưa đủ 2 nhóm 4 mốc
+    out: list[dict] = []
+    for keyword in sorted((checks.get(usable[-1]) or {}).keys()):
+        result = _trend_slope(checks, usable, keyword)
+        if result is None:
+            continue
+        old_avg, new_avg, delta, n = result
+        if delta >= drop:
+            out.append(_alert(keyword, "trend_drop", round(old_avg, 1),
+                              round(new_avg, 1), round(delta, 1),
+                              _trend_message(keyword, old_avg, new_avg, delta,
+                                             n, domain)))
+    return out
+
+
 def evaluate(checks: dict, domain: str = "") -> list[dict]:
     """
     So 2 lần check gần nhất trong rank history và sinh cảnh báo.
@@ -140,7 +196,7 @@ def evaluate(checks: dict, domain: str = "") -> list[dict]:
             alerts.append(_alert(keyword, "drop", old, new, delta,
                                  _drop_message(keyword, old, new, delta, domain)))
 
-    return alerts
+    return alerts + _trend_alerts(checks, stamps, domain)
 
 
 def evaluate_from_history() -> list[dict]:

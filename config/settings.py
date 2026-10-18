@@ -136,6 +136,13 @@ RANK_ALERT_TOP10_FALL = True      # Báo khi từ khóa đang trong Top 10 bị 
 TELEGRAM_BOT_TOKEN = ""           # Token từ @BotFather — xem docs/SETUP_ALERTS.md
 TELEGRAM_CHAT_ID = ""             # Chat id nhận tin (cá nhân hoặc nhóm)
 ALERTS_STATE_DIR = "data"         # Thư mục state chống spam (1 tin/ngày/từ khóa)
+# C4 — cảnh báo xu hướng: nhìn chuỗi check dài, dự báo rớt TRƯỚC khi rớt thật.
+# So trung bình hạng của 4 mốc mới nhất với 4 mốc ngay trước đó (trong window
+# lần check gần nhất) — trung bình xấu đi từ RANK_ALERT_TREND_DROP vị trí là
+# "đang giảm dần" → cảnh báo sớm, trước khi chạm ngưỡng tụt đột ngột.
+RANK_ALERT_TREND_ENABLE = True    # Bật rule xu hướng; tắt thì vẫn còn rule tụt đột ngột
+RANK_ALERT_TREND_DROP = 3         # Số vị trí xấu đi (trung bình) coi là "giảm dần"
+RANK_ALERT_TREND_WINDOW = 14      # Số lần check gần nhất được nhìn (cũ hơn bỏ qua)
 
 # ────────────────────────────────────────────────────────────────────────────
 # PHẦN G: LỊCH TỰ ĐỘNG (F4) — đồng hồ thật là Windows Task Scheduler
