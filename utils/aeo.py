@@ -67,7 +67,7 @@ def analyze_answer(answer: str, brands: list[str] | None = None) -> dict:
     Khớp TOKEN trọn vẹn sau fold dấu: 'nankybeauty.com' → ['nankybeauty', 'com'],
     nên brand 'nankybeauty.com' được: token chấm-phẩy/khoảng trắng đều là ranh giới.
     'nankybeautyva' vẫn là MỘT token riêng — không tính là 'nankybeauty' (char-substring
-    match sẽ đếm sai biếtn음 gần đúng thành nhắc thật). Cùng vị trí bị biến thể brand
+    match sẽ đếm sai biến thể gần đúng thành nhắc thật). Cùng vị trí bị biến thể brand
     trung lặp → đếm MỘT (gộp set vị trí).
     """
     brands = list(brands if brands is not None else getattr(cfg, "AEO_BRANDS", []))
@@ -127,7 +127,7 @@ def _prune(records: list, keep: int | None = None) -> list:
 
     Records được append theo thứ tự thời gian chèn — kể cả các bản ghi có cùng date
     hay added_at (thêm trong cùng giây), thứ tự chèn vẫn là TRẬT TỰ đáng tin; sort
-    theo (date, added_at) khi các key trùng gây mất ổn định thứ tựーチ gốc.
+    theo (date, added_at) khi các key trùng gây mất ổn định thứ tự gốc.
     """
     keep = keep if keep is not None else getattr(cfg, "AEO_HISTORY_KEEP", 500)
     if len(records) <= keep:
