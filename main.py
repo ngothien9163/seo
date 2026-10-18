@@ -69,6 +69,7 @@ def show_strategy():
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
+    print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
@@ -190,6 +191,10 @@ if __name__ == "__main__":
         title = _flag_value("--title")
         excerpt = _flag_value("--excerpt")
         sys.exit(run_push_cli(path, status=status, title=title, excerpt=excerpt))
+
+    elif "--doctor" in sys.argv:
+        from utils.doctor import run_doctor_cli
+        sys.exit(run_doctor_cli(net="--net" in sys.argv))
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
