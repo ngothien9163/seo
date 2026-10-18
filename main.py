@@ -66,6 +66,7 @@ def show_strategy():
     print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
+    print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
@@ -173,6 +174,10 @@ if __name__ == "__main__":
     elif "--alerts" in sys.argv:
         from utils.alerts import run_alert_check_cli
         sys.exit(run_alert_check_cli())
+
+    elif "--audit-actions" in sys.argv:
+        from utils.audit_actions import run_audit_actions_cli
+        sys.exit(run_audit_actions_cli())
 
     elif "--run-job" in sys.argv:
         from utils.scheduler import run_job
