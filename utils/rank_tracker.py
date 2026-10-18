@@ -109,6 +109,12 @@ def _domain_of(url: str) -> str:
     return _norm_domain(netloc)
 
 
+# Số URL SERP đầu mỗi từ khóa giữ lại trong rank history (phân tích competitor P2).
+# Cắt ở token này khi lưu — check_keyword_rank trả nguyên danh sách, lưu ít đi để
+# file history không phình vô hạn.
+_TOP_URLS_KEPT = 10
+
+
 # ─── GIỚI HẠN TẦN SUẤT CHECK (tách riêng khỏi rate_limiter của traffic bot) ──
 
 def can_run_check() -> tuple[bool, str]:
@@ -208,7 +214,13 @@ async def check_keyword_rank(page: Page, keyword: str, domain: str, depth: int =
             position, matched = idx, href
             break
 
-    return {"captcha": False, "position": position, "url": matched, "scanned": len(hrefs)}
+    # Top đầu SERP giữ lại cho phân tích competitor (P2): hrefs đã scan sẵn
+    # nên việc lưu thêm là 0 request — bỏ đi mới là phí. Giới hạn token để
+    # file lịch sử không phình (10 URL / từ khóa là đủ đếm domain nào giành top).
+    top_urls = hrefs[:_TOP_URLS_KEPT]
+
+    return {"captcha": False, "position": position, "url": matched, "scanned": len(hrefs),
+            "top_urls": top_urls}
 
 
 # ─── LƯU KẾT QUẢ ─────────────────────────────────────────────────────────────
@@ -287,7 +299,8 @@ async def run_rank_check(page: Page, keywords: list = None, domain: str = None,
             captcha_hit = True
             break
 
-        results[kw] = {"pos": r["position"], "url": r["url"]}
+        results[kw] = {"pos": r["position"], "url": r["url"],
+                       "top_urls": r.get("top_urls") or []}
         if r["position"]:
             print(f"[Rank]    → Hạng {r['position']}: {r['url'][:70]}")
         elif r["scanned"] == 0:

@@ -71,6 +71,7 @@ def show_strategy():
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
     print("  python main.py --internal-links  Goi y link noi bo tu du lieu audit + rank hien co")
+    print("  python main.py --competitors     Domain doi thu xuat hien nhieu nhat tren SERP (tu rank history)")
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
@@ -206,6 +207,10 @@ if __name__ == "__main__":
     elif "--internal-links" in sys.argv:
         from utils.internal_links import run_internal_links_cli
         sys.exit(run_internal_links_cli())
+
+    elif "--competitors" in sys.argv:
+        from utils.competitors import run_competitors_cli
+        sys.exit(run_competitors_cli())
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
