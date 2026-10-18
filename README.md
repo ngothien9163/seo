@@ -97,9 +97,11 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ### 11. Lịch chạy tự động — Windows Task Scheduler (F4)
 
-- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`.
-- **Không tự nới giới hạn.** Job `rank` vẫn bị `RANK_CHECK_MAX_PER_DAY`/`RANK_CHECK_MIN_INTERVAL` chặn, `gsc` vẫn bị `GSC_MAX_FETCH_PER_DAY`, `traffic` vẫn bị rate limiter — scheduler gọi lại đúng hàm check của module gốc chứ không đếm riêng.
+- **Đồng hồ không nằm trong code.** Windows Task Scheduler gọi `python main.py --run-job rank|gsc|backlink|traffic` đúng giờ; `utils/scheduler.py` chỉ quyết định "giờ này có được chạy không", chặn hai job chồng nhau (`data/scheduler.lock` — PID + heartbeat, stale 20 phút) và ghi dấu vết vào `data/scheduler_state.json`.
+- **Không tự nới giới hạn.** Job `rank` vẫn bị `RANK_CHECK_MAX_PER_DAY`/`RANK_CHECK_MIN_INTERVAL` chặn, `gsc` vẫn bị `GSC_MAX_FETCH_PER_DAY`, `backlink` chạy đúng engine `--backlink-check` (không fetch thêm, không retry 403/429), `traffic` vẫn bị rate limiter — scheduler gọi lại đúng hàm check của module gốc chứ không đếm riêng.
+- **Job `backlink` mặc định không tự chạy** (`SCHEDULER_BACKLINK_HOURS = []`): điền ví dụ `[9]` như `SCHEDULER_GSC_HOURS` và đăng ký task tương tự nếu muốn verify link hàng tuần; danh sách link rỗng thì job tự dừng và nhắc lệnh `--backlink-add`.
 - **Traffic mặc định TẮT tự chạy** (`SCHEDULER_TRAFFIC_ENABLE = False`): bật lên là quyết định của bạn, vì chạy lúc không có ai nhìn thì lỗi tích âm thầm.
+- **Tin Telegram tóm tắt sau job** (mặc định TẮT, `SCHEDULER_NOTIFY_ENABLE = False`): bật cùng `ALERTS_ENABLE` để nhận 1 tin ngắn sau mỗi job — job gì, xong hay lỗi, exit code; job `rank` xong thì kèm số cảnh báo đang chờ. Tin gửi lỗi không bao giờ làm job tính là thất bại.
 - **Không chạy bù**: máy tắt đúng giờ thì mất lượt trong ngày — không gom nhiều lần check một lúc cho đỡ "phí".
 - **Chạy nền không ngồi chờ**: job `rank` gặp CAPTCHA thì bỏ qua từ khóa đó (khác với bấm `--rank` trong GUI, có ô hỏi người giải).
 - Xem lại: `python main.py --scheduler-status` (job nào chạy lúc nào, exit code, lỗi cuối, 5 lần gần nhất) hoặc khung **🗓 LỊCH TỰ ĐỘNG** trong tab 📈 Xếp Hạng. GUI cố ý **không** có nút chạy job — muốn chạy tay thì dùng CLI để log nằm đúng chỗ.
@@ -172,6 +174,13 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 17. `--doctor` — kiểm tra môi trường một lệnh (combo #1)
+
+- `python main.py --doctor` quét nhanh mọi thứ setup xong chưa: site/từ khóa, lịch rank, dữ liệu GSC, Telegram, Ollama (thêm `--net` để gọi thật), backlink, WordPress, bản nháp, thư mục state — mỗi mục trả ✓ sẵn sàng / ! cần lưu ý / ✗ thiếu, kèm hướng dẫn sửa; cuối bảng là dòng tổng và con trỏ tới **[`docs/CHECKLIST_FIRST_RUN.md`](docs/CHECKLIST_FIRST_RUN.md)**.
+- **Không bao giờ crash**: mỗi mục tự nuốt lỗi của nó → vấn đề nào có câu trả lời, vấn đề nào không → ra `!`. Secret (Telegram token) chỉ hiện 4 ký tự cuối. Thoát code luôn 0 — đây là lệnh đọc, không phải lệnh chặn.
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -235,8 +244,9 @@ python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào
 python main.py --export rank|gsc|audit|backlinks|all  # Xuất CSV (mở Excel); `all` = rank + gsc (audit/backlinks phải chạy trước)
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --weekly    # Báo cáo tuần gộp SERP+GSC+AEO → 1 tin Telegram (1 lần/tuần, --force gửi lại)
-python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
+python main.py --run-job rank|gsc|backlink|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
+python main.py --doctor [--net]  # Kiểm tra môi trường 1 lệnh: site/từ khóa, GSC, Telegram, Ollama, backlink, WP, nháp
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
 python main.py --audit-actions [--limit 5]  # Finding audit → việc ưu tiên theo từ khóa (CAO trước)
 python main.py --wp-push content/drafts/<file>.md  # Đẩy 1 bản nháp lên WP (CHỈ status draft/pending)
@@ -287,6 +297,8 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `RANK_ALERT_TREND_DROP` | `3` | Cảnh báo (C4): trung bình hạng 4 mốc mới xấu đi ≥ N vị trí so với 4 mốc cũ → 🌡️ dự báo |
 | `RANK_ALERT_TREND_WINDOW` | `14` | Cảnh báo (C4): số lần check gần nhất được nhìn |
 | `SCHEDULER_RANK_HOURS` / `SCHEDULER_GSC_HOURS` | `[7, 13, 19]` / `[9]` | Lịch **mong muốn** — chỉ để in ra status; giờ thật phải sửa trên Windows Task Scheduler |
+| `SCHEDULER_BACKLINK_HOURS` | `[]` | Lịch job verify backlink — rỗng = không tự chạy, chỉ `--run-job backlink` tay |
+| `SCHEDULER_NOTIFY_ENABLE` | `False` | 1 tin Telegram tóm tắt sau mỗi job (cần `ALERTS_ENABLE=True` mới có kênh gửi) |
 | `SCHEDULER_TRAFFIC_ENABLE` | `False` | Cho phép lịch tự chạy session traffic — mặc định TẮT, bật là quyết định của owner |
 | `SCHEDULER_LOCK_STALE` | `1200` | Giây không heartbeat thì lock bị coi là đã chết, job khác giành quyền chạy |
 | `AUDIT_MAX_PAGES` | `100` | Audit: số trang tối đa mỗi lần `--audit` (`--audit-limit N` để đổi từng lần) |
