@@ -174,9 +174,52 @@ def parse_api_response(payload: dict) -> dict:
     return out
 
 
+def parse_qp_response(payload: dict) -> dict:
+    """Response dimensions=["query","page"] → {query: [{page, clicks, imps}]}.
+    Mỗi hàng là một cặp (query, page) — gom theo query; hàng thiếu page bị bỏ
+    (GSC trả page rỗng cho dòng tổng, không phải trang thật)."""
+    out: dict = {}
+    for row in (payload or {}).get("rows") or []:
+        keys = row.get("keys") or []
+        if len(keys) < 2:
+            continue
+        q, page = str(keys[0]), str(keys[1])
+        if not q or not page:
+            continue
+        out.setdefault(q, []).append({
+            "page": page,
+            "clicks": int(row.get("clicks") or 0),
+            "imps": int(row.get("impressions") or 0),
+        })
+    return out
+
+
 def _query_url() -> str:
     site = quote(getattr(cfg, "GSC_SITE_URL", ""), safe="")
     return f"{GSC_API_BASE}/{site}/searchAnalytics/query"
+
+
+def _search_body(days: int, dimensions: list) -> dict:
+    return {
+        "startDate": (date.today() - timedelta(days=days - 1)).isoformat(),
+        "endDate": date.today().isoformat(),
+        "dimensions": dimensions,
+        "rowLimit": 250,
+        "dataState": "all",
+    }
+
+
+def _post_search(body: dict) -> dict:
+    """POST searchAnalytics/query — 401 → refresh token 1 lần rồi thử lại.
+    Đồng bộ, raise GSCSetupError / requests.HTTPError / RequestException."""
+    creds = load_credentials()
+    headers = {"Authorization": f"Bearer {_get_token(creds)}"}
+    resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
+    if resp.status_code == 401:  # token hết hạn — refresh 1 lần rồi thử lại
+        headers = {"Authorization": f"Bearer {_get_token(creds, force_refresh=True)}"}
+        resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def fetch_search_analytics(days: int = None) -> dict:
@@ -188,37 +231,37 @@ def fetch_search_analytics(days: int = None) -> dict:
     if days is None:
         days = getattr(cfg, "GSC_LOOKBACK_DAYS", 28)
 
-    creds = load_credentials()
-    body = {
-        "startDate": (date.today() - timedelta(days=days - 1)).isoformat(),
-        "endDate": date.today().isoformat(),
-        "dimensions": ["query"],
-        "rowLimit": 250,
-        "dataState": "all",
-    }
+    return parse_api_response(_post_search(_search_body(days, ["query"])))
 
-    headers = {"Authorization": f"Bearer {_get_token(creds)}"}
-    resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
-    if resp.status_code == 401:  # token hết hạn — refresh 1 lần rồi thử lại
-        headers = {"Authorization": f"Bearer {_get_token(creds, force_refresh=True)}"}
-        resp = requests.post(_query_url(), json=body, headers=headers, timeout=30)
-    resp.raise_for_status()
-    return parse_api_response(resp.json())
+
+def fetch_query_page(days: int = None) -> dict:
+    """Fetch thứ hai cùng lần chạy (G-1): dimensions=["query","page"] →
+    {query: [{page, clicks, imps}]} — dữ liệu cho G-2 cannibalization.
+    Lỗi API/mạng raise cho caller quyết (fetch query thành công thì snapshot
+    query vẫn được lưu — dữ liệu theo trang chỉ là bù, không chặn)."""
+    if days is None:
+        days = getattr(cfg, "GSC_LOOKBACK_DAYS", 28)
+
+    return parse_qp_response(_post_search(_search_body(days, ["query", "page"])))
 
 
 # ─── LƯU SNAPSHOT ────────────────────────────────────────────────────────────
 
-def save_snapshot(rows: dict, start_date: str, end_date: str):
-    """Lưu 1 snapshot/ngày (key = ngày fetch). Ghi đè snapshot cùng ngày. Prune quá 90 ngày."""
+def save_snapshot(rows: dict, start_date: str, end_date: str, pages: dict = None):
+    """Lưu 1 snapshot/ngày (key = ngày fetch). Ghi đè snapshot cùng ngày. Prune quá 90 ngày.
+    `pages` (G-1) là dữ liệu theo (query, page) — snapshot cũ không có field này."""
     h = _load_history()
     h["site"] = getattr(cfg, "GSC_SITE_URL", "")
     h.setdefault("snapshots", {})
-    h["snapshots"][date.today().isoformat()] = {
+    snap = {
         "fetched_at": datetime.now().isoformat(timespec="seconds"),
         "start_date": start_date,
         "end_date": end_date,
         "rows": rows,
     }
+    if pages:  # rỗng/None → không ghi field (snapshot cũ giữ nguyên hình dáng)
+        snap["pages"] = pages
+    h["snapshots"][date.today().isoformat()] = snap
     keys = sorted(h["snapshots"].keys())
     for k in keys[:-MAX_SNAPSHOTS_KEPT]:
         del h["snapshots"][k]
@@ -470,8 +513,19 @@ def run_gsc_fetch_cli():
     total_imps = sum(r["impressions"] for r in rows.values())
     print(f"[GSC] ✅ Nhận {n} query | {total_clicks} clicks | {total_imps} impressions")
 
+    # Dữ liệu theo (query, page) trong CHÙM fetch này (G-1) — lỗi không chặn
+    # query snapshot: query là kim chỉ nam chính của tool.
+    pages = {}
+    try:
+        pages = fetch_query_page(days)
+        print(f"[GSC] ✅ Dữ liệu theo trang: {sum(len(v) for v in pages.values())} cặp (query, page)")
+    except Exception as e:
+        print(f"[GSC] ⚠️ Lấy dữ liệu theo trang lỗi ({type(e).__name__}: {str(e)[:100]})"
+              " — vẫn lưu snapshot query; --gsc kế tiếp tự thử lại.")
+
     today = date.today().isoformat()
-    save_snapshot(rows, (date.today() - timedelta(days=days - 1)).isoformat(), today)
+    save_snapshot(rows, (date.today() - timedelta(days=days - 1)).isoformat(), today,
+                  pages=pages)
     mark_fetch_run()
     print()
     print_report()

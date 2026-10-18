@@ -57,6 +57,7 @@ def show_strategy():
     print("  python main.py --rank-report Xem bao cao xep hang da luu")
     print("  python main.py --gsc        Lay du lieu Search Console (clicks/impressions)")
     print("  python main.py --gsc-report Xem bao cao Search Console da luu")
+    print("  python main.py --gsc-pages  Cannibalization theo Google that: query nao do may trang phuc vu")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
     print("  python main.py --export rank|gsc|audit|backlinks|all  Xuat bao cao CSV mo bang Excel")
@@ -163,6 +164,10 @@ if __name__ == "__main__":
     elif "--gsc-report" in sys.argv:
         from utils.gsc_client import print_report
         print_report()
+
+    elif "--gsc-pages" in sys.argv:
+        from utils.gsc_pages import run_gsc_pages_cli
+        sys.exit(run_gsc_pages_cli())
 
     elif "--gsc-keywords" in sys.argv:
         from utils.gsc_client import run_keyword_suggest_cli
