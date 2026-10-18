@@ -74,6 +74,7 @@ def show_strategy():
     print("  python main.py --competitors     Domain doi thu xuat hien nhieu nhat tren SERP (tu rank history)")
     print("  python main.py --keyword-groups  Cum tu khoa + danh sach bai nen refresh (tu du lieu co san)")
     print("  python main.py --rank-urls       Trang nao dang rank cho tu nao + canh bao doi trang")
+    print("  python main.py --ctr-ops         Query duoc thay ma it nguoi click - goi y sua title/meta (tu GSC)")
     print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
@@ -222,6 +223,10 @@ if __name__ == "__main__":
     elif "--rank-urls" in sys.argv:
         from utils.rank_urls import run_rank_urls_cli
         sys.exit(run_rank_urls_cli())
+
+    elif "--ctr-ops" in sys.argv:
+        from utils.ctr_opportunities import run_ctr_cli
+        sys.exit(run_ctr_cli())
 
     elif "--aeo-questions" in sys.argv:
         from utils.aeo_prompts import run_aeo_questions_cli
