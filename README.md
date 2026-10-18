@@ -90,6 +90,8 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Token nên để ở biến môi trường `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (thắng giá trị trong settings.py) khỏi phải commit bí mật.
 - Telegram sập / sai token / hết mạng → chỉ in cảnh báo lỗi, **rank check không chết theo**, và tin chưa gửi sẽ được thử lại ở lần check sau.
 - GUI có nút **🧪 GỬI THỬ BÁO ĐỘNG** để xác nhận tin tới điện thoại, kèm nhãn "Cảnh báo: Telegram/console".
+- **Cảnh báo sớm theo xu hướng (C4)**: ngoài rule so 2 lần check, engine còn nhìn **14 lần check gần nhất** (`RANK_ALERT_TREND_WINDOW`) — trung bình hạng của 4 mốc mới nhất so với 4 mốc ngay trước đó; xấu đi **≥ `RANK_ALERT_TREND_DROP`** (mặc định 3) vị trí → tin 🌡️ "xu hướng giảm dần, dự báo sẽ rớt" **trước khi** chạm ngưỡng tụt đột ngột. Chuỗi phải đủ 4+4 mốc đo được liên tục — đứt giữa (không vào top N) thì không ước lượng. Tắt bằng `RANK_ALERT_TREND_ENABLE = False`.
+- **Báo cáo tuần (C3)**: `python main.py --weekly` gộp SERP + Search Console + AEO thành 1 tin Telegram ≤ 4096 ký tự, **1 lần/tuần** (state `data/weekly_digest.json`); nguồn nào chưa có dữ liệu thì bị bỏ, không nguồn nào chết cả báo cáo; `--force` gửi lại. Gửi hỏng mạng thì tuần chưa đánh dấu — lần chạy kế tự thử lại.
 
 ---
 
@@ -113,7 +115,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Kết quả lưu vào `data/audit_last.json` → `python main.py --export audit` ra CSV (`severity,rule,url,detail`, UTF-8 BOM) mở bằng Excel. GUI: tab **📈 Xếp Hạng** → nút **🔍 AUDIT SITE** (thread nền, log in ra khung, chạy xong tự xuất CSV).
 - `python main.py --pagespeed [URL]`: **LCP / CLS / INP** + điểm hiệu năng, cả mobile lẫn desktop, qua PageSpeed Insights API; chỉ lưu số gọn trong `data/pagespeed.json` (không lưu response thô, vài MB).
 - Số PSI là **LAB** (Lighthouse do Google chạy hộ lúc gọi), **không phải field data CrUX**. API **không cần key**, nhưng quota ẩn danh là *"Queries per day" dùng chung toàn cầu* — **đo thật 2026-10-14: đang cạn**, nên lệnh hiện trả thông báo 429 và exit 1. Muốn có số: tạo key miễn phí rồi điền `PAGESPEED_API_KEY` (key là secret của bạn — code không in ra log, không ghi vào file).
-- HTML tĩnh **không phải Googlebot**: nội dung render bằng JS không được soi, và thứ hạng thật có thể khác những gì HTML thể hiện. `--audit-limit N` để thu hẹp/mở rộng số trang crawl.
+- `python main.py --audit-actions` (C2): biến findings của lần audit gần nhất thành **việc ưu tiên theo từ khóa** — URL của lỗi được ghép với từ khóa trong `config/keywords.json` (kỹ thuật so token không dấu, URL phải khớp ≥ 2 token có nghĩa → trang `/blog/p5` hay trang chủ không bao giờ bị gán oan), sắp xếp **CAO trước** rồi in tối đa 5 việc (`--limit N`). Lỗi trang chủ (không khớp từ khóa nào) thành nhóm "Trang chủ/tổng" vì ảnh hưởng mọi từ khóa. Chưa từng chạy `--audit`? Lệnh in ra hướng dẫn chạy `--audit` trước thay vì im lặng.
 
 ---
 
@@ -225,9 +227,11 @@ python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Conso
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
 python main.py --export rank|gsc|audit|backlinks|all  # Xuất CSV (mở Excel); `all` = rank + gsc (audit/backlinks phải chạy trước)
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
+python main.py --weekly    # Báo cáo tuần gộp SERP+GSC+AEO → 1 tin Telegram (1 lần/tuần, --force gửi lại)
 python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
+python main.py --audit-actions [--limit 5]  # Finding audit → việc ưu tiên theo từ khóa (CAO trước)
 python main.py --pagespeed [URL]  # Core Web Vitals (LCP/CLS/INP) từ PageSpeed Insights — số LAB
 python main.py --backlink-check [--backlink-limit 20]  # Verify link đã đặt: còn sống + còn link tới site + dofollow
 python main.py --backlink-add "https://site-khac/bai-cua-ban"  # Thêm 1 backlink vào config/backlinks.json
@@ -271,6 +275,9 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `RANK_ALERT_TOP10_FALL` | `True` | Cảnh báo: đang trong Top 10 mà rớt ra ngoài thì báo |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | `""` | Cảnh báo: nên để ở **biến môi trường** (thắng settings.py) — xem `docs/SETUP_ALERTS.md` |
 | `ALERTS_STATE_DIR` | `data` | Nơi lưu `alerts_state.json` (state chống spam 1 tin/ngày/từ khóa) |
+| `RANK_ALERT_TREND_ENABLE` | `True` | Cảnh báo (C4): rule xu hướng bật sẵn — tắt nếu chỉ muốn rule tụt đột ngột |
+| `RANK_ALERT_TREND_DROP` | `3` | Cảnh báo (C4): trung bình hạng 4 mốc mới xấu đi ≥ N vị trí so với 4 mốc cũ → 🌡️ dự báo |
+| `RANK_ALERT_TREND_WINDOW` | `14` | Cảnh báo (C4): số lần check gần nhất được nhìn |
 | `SCHEDULER_RANK_HOURS` / `SCHEDULER_GSC_HOURS` | `[7, 13, 19]` / `[9]` | Lịch **mong muốn** — chỉ để in ra status; giờ thật phải sửa trên Windows Task Scheduler |
 | `SCHEDULER_TRAFFIC_ENABLE` | `False` | Cho phép lịch tự chạy session traffic — mặc định TẮT, bật là quyết định của owner |
 | `SCHEDULER_LOCK_STALE` | `1200` | Giây không heartbeat thì lock bị coi là đã chết, job khác giành quyền chạy |
