@@ -70,6 +70,7 @@ def show_strategy():
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
+    print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
@@ -195,6 +196,11 @@ if __name__ == "__main__":
     elif "--doctor" in sys.argv:
         from utils.doctor import run_doctor_cli
         sys.exit(run_doctor_cli(net="--net" in sys.argv))
+
+    elif "--html-report" in sys.argv:
+        from utils.html_report import run_html_report_cli
+        # đường dẫn tùy chọn ngay sau cờ; bỏ trống → data/report.html (per-site)
+        sys.exit(run_html_report_cli(_flag_value("--html-report")))
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
