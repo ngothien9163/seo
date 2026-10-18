@@ -237,11 +237,28 @@ class TrafficBotUI(ctk.CTk):
         if _kws:
             self.txt_keywords.insert("0.0", "\n".join(_kws))
 
-        # ── Multi-site (F10) — chọn site bằng cách sửa Target URL ở trên rồi bấm áp ──
+        # ── Multi-site (F10/F10b) — dropdown sổ site + nút áp theo Target URL ──
         sf_frame = ctk.CTkFrame(t, fg_color="transparent")
         sf_frame.grid(row=8, column=0, sticky="w", padx=12, pady=(12, 2))
-        ctk.CTkButton(sf_frame, text="🔀 Áp dụng site (theo Target URL ở trên)", height=28,
-                      font=ctk.CTkFont(size=11), command=self.apply_site).pack(side="left")
+        self.combo_sites = ctk.CTkComboBox(sf_frame, width=220, height=28,
+                                           values=self._registry_values(),
+                                           fg_color="#38383f", button_color="#5a5a6a")
+        self.combo_sites.pack(side="left")
+        ctk.CTkButton(sf_frame, text="📂 Site sổ", height=28, width=96,
+                      font=ctk.CTkFont(size=11),
+                      command=self.select_registry_site).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(sf_frame, text="➕ Thêm site", height=28, width=96,
+                      font=ctk.CTkFont(size=11),
+                      command=self.add_site_to_registry).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(sf_frame, text="⚡ Chạy cả sổ", height=28, width=110,
+                      font=ctk.CTkFont(size=11), fg_color="#7a1a5a", hover_color="#982470",
+                      command=self.run_sites_batch).pack(side="left", padx=(8, 0))
+        self.combo_batch = ctk.CTkComboBox(sf_frame, width=120, height=28,
+                                           values=["Check rank", "GSC fetch", "Audit", "Report HTML"],
+                                           fg_color="#38383f", button_color="#5a5a6a")
+        self.combo_batch.pack(side="left", padx=(8, 0))
+        self.btn_apply_site = ctk.CTkButton(sf_frame, text="🔀 Áp dụng site (theo Target URL ở trên)", height=28,
+                      font=ctk.CTkFont(size=11), command=self.apply_site).pack(side="left", padx=(8, 0))
         self.lbl_known_sites = ctk.CTkLabel(
             t, text="", font=ctk.CTkFont(size=10), text_color="gray",
             anchor="w", justify="left", wraplength=360)
@@ -257,6 +274,70 @@ class TrafficBotUI(ctk.CTk):
             self.lbl_known_sites.configure(text=self._known_sites_text())
         except Exception:
             pass
+
+    # ── F10b/F10c — sổ site trong UI ─────────────────────────────────────────
+
+    def _registry_rows(self) -> list:
+        from utils.site_registry import load
+        try:
+            return load()
+        except Exception as e:
+            print(f"[Sites] Không đọc được sổ site: {e}")
+            return []
+
+    def _registry_values(self) -> list:
+        return [r["url"] for r in self._registry_rows()] or ["(sổ trống — chạy --sites)"]
+
+    def select_registry_site(self):
+        """📂: chọn site trong dropdown → điền Target URL (= nút 🔀 kết tiếp chỉ bấm cho chắc)."""
+        url = (self.combo_sites.get() or "").strip()
+        if not url or url.startswith("("):
+            print("[Sites] Sổ site trống — thêm site bằng ➕ (site phải migrate trước).")
+            return
+        self.entry_url.delete(0, END)
+        self.entry_url.insert(0, url)
+        self.apply_site()
+
+    def add_site_to_registry(self):
+        """➕: thêm site đang nhập ở Target URL vào sổ (F10b) — có messagebox xác nhận migrate."""
+        url = self.entry_url.get().strip()
+        if not url:
+            print("[Sites] Target URL trống — nhập domain rồi bấm ➕.")
+            return
+        try:
+            from utils.site_registry import add, run_site_add_cli
+            run_site_add_cli(url)
+            self.combo_sites.configure(values=self._registry_values())
+            self._refresh_known_sites()
+        except Exception as e:
+            print(f"[Sites] Thêm site lỗi: {type(e).__name__}: {e}")
+
+    def run_sites_batch(self):
+        """⚡: chạy 1 lệnh (rank/gsc/audit/report) qua TỪNG site sổ — process con mỗi site."""
+        if self.is_running or getattr(self, "_rank_running", False) \
+                or getattr(self, "_gsc_running", False) or getattr(self, "_audit_running", False):
+            print("[Sites] ⏳ Có job đang chạy — dừng hẳn rồi mới chạy cả sổ.")
+            return
+        choice = (self.combo_batch.get() or "").strip()
+        cli_map = {"Check rank": "--rank", "GSC fetch": "--gsc", "Audit": "--audit",
+                   "Report HTML": "--html-report"}
+        cli = cli_map.get(choice)
+        if not cli:
+            print("[Sites] Chọn lệnh trong dropdown ⚡ (Check rank / GSC fetch / Audit / Report HTML).")
+            return
+        rows = self._registry_rows()
+        if not rows:
+            print("[Sites] Sổ trống — không chạy lô gì cả.")
+            return
+        threading.Thread(target=self._sites_batch_worker, args=(cli,), daemon=True).start()
+
+    def _sites_batch_worker(self, cli: str):
+        try:
+            from utils.sites_run import run_sites_run_cli
+            run_sites_run_cli([cli])
+        except Exception as e:
+            print(f"[Sites] Chạy lô lỗi: {type(e).__name__}: {e}")
+
 
     def apply_site(self):
         """Đổi site đang làm việc: đặt cfg.TARGET_URL theo Target URL, module tự re-resolve lúc gọi."""
@@ -1306,7 +1387,20 @@ class TrafficBotUI(ctk.CTk):
         self._reset_counters()
         self.update_ui_state(running=True)
 
-        cfg.TARGET_URL   = self.entry_url.get().strip()
+        # F10b — site ở trên phải được ÁP DỤNG ĐÚNG NGHĨA trước khi ghi bất kỳ state nào:
+        # chỉ ném TARGET_URL thì từ khóa bị save vào keywords.json của site sai
+        # (nháp của site A rơi xuống site B). Cùng hiệu lực nút 🔀 (không reload gfx).
+        url = self.entry_url.get().strip()
+        if url and url != cfg.TARGET_URL:
+            cfg.TARGET_URL = url if "://" in url else f"https://{url}"
+            dom = site_paths.site_domain()
+            if dom:
+                cfg.GSC_SITE_URL = f"sc-domain:{dom}"
+            print(f"[Site] Đã áp dụng site mới: {dom or cfg.TARGET_URL}"
+                  f"  |  per-site={'BẬT' if site_paths.is_multi_site() else 'TẮT (chưa migrate)'}")
+        else:
+            cfg.TARGET_URL = url or cfg.TARGET_URL
+
         cfg.TRAFFIC_MODE = self.radio_var.get()
 
         kws = self.txt_keywords.get("0.0", "end").strip().split("\n")
