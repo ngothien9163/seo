@@ -318,11 +318,13 @@ def build_report(tail_spark: int = 8) -> str:
     gsc_h = _load_history()
     snaps = gsc_h.get("snapshots", {})
     if not snaps:
-        # Chưa có dữ liệu GSC → fallback báo cáo xếp hạng + ghi chú hướng dẫn
+        # Chưa có dữ liệu GSC: báo SERP vẫn chạy (ai đó có rank data cũng nên thấy),
+        # nhưng phải nói rõ PHẦN GSC đang trống — nguyên verb của rank report
+        # ("Chưa có dữ liệu xếp hạng") từng làm tưởng GSC chết vì copy-paste.
         from utils.rank_tracker import build_report as rank_report
         return (rank_report()
-                + "\n\n  [Search Console] Chưa có dữ liệu GSC — setup: docs/SETUP_GSC.md"
-                  " | Lấy lần đầu: python main.py --gsc")
+                + "\n\n  [Search Console] BÁO CÁO GỘP không có phần GSC — chưa fetch lần nào."
+                  "\n  Setup: docs/SETUP_GSC.md | Lấy lần đầu: python main.py --gsc")
 
     latest_key = sorted(snaps.keys())[-1]
     snap = snaps[latest_key]

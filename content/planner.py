@@ -72,9 +72,10 @@ def get_plan_summary():
     }
 
 def print_plan():
-    """In lịch content ra console."""
+    """In lịch content ra console — heading theo site hiện tại, không brand chết."""
+    from utils.site_paths import site_domain
     print("=" * 80)
-    print("  CONTENT STRATEGY — 30 NGÀY CHO TOPDEV.VN")
+    print(f"  CONTENT STRATEGY — 30 NGÀY CHO {site_domain().upper() or 'SITE CỦA BẠN'}")
     print("  Mục tiêu: Xây dựng authority tự nhiên, giảm phụ thuộc automation")
     print("=" * 80)
     print(f"{'Ngày':<6} {'Loại':<8} {'Keyword':<35} {'Mục tiêu'}")
