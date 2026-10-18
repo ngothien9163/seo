@@ -70,9 +70,9 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ### 8. Xuất báo cáo CSV — mang dữ liệu đi nơi khác
 
-- `--export rank` xuất **toàn bộ lịch sử xếp hạng** (một dòng mỗi lần check × mỗi từ khóa), `--export gsc` xuất các query của snapshot Search Console mới nhất, `--export audit` xuất các lỗi của lần `--audit` gần nhất, `--export all` (mặc định) ra cả hai file **định kỳ** (rank + gsc — audit không đi kèm vì phải tự crawl trước).
+- `--export rank` xuất **toàn bộ lịch sử xếp hạng** (một dòng mỗi lần check × mỗi từ khóa), `--export gsc` xuất các query của snapshot Search Console mới nhất, `--export audit` xuất các lỗi của lần `--audit` gần nhất, `--export backlinks` xuất kết quả check backlink, `--export plan` xuất **30 mục content plan + tiến độ** (đã push WP / draft chờ duyệt / chưa làm — dùng chung nguồn với `--plan-progress`), `--export all` (mặc định) ra **cả 5 loại**, mỗi loại một file (nguồn nào chưa có dữ liệu thì file đó chỉ có tiêu đề, quy trình không gãy).
 - Mã **UTF-8 có BOM** → mở trực tiếp bằng Excel bản tiếng Việt không lỗi dấu; CTR xuất dạng số đã ×100 (không kèm ký hiệu `%`) để Excel còn tính toán được.
-- File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc|audit>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
+- File ghi vào `reports/export_<ngày>_<giờ>_<rank|gsc|audit|backlinks|plan>.csv`, **mỗi lần export một file mới** — không ghi đè lần trước. Chưa có dữ liệu thì file vẫn được ghi (chỉ có dòng tiêu đề) để quy trình không gãy.
 - GUI: tab **📈 Xếp Hạng** → nút **📤 XUẤT CSV** (in đường dẫn file ra log).
 
 ### 9. Từ khóa đề xuất từ Search Console — danh sách biết tự lớn
@@ -269,7 +269,7 @@ python main.py --gsc        # Lấy dữ liệu Search Console (clicks/impressio
 python main.py --gsc-report # Xem báo cáo Search Console đã lưu
 python main.py --gsc-keywords  # Từ khóa đề xuất từ query Search Console (chưa theo dõi)
 python main.py --gsc-add-keyword "nối mi quận 7"   # Thêm 1 từ khóa vào theo dõi (+ --yes)
-python main.py --export rank|gsc|audit|backlinks|all  # Xuất CSV (mở Excel); `all` = rank + gsc (audit/backlinks phải chạy trước)
+python main.py --export rank|gsc|audit|backlinks|plan|all  # Xuất CSV (mở Excel); `all` = cả 5 loại, trống vẫn ra file
 python main.py --alerts    # Cảnh báo tụt hạng đang chờ + kênh giao hàng (Telegram/console)
 python main.py --weekly    # Báo cáo tuần gộp SERP+GSC+AEO → 1 tin Telegram (1 lần/tuần, --force gửi lại)
 python main.py --run-job rank|gsc|backlink|report|traffic  # Gọi 1 job (Windows Task Scheduler dùng lệnh này)

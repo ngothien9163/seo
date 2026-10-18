@@ -61,7 +61,7 @@ def show_strategy():
     print("  python main.py --gsc-trend   Xu huong imps/clicks/CTR theo query, 8 moc gan nhat")
     print('  python main.py --gsc-keywords      Tu keyword de xuat tu query cua Search Console')
     print('  python main.py --gsc-add-keyword "..."  Them 1 tu keyword vao theo doi (--yes: khong hoi)')
-    print("  python main.py --export rank|gsc|audit|backlinks|all  Xuat bao cao CSV mo bang Excel")
+    print("  python main.py --export rank|gsc|audit|backlinks|plan|all  Xuat bao cao CSV mo bang Excel")
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --weekly     Bao cao tuan gop SERP+GSC+AEO -> Telegram (1 lan/tuan)")
     print("  python main.py --run-job rank|gsc|traffic  Goi 1 job (Windows Task Scheduler)")

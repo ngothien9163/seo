@@ -1,11 +1,12 @@
 """
 utils/exporter.py — F1: xuất dữ liệu SEO đã thu ra CSV mở bằng Excel.
 
-Đọc (không sửa) bốn file state:
+Đọc (không sửa) các file state:
 - rank_history.json  → một dòng mỗi (lần check × từ khóa), toàn bộ lịch sử
 - gsc_history.json   → các query của snapshot GSC mới nhất
 - audit_last.json    → các finding của lần `--audit` gần nhất
 - backlink_status.json → kết quả `--backlink-check` gần nhất (link chết/nofollow đầu bảng)
+- content plan 30 ngày + drafts + wp_pushed.json → tiến độ từng mục (H-C2)
 
 File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<kind>.csv` (multi-site thì thêm tiền
 tố slug: `<slug>_export_...`), mã UTF-8 có BOM (Excel bản tiếng Việt cần BOM để không
@@ -17,7 +18,8 @@ Chạy:
     python main.py --export gsc        # chỉ Search Console
     python main.py --export audit      # kết quả --audit lần gần nhất (data/audit_last.json)
     python main.py --export backlinks  # kết quả --backlink-check (data/backlink_status.json)
-    python main.py --export all        # rank + gsc (audit/backlinks không đi kèm: phải chạy trước)
+    python main.py --export plan       # 30 mục content plan: draft chưa / đã push WP
+    python main.py --export all        # cả 5 loại, mỗi loại một file (kể cả khi trống)
     GUI: tab "📈 Xếp Hạng" → nút "📤 XUẤT CSV"
 
 Ghi chú:
@@ -211,28 +213,61 @@ def export_backlinks() -> tuple[str, int]:
     return path, _write_csv(path, header, rows)
 
 
-def export_all() -> list[tuple[str, int]]:
-    """Cả hai loại — mỗi loại một file CSV (kể cả khi một loại trống).
+# ─── SERIALIZE + EXPORT: lịch sử audit (H-C2) ────────────────────────────────
 
-    `all` chỉ rank + gsc vì đó là dữ liệu định kỳ scheduler tự lấy. Audit và
-    backlink là thứ owner chủ động chạy (--audit / --backlink-check), bắt nó đi kèm
-    nghĩa là export một đống số liệu của lần chạy cũ nhất không ai biết từ bao giờ.
+PLAN_HEADER = ["Ngày", "Loại", "Trạng thái", "Từ khóa", "Mục tiêu"]
+_PLAN_MARK = {"pushed": "đã push WP", "draft": "draft chờ duyệt", "todo": "chưa làm"}
+
+
+def plan_rows() -> tuple[list[str], list[list[str]]]:
+    """30 mục content plan → (header, rows) — dùng chung nguồn với --plan-progress.
+
+    Trạng thái: 'đã push WP' > 'draft chờ duyệt' > 'chưa làm' (mức cao nhất thắng).
+    build_progress() đọc drafts + wp_pushed; cả hai trống → 'chưa làm' — lịch plan
+    vẫn xuất đủ 30 dòng vì là hằng số trong content/planner, đúng nghĩa 'chưa làm'.
     """
-    return [export_rank(), export_gsc()]
+    from utils.plan_progress import build_progress
+    rows = build_progress()
+    out = []
+    for r in sorted(rows, key=lambda r: int(r.get("day") or 0)):
+        state = "pushed" if r.get("pushed") else ("draft" if r.get("has_draft") else "todo")
+        out.append([str(r.get("day") or ""), _clean(r.get("type", "")),
+                    _clean(_PLAN_MARK[state]), _clean(r.get("keyword", "")),
+                    _clean(r.get("target", ""))])
+    return list(PLAN_HEADER), out
+
+
+def export_plan() -> tuple[str, int]:
+    header, rows = plan_rows()
+    path = _unique_path("plan")
+    return path, _write_csv(path, header, rows)
+
+
+def export_all() -> list[tuple[str, int]]:
+    """Cả năm loại — mỗi loại một file CSV (kể cả khi một loại trống).
+
+    `all` bao gồm cả audit/backlinks/plan vì: audit giờ tự snapshot lịch sử mỗi lần
+    chạy (audit_history.json), backlink có cache 24h — đều là state 'mới vừa đọc'
+    chứ không phải đống số liệu mồ môi; plan là hằng số 30 mục + tiến độ đã có,
+    không request nào. Rank + gsc vẫn là phần định kỳ scheduler tự lấy.
+    """
+    return [export_rank(), export_gsc(), export_audit(),
+            export_backlinks(), export_plan()]
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
-KINDS = ("rank", "gsc", "audit", "backlinks", "all")
+KINDS = ("rank", "gsc", "audit", "backlinks", "plan", "all")
 
 _LABELS = {"rank": "xếp hạng", "gsc": "Search Console",
-           "audit": "kết quả audit on-page", "backlinks": "kết quả check backlink"}
+           "audit": "kết quả audit on-page", "backlinks": "kết quả check backlink",
+           "plan": "tiến độ content plan"}
 # Lệnh lấy dữ liệu tương ứng — in ra khi file chỉ có tiêu đề
 _SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit",
-            "backlinks": "--backlink-check"}
+            "backlinks": "--backlink-check", "plan": "--plan-progress"}
 
 _EXPORTERS = {"rank": export_rank, "gsc": export_gsc, "audit": export_audit,
-              "backlinks": export_backlinks}
+              "backlinks": export_backlinks, "plan": export_plan}
 
 
 def run_export_cli(kind: str = "all") -> int:
@@ -242,8 +277,10 @@ def run_export_cli(kind: str = "all") -> int:
         print(f"[Export] ⚠️ Loại không hiểu: '{kind}' — hợp lệ: {' | '.join(KINDS)}")
         return 2
 
-    selected = [("rank", export_rank), ("gsc", export_gsc)] if kind == "all" else \
-               [(kind, _EXPORTERS[kind])]
+    if kind == "all":
+        selected = list(_EXPORTERS.items())
+    else:
+        selected = [(kind, _EXPORTERS[kind])]
 
     for label, fn in selected:
         path, n = fn()
