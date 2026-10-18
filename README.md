@@ -181,6 +181,20 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 18. Báo cáo HTML 1-file + bộ phân tích từ rank history (P1/P2)
+
+Một cụm tính năng cùng nguyên tắc: **đọc lại dữ liệu đã có** (rank history, audit, backlink status, GSC snapshot) — không thêm request nào, không thêm dependency nào.
+
+- **`--html-report`** (P1-1): gộp Xếp hạng + Search Console + Audit + Backlink thành **1 file HTML tự chứa** (`data/report.html`, per-site khi đã migrate) — không JS, không asset ngoài, mọi giá trị render qua `html.escape` (dữ liệu GSC/audit là text của bên thứ ba). Nguồn nào chưa có dữ liệu → section gợi ý lệnh cần chạy; nguồn nào lỗi không làm report chết. Ghi **atomic** (tmp + `os.replace`).
+- **`--internal-links`** (P1-2): gợi ý link nội bộ — mỗi từ khóa ghép với các trang site của mình (URL lấy từ audit + rank history), khớp ≥ 2 token có nghĩa (cùng kỹ thuật so không dấu của `--audit-actions`), xếp theo số token khớp. Tool chỉ IN gợi ý — bạn tự chèn link trong bài.
+- **`--competitors`** (P2-1): đếm tần suất **domain đối thủ** trong top URLs mà rank tracker đã lưu (từ lần `--rank` sau khi có tính năng; các lần cũ chưa lưu top URLs bị bỏ qua, không migrate). Tự loại domain của mình khỏi bảng; cần ≥ 2 lần check mới có số.
+- **`--keyword-groups`** (P2-2): nhóm từ khóa **trùng ≥ 2 token** thành cụm (mỗi từ khóa thuộc đúng 1 cụm — thứ tự nhập thắng), kèm **danh sách bài nên refresh**: hạng hiện tại trong vùng 5–15 và từng vào Top 10 trước đây, xếp theo tiềm năng (đỉnh cũ − hiện tại). Dữ liệu từ rank history, không gọi mạng.
+- **`--aeo-questions "kw"`** (P2-3): sinh **biến thể câu hỏi AEO** theo angle — `best` (kinh điển), `compare` (có kình địch), `how` (thông tin), `local` (vùng địa danh), `url` (đòi URL site) — `--aeo-angle best,compare` để chọn nhóm khác. Tool chỉ PHÁT câu, bạn dán tay vào engine như F9.
+- **GUI**: tab **📈 Xếp Hạng** có thêm hàng nút **🌐 XUẤT REPORT HTML / 🧩 GỢI Ý LINK NỘI BỘ / 📝 VIỆC ƯU TIÊN TỪ AUDIT / 🩺 DOCTOR** — cùng cơ chế thread nền với các nút cũ.
+- **WP đẩy kèm category/tag mặc định** (P2-4): điền `WP_DEFAULT_CATEGORIES` / `WP_DEFAULT_TAGS` (TÊN, owner tự chọn) trong settings PHẦN L — mỗi lần `--wp-push`, tên được tra id qua REST (`GET /wp-json/wp/v2/categories|tags?search=...`), khớp tên chính xác (bỏ hoa/thường) → gán vào payload; term **chưa có trên WP bị bỏ qua + cảnh báo**, **KHÔNG tự tạo term**, bài vẫn đẩy. `[]` = không gán. Frontmatter không nặn term — defaults là quyết định của owner.
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -222,7 +236,7 @@ Giao diện CustomTkinter dark mode với 7 tab cấu hình:
 | 🎯 Hành Vi SEO | Thời gian onsite min/max, pogo-stick, third page, warm-up search |
 | 🤖 AI Engine | URL Ollama, chọn model, kiểm tra kết nối |
 | 🔥 Nuôi Nick | Bật/tắt từng kênh warm-up (YouTube, báo, wiki, shopping, FB, IG) |
-| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, nút audit site, nút check backlink, khung từ khóa đề xuất, khung lịch tự động |
+| 📈 Xếp Hạng | Báo cáo gộp SERP + Search Console, nút check rank, nút lấy GSC, nút xuất CSV, nút audit site, nút check backlink, nút xuất HTML / link nội bộ / việc ưu tiên / doctor, khung từ khóa đề xuất, khung lịch tự động |
 
 Sidebar hiển thị: đếm session ✅/❌, đồng hồ đếm ngược treo máy, trạng thái Ollama.
 
@@ -263,6 +277,11 @@ python main.py --migrate-multi-site  # Copy (CHỈ copy, không xoá gốc) vào
 python main.py --site domain.com --rank  # Chạy lệnh cho MỘT site khác (site phải đã migrate) trong cùng project
 python main.py --aeo-report  # Xem AI engine nào đang nhắc brand (theo từ khóa dán tay)
 python main.py --aeo-check file.txt --aeo-keyword "nối mi" --aeo-engine ChatGPT  # Lưu 1 câu trả lời AI đã copy
+python main.py --html-report  # Gộp rank + GSC + audit + backlink → data/report.html (1 file, mở offline)
+python main.py --internal-links  # Gợi ý trang site nên chèn link nội bộ theo từng từ khóa (từ audit + rank history)
+python main.py --competitors  # Domain đối thủ xuất hiện nhiều nhất trong top URLs đã lưu
+python main.py --keyword-groups  # Nhóm từ khóa trùng token + danh sách bài nên refresh (hạng 5–15 từng top 10)
+python main.py --aeo-questions "nối mi quận 7" [--aeo-angle best,compare,local]  # Sinh biến thể câu hỏi AEO để dán tay
 ```
 
 Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoát nếu vượt giới hạn.
@@ -321,6 +340,7 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `AEO_HISTORY_KEEP` | `500` | AEO: số bản ghi tối đa lưu trong `aeo_history.json` — cũ nhất bị cắt |
 | `WP_URL` / `WP_USER` | `""` | WordPress (C1): site + username để đẩy bản nháp; để trống → `--wp-push` báo hướng dẫn |
 | `WP_APP_PASSWORD` | `""` | WordPress: **App Password** (WP admin → Profile → Application Passwords) — nên để biến môi trường `WP_APP_PASSWORD` (thắng settings) |
+| `WP_DEFAULT_CATEGORIES` / `WP_DEFAULT_TAGS` | `[]` | WordPress (P2-4): TÊN category/tag gán mặc định khi `--wp-push` — tool tra id, term chưa có trên WP bị bỏ qua + cảnh báo (không tự tạo); `[]` = không gán |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
