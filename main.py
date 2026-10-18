@@ -93,6 +93,9 @@ def show_strategy():
     print("  python main.py --migrate-multi-site  Chep du lieu site hien tai vao data/<slug>/ (khong xoa goc)")
     print("  python main.py --migrate-multi-site --dry-run  Chi xem se copy gi, khong ghi")
     print("  python main.py --site domain.com --rank  Chay lenh cho MOTE site khac (da migrate) trong cung project")
+    print("  python main.py --sites    Xem so site (config/sites.json) + site nao du lieu da tach rieng")
+    print('  python main.py --site-add "https://web.com"    Them site vao so (site nen da migrate truoc)')
+    print('  python main.py --site-remove "https://web.com" Bo site khoi so (khong xoa du lieu)')
     print("  python main.py --aeo-report           AI engine co nhac brand khong (du lieu da paste)")
     print('  python main.py --aeo-check file.txt --aeo-keyword "kw" [--aeo-engine ChatGPT]  Luu 1 cau tra loi')
     print("-" * 65)
@@ -317,6 +320,19 @@ if __name__ == "__main__":
     elif "--migrate-multi-site" in sys.argv:
         from utils.migrate_sites import run_migrate_cli
         sys.exit(run_migrate_cli(dry_run="--dry-run" in sys.argv))
+
+    elif "--sites" in sys.argv:
+        from utils.site_registry import run_sites_cli
+        sys.exit(run_sites_cli())
+
+    elif "--site-add" in sys.argv:
+        from utils.site_registry import run_site_add_cli
+        sys.exit(run_site_add_cli(_flag_value("--site-add"),
+                                  label=_flag_value("--label")))
+
+    elif "--site-remove" in sys.argv:
+        from utils.site_registry import run_site_remove_cli
+        sys.exit(run_site_remove_cli(_flag_value("--site-remove")))
 
     elif "--aeo-check" in sys.argv or "--aeo-report" in sys.argv:
         # F9 — phân tích câu trả lời AI dán tay; không gửi request nào ra ngoài

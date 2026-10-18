@@ -53,10 +53,18 @@ def _domain() -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def slugify_domain(domain: str) -> str:
+    """Slug từ DOMAIN cho trước (không đọc cfg) — cùng luật site_slug() gốc:
+    LOWERCASE trước (`domain.lower()` — chữ hoa thành chữ thường, không biến dấu '-'),
+    rồi ký tự ngoài [a-z0-9] gộp thành '-'. Hàm thuần để site_registry đối chiếu
+    sổ ↔ slug migrate: 'NankyBeauty.com' → 'nankybeauty-com' (regex cũ dính 'N','B'
+    trực tiếp thì tụt chữ hoá thành 'anky-eauty-com' — lệch folder đã migrate)."""
+    return re.sub(r"[^a-z0-9]+", "-", (domain or "").lower()).strip("-")
+
+
 def site_slug() -> str:
     """Slug folder từ domain mục tiêu; ký tự ngoài [a-z0-9] gộp thành '-'. Domain rỗng → ''."""
-    slug = re.sub(r"[^a-z0-9]+", "-", _domain()).strip("-")
-    return slug
+    return slugify_domain(_domain())
 
 
 def site_domain() -> str:
