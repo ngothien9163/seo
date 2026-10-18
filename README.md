@@ -196,6 +196,16 @@ Một cụm tính năng cùng nguyên tắc: **đọc lại dữ liệu đã có
 
 ---
 
+### 19. Bộ G — phân tích thêm từ dữ liệu đã có (P3 tiếp theo)
+
+Ba tính năng cùng nguyên tắc bộ 18: đọc lại dữ liệu đã có, 0 request mới, 0 dependency mới.
+
+- **`--ctr-ops`** (G-1): query **được Google cho thấy mà ít người click** — đọc snapshot GSC gần nhất, giữ query đang hạng 1..11 (thấy trên SERP, kể cả lẻo trang 2), đủ ≥ `CTR_MIN_IMPRESSIONS` (30) impressions, và CTR thua **CTR bình quân của chính nhóm query đó** (baseline trong-band — CTR tự nhiên giảm theo hạng, so query hạng 5 với hạng 20 là làm sai mốc). Bảng kèm hạng/imps/clicks/CTR/TB/chênh → việc làm: viết lại title/meta description trang tương ứng (lợi ích rõ, từ khóa chính lên đầu). Chưa từng `--gsc`? Tool gợi ý lệnh thay vì im lặng. Thông tin này **rank tracker không đo được** — chỉ Google thật có.
+- **Cảnh báo mất backlink** (G-2): sau MỖI lần `--backlink-check`, engine so state vừa ghi với lần trước; link trước đó "sống + có link + dofollow" mà lần này **trang chết (404/410/5xx) / không đọc được / mất link / chuyển nofollow** → 1 tin qua máy gửi của alerts (Telegram khi `ALERTS_ENABLE`, console khi không). Chống spam dùng chung state 1 tin/ngày (key `backlink:<key>`); **url owner tự gỡ khỏi danh sách không phải "mất"** — không có tin; **lần đầu check không có tin** (chưa có gì để "mất"). Hook tự nuốt lỗi — check backlink không chết theo bộ cảnh báo.
+- **`--audit-diff`** (G-3): mỗi lần `--audit` giờ chụp thêm mốc vào `data/audit_history.json` (giữ 20 mốc, cùng nhà với `audit_last.json`, atomic; history hỏng không làm chết audit). Lệnh so 2 mốc gần nhất, khớp theo **(rule, url)** — detail đổi chữ vẫn là cùng lỗi: in ✅ **ĐÃ SỬA** (lần trước có, lần này mất) và ❌ **MỚI PHÁT HIỆN** (lần này xuất hiện); còn 1 mốc thì nói rõ "chưa so được" thay vì fake "0 thay đổi". Biết mình đang tiến bộ hay chểnh mảng, một phát.
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
@@ -283,6 +293,8 @@ python main.py --internal-links  # Gợi ý trang site nên chèn link nội b�
 python main.py --competitors  # Domain đối thủ xuất hiện nhiều nhất trong top URLs đã lưu
 python main.py --keyword-groups  # Nhóm từ khóa trùng token + bài nên refresh + hiệu năng theo cụm
 python main.py --rank-urls  # Trang nào đang rank cho từ nào + cảnh báo đổi trang (từ top_urls đã lưu)
+python main.py --ctr-ops  # Query được thấy mà ít người click — nên sửa title/meta (từ snapshot GSC)
+python main.py --audit-diff  # Lỗi mới phát hiện vs đã sửa, giữa 2 lần audit gần nhất
 python main.py --aeo-questions "nối mi quận 7" [--aeo-angle best,compare,local]  # Sinh biến thể câu hỏi AEO để dán tay
 ```
 
