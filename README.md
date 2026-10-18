@@ -205,6 +205,7 @@ Ba tính năng cùng nguyên tắc bộ 18: đọc lại dữ liệu đã có, 0
 - **`--audit-diff`** (G-3): mỗi lần `--audit` giờ chụp thêm mốc vào `data/audit_history.json` (giữ 20 mốc, cùng nhà với `audit_last.json`, atomic; history hỏng không làm chết audit). Lệnh so 2 mốc gần nhất, khớp theo **(rule, url)** — detail đổi chữ vẫn là cùng lỗi: in ✅ **ĐÃ SỬA** (lần trước có, lần này mất) và ❌ **MỚI PHÁT HIỆN** (lần này xuất hiện); còn 1 mốc thì nói rõ "chưa so được" thay vì fake "0 thay đổi". Biết mình đang tiến bộ hay chểnh mảng, một phát.
 - **`--gsc-pages`** (G-B1): cannibalization theo **dữ liệu Google thật** — mỗi lần `--gsc` fetch thêm một chiều `dimensions=["query","page"]` (cùng lần chạy, rate limit vẫn đếm 1 fetch; lỗi chiều này không chặn snapshot query). Lệnh đọc lại: bảng **query được ≥ 2 trang cùng site phục vụ** (tổng ≥ `CANNIB_MIN_IMPS` 30 imps — trang ít imps vẫn bị nhắc vì Google đang "thử" nó), và phía ngược **trang gánh nhiều query nhất** (≥ 2 query). Khác `--rank-urls` ở chỗ: đây là Google TỰ nói trang nào được hiển thị, không suy từ top_urls. Snapshot cũ không có field `pages` → mục này gợi ý chạy `--gsc` thay vì migrate.
 - **`--gsc-trend`** (G-B2): xu hướng **impressions/clicks/CTR/vị trí theo từng query** qua 8 snapshot GSC gần nhất (0 request mới) — sparkline vẽ lại của rank tracker nhưng cột cao = imps **nhiều** (hữu ích ngược chiều hạng). Query vắng ở mốc nào thì imps 0 mốc đó (Google ngừng phơi — số thật, khác "không có dữ liệu"); CTR/vị trí vắng là `·`. Cờ **⬇️** khi imps mốc mới < 50% mốc trước: **tín hiệu sớm** — site tụt khỏi top 100 thì rank tracker không còn gì để so, đây là tín hiệu duy nhất còn lại. Tracked khớp theo fold dấu tiếng Việt ("noi mi quan 2" = "Nối Mi Quận 2").
+- **`--plan-progress`** (F-C1): bảng 30 mục content plan — mục nào **đã có draft** (✓, khớp frontmatter `keyword` của file .md trong `content/drafts/`, fold không dấu như kỹ thuật GSC), mục nào **đã push WP** (✓✓, đọc `data/wp_pushed.json` — `--wp-push` thành công tự ghi keyword + post id vào đây). 0 request, 0 mạng: chỉ map dữ liệu đã có. Cuối bảng gợi ý mục kế tiếp còn trống (`--generate --day N`) và số draft chờ duyệt (`--wp-push`). Chỉ READ — không sinh, không đẩy, tuyệt đối không tự publish.
 
 ---
 
@@ -299,6 +300,7 @@ python main.py --ctr-ops  # Query được thấy mà ít người click — nê
 python main.py --gsc-pages  # Query nào do nhiều trang phục vụ / trang nào gánh nhiều query (Google thật)
 python main.py --gsc-trend  # Xu hướng imps/clicks/CTR theo query, 8 mốc gần nhất + cờ sụt sớm
 python main.py --audit-diff  # Lỗi mới phát hiện vs đã sửa, giữa 2 lần audit gần nhất
+python main.py --plan-progress  # 30 muc plan: muc nao da co draft / da push WP, ke tiep thi generate
 python main.py --aeo-questions "nối mi quận 7" [--aeo-angle best,compare,local]  # Sinh biến thể câu hỏi AEO để dán tay
 ```
 

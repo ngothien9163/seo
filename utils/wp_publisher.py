@@ -234,8 +234,18 @@ def push_file(path: str, status: str = "draft", title_override: str = "",
         title = meta.get("keyword", "") or os.path.splitext(os.path.basename(path))[0]
     excerpt = excerpt_override or meta.get("excerpt", "") or meta.get("topic", "") or ""
     from utils.content_prompts import slugify
-    return push_draft(title=title, markdown=body, excerpt=excerpt, status=status,
-                      slug=slugify(meta.get("keyword") or title))
+    result = push_draft(title=title, markdown=body, excerpt=excerpt, status=status,
+                        slug=slugify(meta.get("keyword") or title))
+    # F-C1 — đánh dấu đã push (keyword từ frontmatter, không phải title override):
+    # lỗi đây chỉ là "không đánh dấu", KHÔNG làm chết kết quả push.
+    if result.get("ok"):
+        try:
+            from utils.plan_progress import mark_pushed
+            mark_pushed(str(meta.get("keyword") or title),
+                        result.get("id"), str(result.get("link") or ""))
+        except Exception as e:
+            print(f"[WP] ⚠️ Không đánh dấu được đã push ({type(e).__name__}: {str(e)[:90]})")
+    return result
 
 
 def validate_origin_consistency() -> str:
