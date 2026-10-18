@@ -64,6 +64,8 @@ class TrafficBotUI(ctk.CTk):
         self._intlinks_running = False
         self._actions_running = False
         self._doctor_running = False
+        self._planprog_running = False
+        self._gscalerts_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -613,6 +615,20 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_doctor_now,
         )
         self.btn_doctor.pack(side="left", padx=(16, 0))
+        self.btn_planprog = ctk.CTkButton(
+            rf2, text="📋  PLAN PROGRESS",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_plan_progress_now,
+        )
+        self.btn_planprog.pack(side="left", padx=(16, 0))
+        self.btn_gscalerts = ctk.CTkButton(
+            rf2, text="📉  GSC ALERTS",
+            fg_color="#8a3a35", hover_color="#a8483f",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_gsc_alerts_now,
+        )
+        self.btn_gscalerts.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -998,6 +1014,44 @@ class TrafficBotUI(ctk.CTk):
             self._doctor_running = False
             self.after(0, lambda: self.btn_doctor.configure(
                 state="normal", text="🩺  DOCTOR"))
+
+    def run_plan_progress_now(self):
+        """Nút 📋: 30 mục content plan — mục nào đã có draft / đã push WP (chỉ đọc)."""
+        if self._planprog_running:
+            return
+        self._planprog_running = True
+        self.btn_planprog.configure(state="disabled", text="⏳ Đang quét...")
+        threading.Thread(target=self._planprog_worker, daemon=True).start()
+
+    def _planprog_worker(self):
+        try:
+            from utils.plan_progress import run_plan_progress_cli
+            run_plan_progress_cli()
+        except Exception as e:
+            print(f"[PlanProgress] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._planprog_running = False
+            self.after(0, lambda: self.btn_planprog.configure(
+                state="normal", text="📋  PLAN PROGRESS"))
+
+    def run_gsc_alerts_now(self):
+        """Nút 📉: query nào mất phơi mạnh giữa 2 snapshot GSC (gửi qua kênh alerts)."""
+        if self._gscalerts_running:
+            return
+        self._gscalerts_running = True
+        self.btn_gscalerts.configure(state="disabled", text="⏳ Đang so...")
+        threading.Thread(target=self._gscalerts_worker, daemon=True).start()
+
+    def _gscalerts_worker(self):
+        try:
+            from utils.gsc_alerts import run_gsc_alerts_cli
+            run_gsc_alerts_cli()
+        except Exception as e:
+            print(f"[GSCAlerts] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._gscalerts_running = False
+            self.after(0, lambda: self.btn_gscalerts.configure(
+                state="normal", text="📉  GSC ALERTS"))
 
     # ═══════════════════════════════════════════════════════════════
     # CONTENT GENERATION (F8) — chỉ sinh bản nháp bằng Ollama, không tự đăng
