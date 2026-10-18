@@ -73,6 +73,7 @@ def show_strategy():
     print("  python main.py --internal-links  Goi y link noi bo tu du lieu audit + rank hien co")
     print("  python main.py --competitors     Domain doi thu xuat hien nhieu nhat tren SERP (tu rank history)")
     print("  python main.py --keyword-groups  Cum tu khoa + danh sach bai nen refresh (tu du lieu co san)")
+    print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
@@ -216,6 +217,10 @@ if __name__ == "__main__":
     elif "--keyword-groups" in sys.argv:
         from utils.keyword_groups import run_keyword_groups_cli
         sys.exit(run_keyword_groups_cli())
+
+    elif "--aeo-questions" in sys.argv:
+        from utils.aeo_prompts import run_aeo_questions_cli
+        sys.exit(run_aeo_questions_cli())
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli

@@ -196,7 +196,7 @@ def build_report() -> str:
         lines.append("  Chưa có dữ liệu AEO. Mỗi ngày: hỏi 1 AI engine 1 câu theo từng từ khóa")
         lines.append("  → copy câu trả lời vào file → chạy:")
         lines.append('    python main.py --aeo-check answer.txt --aeo-engine ChatGPT --aeo-keyword "từ khóa"')
-        lines.append("  Các engine thäch dán tay (không gửi request nào): ChatGPT / Gemini /")
+        lines.append("  Các engine dán tay (không gửi request nào): ChatGPT / Gemini /")
         lines.append("  Perplexity / Copilot / … — engine nào cũng được, đặt tên rõ.")
         return "\n".join(lines)
 
