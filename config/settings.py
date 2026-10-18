@@ -202,5 +202,5 @@ AEO_HISTORY_KEEP = 500            # số bản ghi tối đa — cũ nhất bị
 # đây KHÔNG phải mật khẩu đăng nhập — dùng riêng cho tool, dễ thu hồi.
 WP_URL = ""                       # VD "https://nankybeauty.com" — không có /wp-json
 WP_USER = ""                      # username trong WP (không phải email nếu WP yêu cầu)
-WP_APP_PASSWORD = ""              # App Password — preferBiến môi trường WP_APP_PASSWORD (thắng settings, không commit)
+WP_APP_PASSWORD = ""              # App Password — nên để biến môi trường WP_APP_PASSWORD (thắng settings, không commit)
 

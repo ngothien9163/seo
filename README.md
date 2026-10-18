@@ -143,6 +143,13 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Timeout mỗi lượt `CONTENT_GEN_TIMEOUT` (300s — model 30b chậm), `CONTENT_GEN_RETRIES` (1) **chỉ áp dụng khi timeout**, connection error báo ngay không retry.
 - **Giới hạn / chưa verify**: trên máy dev Ollama **chưa chạy** (đo 2026-10-14), nên pipeline + ghi file chỉ được chứng minh bằng unit test tiêm client giả — **chưa** có bài thật từ `qwen3:30b-a3b`. Muốn xem chất lượng bài: `ollama serve` + `ollama pull qwen3:30b-a3b` rồi chạy `--generate`. `content/drafts/` được gitignore (dữ liệu nháp, owner duyệt rồi mới dùng).
 
+### 15a. Đẩy bản nháp lên WordPress — chỉ DRAFT, bạn vẫn duyệt (C1)
+
+- `python main.py --wp-push content/drafts/<file>.md`: đọc file nháp F8, **bóc frontmatter** (keyword → title/excerpt/slug), đẩy lên WordPress qua **REST API `/wp-json/wp/v2/posts`** với `--status` trần chốt là **`draft` / `pending`** — `publish` / `future` / `private` bị **từ chối ngay trong validate**; tool không có đường tắt nào đăng thẳng bài. Duyệt bài vẫn là việc của bạn trên WP.
+- Chuẩn bị 3 biến trong settings PHẦN L: `WP_URL` (VD `https://nankybeauty.com`, không có `/wp-json`), `WP_USER`, `WP_APP_PASSWORD`. **App Password** tạo trong WP admin (Users → Profile → **Application Passwords**) — đây là mật khẩu riêng cho tool, **không** là mật khẩu đăng nhập, dễ thu hồi; hoặc để ở **biến môi trường `WP_APP_PASSWORD`** (thắng settings.py, không log, không commit).
+- Title theo thứ tự: `--title` → frontmatter `title` → H1 đầu trong bài → từ khóa frontmatter. `--excerpt` ghi đè excerpt lấy từ frontmatter. Nội dung gửi dạng **markdown thô** — WP Gutenberg + plugin markdown sẽ render; trên site không có plugin markdown thì nên đẩy trang HTML.
+- Cảnh báo nhẹ (không chặn): domain `WP_URL` khác `TARGET_URL` → nhắc "báo cáo xếp hạng của site khác với site nhận bài nháp". Lỗi WP (403 sai App Password, thiếu quyền...) in rõ mã lỗi, không bao giờ crash, App Password không bao giờ in ra log nào.
+
 ### 15. Multi-site — nhiều website trong cùng một bộ máy (F10)
 
 - **Ý tưởng**: một project chạy cho nhiều site, mỗi site có dữ liệu riêng (`rank_history`, GSC, keywords, backlink, audit, scheduler...) để chúng không ghi đè nhau. Nhận diện site bằng **domain** lấy từ `cfg.TARGET_URL` (bỏ `www.`, bỏ scheme/path), slug hoá thành tên thư mục (vd `shoplanhdep.com` → `shoplanhdep-com`).
@@ -232,6 +239,7 @@ python main.py --run-job rank|gsc|traffic  # Gọi 1 job (Windows Task Scheduler
 python main.py --scheduler-status  # Job nào tới giờ chạy, kết quả/lỗi lần cuối, 5 lần gần nhất
 python main.py --audit [--audit-limit 30]  # Audit on-page site của mình (HTML tĩnh, chỉ cùng domain)
 python main.py --audit-actions [--limit 5]  # Finding audit → việc ưu tiên theo từ khóa (CAO trước)
+python main.py --wp-push content/drafts/<file>.md  # Đẩy 1 bản nháp lên WP (CHỈ status draft/pending)
 python main.py --pagespeed [URL]  # Core Web Vitals (LCP/CLS/INP) từ PageSpeed Insights — số LAB
 python main.py --backlink-check [--backlink-limit 20]  # Verify link đã đặt: còn sống + còn link tới site + dofollow
 python main.py --backlink-add "https://site-khac/bai-cua-ban"  # Thêm 1 backlink vào config/backlinks.json
@@ -299,6 +307,8 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `CONTENT_DRAFTS_DIR` | `content/drafts` | Content: nơi lưu bản nháp `.md` (UTF-8, **gitignore** — dữ liệu nháp riêng) |
 | `AEO_BRANDS` | `["Nanky Beauty", "nankybeauty.com", "nanky beauty"]` | AEO: biến thể brand cần nhận ra (so bỏ dấu, từ trọn vẹn) — thêm biến thể mới của bạn vào đây |
 | `AEO_HISTORY_KEEP` | `500` | AEO: số bản ghi tối đa lưu trong `aeo_history.json` — cũ nhất bị cắt |
+| `WP_URL` / `WP_USER` | `""` | WordPress (C1): site + username để đẩy bản nháp; để trống → `--wp-push` báo hướng dẫn |
+| `WP_APP_PASSWORD` | `""` | WordPress: **App Password** (WP admin → Profile → Application Passwords) — nên để biến môi trường `WP_APP_PASSWORD` (thắng settings) |
 
 Danh sách từ khóa **không nằm trong settings.py**: nó ở `config/keywords.json`
 (`{"site": "...", "keywords": [...]}`), đọc/sửa qua tab ⚙️ Cài Đặt Chung (textarea "Từ khóa Google SEO"),
