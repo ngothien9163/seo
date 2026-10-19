@@ -14,6 +14,7 @@ chạy mọi lúc, không gửi request nào.
 """
 import json
 import os
+import subprocess
 from datetime import datetime, timedelta
 
 import config.settings as cfg
@@ -172,12 +173,79 @@ def check_state_dir():
     return "ok", "Đơn site: dữ liệu phẳng ở gốc (data/ + config/) — như mặc định."
 
 
+def _schtasks_registered(name: str) -> bool:
+    """Windows: `schtasks /Query /TN name` vừa query vừa returncode 0 = đã đăng ký.
+    Nền khác / không chạy được → False (caller tự hiện nhãn an toàn). Chỉ ĐỌC —
+    không đăng ký, không sửa task nào."""
+    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    try:
+        proc = subprocess.run(["schtasks", "/Query", "/TN", name],
+                              capture_output=True, text=True, timeout=10, flags=flags)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def check_scheduler():
+    """T39 — job scheduler đã đăng ký qua schtasks chưa. Soi tên task đúng cách
+    `--scheduler-install` in (SEO-Bot-<Job>-<HHMM>), chỉ query không đụng gì."""
+    try:
+        from utils.scheduler import JOBS, TASK_PREFIX
+    except Exception:
+        return "warn", "không kiểm được scheduler (thiếu module) — bỏ qua an toàn."
+    expected = []
+    for name, job in JOBS.items():
+        for hour in job["hours"]:
+            hhmm = f"{int(hour):02d}:00"
+            expected.append(f"{TASK_PREFIX}-{name.capitalize()}-{hhmm.replace(':', '')}")
+    if not expected:
+        return "warn", "không job nào có giờ khai báo (JOBS) — --run-job tay vẫn dùng được."
+    got = [tn for tn in expected if _schtasks_registered(tn)]
+    if not got:
+        return "warn", (f"0/{len(expected)} job tự chạy đã đăng ký — chạy --scheduler-install "
+                        "(chỉ IN lệnh /Create, bạn tự copy vào Command Prompt).")
+    if len(got) < len(expected):
+        missing = [tn for tn in expected if tn not in got]
+        show = ", ".join(missing[:3]) + ("…" if len(missing) > 3 else "")
+        return "warn", (f"{len(got)}/{len(expected)} job đã đăng ký — thiếu {show}; "
+                        "chạy lại --scheduler-install lấy lệnh cho job còn thiếu.")
+    return "ok", f"{len(got)}/{len(expected)} job tự chạy đã đăng ký (schtasks query thấy đủ)."
+
+
+def check_indexnow():
+    """T39 — IndexNow: key đã submit cho Bing/Yandex chưa (state có ngày 'sent')."""
+    try:
+        from utils.indexnow import key_state_file
+        state = _load_json(key_state_file())
+    except Exception as e:
+        return "warn", f"không kiểm được IndexNow ({type(e).__name__}) — bỏ qua an toàn."
+    sent = (state or {}).get("sent") or {}
+    if sent:
+        latest = max(sent.keys())
+        return "ok", f"IndexNow đã submit ({len(sent)} ngày có gửi, mới nhất {latest})."
+    return "warn", ("IndexNow chưa submit lần nào — bài mới để Bing biết nhanh hơn: "
+                    "--indexnow-key <key> (key là secret) + upload key file lên site (docs/).")
+
+
+def check_pagespeed_key():
+    """T39 — PageSpeed key là tùy chọn: không key PSI chạy bằng quota ẩn toàn cầu
+    (đang cạn — đo 14-10 dính 429); có key thì đo bài T33 chạy ổn định."""
+    key = os.getenv("PAGESPEED_API_KEY") or str(getattr(cfg, "PAGESPEED_API_KEY", "") or "")
+    if key:
+        return "ok", f"PageSpeed API key đã điền ({_mask(key)}) — PSI đo bài không dính quota ẩn."
+    return "warn", ("PageSpeed chưa điền key — quota ẩn toàn cầu có thể 429. Tạo key miễn phí "
+                    "điền PAGESPEED_API_KEY (key là secret, không in log, không mật).")
+
+
 # ─── GỘP + IN ────────────────────────────────────────────────────────────────
 
 CHECKS = (("Site & từ khóa", (check_target_url, check_keywords, check_rank_history)),
           ("Search Console", (check_gsc,)),
           ("Cảnh báo Telegram", (check_alerts,)),
           ("Content (Ollama)", (check_ollama_config,)),
+          ("Job tự chạy (scheduler)", (check_scheduler,)),
+          ("IndexNow", (check_indexnow,)),
+          ("PageSpeed", (check_pagespeed_key,)),
           ("Backlink", (check_backlinks,)),
           ("WordPress", (check_wordpress,)),
           ("Bản nháp & site", (check_drafts, check_state_dir)))
