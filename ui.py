@@ -74,6 +74,8 @@ class TrafficBotUI(ctk.CTk):
                                 "refresh-diff", "content-brief", "daily-report")}
         self._chart_running = False
         self._chart_visible = False
+        self._aeo_chart_running = False
+        self._aeo_chart_visible = False
         self._wizard_running = False
         self._firstrun_running = False
         self._aeo_running = False
@@ -1116,6 +1118,14 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_aeo_robots,
         )
         self.btn_aeo_robots.pack(side="left", padx=(12, 0))
+        # T31 — AEO TREND: canvas vẽ % câu trả lời được nhắc theo tuần
+        self.btn_aeo_chart = ctk.CTkButton(
+            af, text="📈  AEO TREND",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_aeo_chart_now,
+        )
+        self.btn_aeo_chart.pack(side="left", padx=(12, 0))
 
         self.lbl_aeo_kw = ctk.CTkLabel(af, text="Từ khóa:",
                                        font=ctk.CTkFont(size=12), anchor="w")
@@ -1149,6 +1159,12 @@ class TrafficBotUI(ctk.CTk):
             t, font=ctk.CTkFont(family="Consolas", size=12), height=280)
         self.txt_aeo_matrix.grid(row=5, column=0, sticky="nsew", padx=20, pady=(4, 12))
         t.grid_rowconfigure(5, weight=1)
+
+        # T31 — canvas AEO TREND (ẩn mặc định, nút toggle; cùng mô hình CHART hạng)
+        self.canvas_aeo = tk.Canvas(t, height=220, bg="#181820",
+                                    highlightthickness=0)
+        self.canvas_aeo.grid(row=6, column=0, sticky="nsew", padx=20, pady=(0, 12))
+        self.canvas_aeo.grid_remove()
 
         self._aeo_refresh(silent=True)
 
@@ -1276,6 +1292,82 @@ class TrafficBotUI(ctk.CTk):
             self._aeo_running = False
             self.after(0, lambda: self.btn_aeo_robots.configure(
                 state="normal", text="🤖  BOT AI BỊ CHẶN?"))
+
+    # ── T31 — AEO TREND: % câu trả lời được nhắc theo tuần (canvas, cao = tốt) ──
+    def run_aeo_chart_now(self):
+        """📈 AEO TREND: toggle canvas — vẽ % nhắc theo tuần từ aeo_history."""
+        if self._aeo_chart_running:
+            return
+        if self._aeo_chart_visible:
+            self._aeo_chart_visible = False
+            self.canvas_aeo.grid_remove()
+            self.txt_aeo_matrix.grid()
+            self.btn_aeo_chart.configure(text="📈  AEO TREND")
+            return
+        self._aeo_chart_running = True
+        self.btn_aeo_chart.configure(state="disabled", text="⏳ Đang vẽ...")
+        threading.Thread(target=self._aeo_chart_worker, daemon=True).start()
+
+    def _aeo_chart_worker(self):
+        try:
+            from utils.aeo import load_history
+            from utils.gui_charts import aeo_trend_series
+            trend = aeo_trend_series(load_history())
+            self.after(0, lambda: self._aeo_chart_render(trend))
+        except Exception as e:
+            print(f"[AEO Trend] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._aeo_chart_running = False
+            self.after(0, lambda: self.btn_aeo_chart.configure(
+                state="normal", text="📈  AEO TREND"))
+
+    def _aeo_chart_render(self, trend: dict):
+        """Main thread — dịch items → create_* (cùng bộ dịch chart hạng, thêm xlab)."""
+        self._aeo_chart_visible = True
+        try:
+            self.txt_aeo_matrix.grid_remove()
+            self.canvas_aeo.grid()
+        except Exception:
+            pass
+        cvs = self.canvas_aeo
+        cvs.delete("all")
+        w = max(cvs.winfo_width() or 700, 400)
+        h = max(cvs.winfo_height() or 220, 160)
+        labels = (trend or {}).get("labels") or []
+        series = (trend or {}).get("series") or {}
+        if not series or not any(v is not None for lab in series.values()
+                                 for v in (lab or [])):
+            cvs.create_text(w // 2, h // 2, fill="#8a8a96", font=("Consolas", 11),
+                            text="Chưa đủ dữ liệu AEO — dán câu trả lời AI vài tuần "
+                                 "(PHÂN TÍCH & LƯU) rồi quay lại")
+            return
+        from utils.gui_charts import chart_items
+        items = chart_items(series, w, h, invert_y=False, x_labels=labels)
+        seen_grid = set()
+        for it in items:
+            kind = it[0]
+            if kind == "grid":
+                _, y, txt = it
+                if y not in seen_grid:
+                    seen_grid.add(y)
+                    cvs.create_line(20, y, w - 12, y, fill="#3a3a44")
+                    cvs.create_text(8, y, text=txt + "%", fill="#cfcfd8", anchor="e",
+                                    font=("Consolas", 9))
+            elif kind == "line":
+                cvs.create_line(it[2], it[3], it[4], it[5],
+                                fill=it[1], width=2, smooth=True)
+            elif kind == "dot":
+                x, y, r = it[1], it[2], 3
+                cvs.create_oval(x - r, y - r, x + r, y + r, fill=it[1], outline="")
+            elif kind == "label":
+                if len(it) >= 5:
+                    x, y, txt, anchor = it[1], it[2], it[3], "start"
+                    cvs.create_text(x, y, text=txt, fill="#cfcfd8", anchor=anchor,
+                                    font=("Consolas", 9))
+            elif kind == "xlab":
+                x, y, txt, anchor = it[1], it[2], it[3], it[4]
+                cvs.create_text(x, y, text=txt, fill="#8a8a96", anchor=anchor,
+                                font=("Consolas", 8))
 
     def run_aeo_analyze_now(self):
         """🔍 PHÂN TÍCH & LƯU: validate input trước, sau đó thread (ghi file history)."""

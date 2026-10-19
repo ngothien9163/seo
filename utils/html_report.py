@@ -176,7 +176,14 @@ def _aeo_section() -> dict:
         sov = sov_summary(matrix)
     except Exception:
         sov = {}
-    return {"rows": rows, "engines": engines, "sov": sov}
+    # T31 — trend tuần: % câu trả lời được nhắc theo tuần (từ history, 0 request)
+    try:
+        from utils.aeo import load_history
+        from utils.gui_charts import aeo_trend_series
+        trend = aeo_trend_series(load_history())
+    except Exception:
+        trend = {}
+    return {"rows": rows, "engines": engines, "sov": sov, "trend": trend}
 
 
 def collect() -> dict:
@@ -298,6 +305,16 @@ def _render_aeo(data: dict) -> str:
     out.append("</tbody></table>")
     out.append('<p class="meta">✓ = engine nhắc brand, ✗ = không nhắc, — = chưa hỏi. '
                "1 bản ghi/ngày/từ khóa/engine (dán lại là cập nhật).</p>")
+    # T31 — trend theo tuần: 1 dòng so 2 tuần có dữ liệu cuối (≥2 tuần mới hiện)
+    try:
+        from utils.gui_charts import trend_compare, trend_words
+        cur, prev, n = trend_compare(data.get("trend"))
+        if cur is not None and prev is not None:
+            out.append(f'<p class="meta">📈 Trend: tuần này {cur}% câu trả lời được nhắc brand '
+                       f"(tuần trước {prev}% — {trend_words(cur, prev)}; "
+                       f"{n} tuần có dữ liệu trong 8 tuần gần nhất).</p>")
+    except Exception:
+        pass
     # T23 share-of-voice: bảng nhỏ dưới — AI nhắc ai trong cùng câu trả lời
     sov = (data.get("sov") or {}).get("own") or {}
     if sov.get("asked"):

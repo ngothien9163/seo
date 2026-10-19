@@ -130,6 +130,20 @@ def build_digest() -> str:
         except Exception:
             continue            # nguồn này trống/hỏng — nguồn khác vẫn theo
 
+    # T31 — 1 dòng trend AEO theo tuần (≥2 tuần có dữ liệu mới hiện, tránh nhiễu)
+    try:
+        from utils.aeo import load_history
+        from utils.gui_charts import aeo_trend_series, trend_compare, trend_words
+        cur, prev, n = trend_compare(aeo_trend_series(load_history()))
+        if cur is not None and prev is not None:
+            sections.append(_section(
+                "AEO TREND",
+                f"{cur}% câu trả lời AI được nhắc brand tuần này (tuần trước {prev}% — "
+                f"{trend_words(cur, prev)}; {n} tuần có dữ liệu trong 8 tuần gần nhất). "
+                "Chart đầy đủ: tab 📢 AI Nói Gì → nút AEO TREND."))
+    except Exception:
+        pass                    # trend là phần tốt thêm — thiếu thì bỏ, không chết digest
+
     lines = [f"BÁO CÁO TUẦN — {site_paths.site_domain() or '(chưa cấu hình)'}",
              f"Tuần {iso_week()} ({date.today().isoformat()})"]
     any_data = False
