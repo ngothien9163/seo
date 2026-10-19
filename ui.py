@@ -9,6 +9,7 @@ import itertools
 import traceback
 import requests
 from datetime import date, timedelta
+import tkinter as tk
 from tkinter import END
 
 from core.browser_manager import BrowserManager
@@ -69,6 +70,7 @@ class TrafficBotUI(ctk.CTk):
         self._ctrops_running = False
         self._planprog_running = False
         self._gscalerts_running = False
+        self._psposts_running = False
         self._tools_running = {tag: False for tag in
                                ("doctor-net", "page-impact", "content-gap",
                                 "refresh-diff", "content-brief", "daily-report")}
@@ -722,6 +724,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_plan_progress_now,
         )
         self.btn_planprog.pack(side="left", padx=(16, 0))
+        self.btn_psposts = ctk.CTkButton(
+            rf2, text="📊  PAGESPEED BÀI VIẾT",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_ps_posts_now,
+        )
+        self.btn_psposts.pack(side="left", padx=(16, 0))
         self.btn_gscalerts = ctk.CTkButton(
             rf2, text="📉  GSC ALERTS",
             fg_color="#8a3a35", hover_color="#a8483f",
@@ -1838,6 +1847,27 @@ class TrafficBotUI(ctk.CTk):
             self._gscalerts_running = False
             self.after(0, lambda: self.btn_gscalerts.configure(
                 state="normal", text="📉  GSC ALERTS"))
+
+    def run_ps_posts_now(self):
+        """Nút 📊 T33: PageSpeed bài đã push — không URL = đo đợt bài mới (1
+        request/URL trọn đời), có bài chưa đo thì chờ Lighthouse (chậm)."""
+        if self._psposts_running:
+            return
+        self._psposts_running = True
+        self.btn_psposts.configure(state="disabled", text="⏳ Đang đo...")
+        threading.Thread(target=self._psposts_worker, daemon=True).start()
+
+    def _psposts_worker(self):
+        try:
+            from utils.pagespeed import run_pagespeed_posts_cli
+            run_pagespeed_posts_cli("")
+        except Exception as e:
+            print(f"[PageSpeedPosts] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._psposts_running = False
+            self.after(0, lambda: self.btn_psposts.configure(
+                state="normal", text="📊  PAGESPEED BÀI VIẾT"))
+
 
     def run_cluster_gsc_now(self):
         """Nút ⚖️: cụm từ khóa × dữ liệu Google thật (imps/clicks + cụm mù GSC)."""
