@@ -91,6 +91,8 @@ def show_strategy():
     print("  python main.py --rank-urls       Trang nao dang rank cho tu nao + canh bao doi trang")
     print("  python main.py --ctr-ops         Query duoc thay ma it nguoi click - goi y sua title/meta (tu GSC)")
     print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
+    print("  python main.py --indexnow-key    Sinh key IndexNow (luu data/indexnow_key.txt)")
+    print("  python main.py --indexnow [URL...] [--dry-run|--force]  Day URL moi vao Bing/Yandex/mach IndexNow (1 lan/ngay)")
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
@@ -400,6 +402,16 @@ if __name__ == "__main__":
         sys.exit(run_aeo_check_cli(_flag_value("--aeo-check"),
                                    engine=_flag_value("--aeo-engine") or "ChatGPT",
                                    keyword=_flag_value("--aeo-keyword")))
+
+    elif "--indexnow-key" in sys.argv:
+        # T18 — sinh key IndexNow (signup free, không cần Bing API key)
+        from utils.indexnow import run_indexnow_key_cli
+        sys.exit(run_indexnow_key_cli())
+
+    elif "--indexnow" in sys.argv:
+        # T18 — đẩy URL mới vào Bing/Yandex/... qua indexnow.org (1 lần/ngày)
+        from utils.indexnow import run_indexnow_cli
+        sys.exit(run_indexnow_cli())
 
     else:
         show_strategy()

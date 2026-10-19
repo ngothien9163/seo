@@ -234,6 +234,14 @@ Ba tính năng cùng nguyên tắc bộ 18: đọc lại dữ liệu đã có, 0
 
 ---
 
+### 20. IndexNow — đẩy URL mới vào Bing/Yandex/Seznam/Naver (T18)
+
+- **`--indexnow`** (T18): đổi trang mới đăng/sửa → nói ngay cho **các engine ngoài Google** qua IndexNow (`https://api.indexnow.org/indexnow`, tiêu chuẩn mở — engine nào nhận tự share cho các engine còn lại). KHÔNG dùng Bing API key, KHÔNG OAuth, KHÔNG dependency mới: key 32 ký tự hex tự sinh + treo 1 file text lên site để verify. Setup 1 lần (~10 phút, hướng dẫn đầy đủ **[`docs/USE_INDEXNOW.md`](docs/USE_INDEXNOW.md)**).
+- **`--indexnow-key`**: sinh key + lưu `data/indexnow_key.txt` (per-site khi migrate), in hướng dẫn 2 cách treo (SFTP gốc site / WP Media) — tool KHÔNG tự upload, việc đụng site của bạn là quyết định của owner.
+- **Chống spam**: 1 lần/ngày (state `data/indexnow_state.json`); đánh dấu CHỈ KHI submit thành công — mạng chết thì lần chạy kế tự thử lại. `--force` submit lại bất chấp; `--dry-run` xem sẽ submit gì (không gọi mạng, không có key vẫn chạy).
+
+---
+
 ## Cài đặt
 
 Yêu cầu Python 3.10+ (dùng `dict[str, Any]`, `tuple[bool, str]`).
