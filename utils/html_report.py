@@ -109,11 +109,33 @@ def _backlink_section() -> dict:
     return {"rows": rows}
 
 
+def _aeo_section() -> dict:
+    """AEO (F9/T17): kw × engine — ✓/✗ nhắc brand, ngày đo. 0 request — chỉ đọc history."""
+    try:
+        from utils.aeo import ai_matrix
+        matrix = ai_matrix()
+    except Exception:
+        return {}
+    if not matrix:
+        return {}
+    rows = {}
+    for kw, per in matrix.items():
+        rows[kw] = {
+            engine: {"mark": "✓" if info.get("mentioned") else "✗",
+                     "mentions": info.get("mentions", 0),
+                     "date": info.get("date", "")}
+            for engine, info in per.items()
+        }
+    engines = sorted({e for per in matrix.values() for e in per})
+    return {"rows": rows, "engines": engines}
+
+
 def collect() -> dict:
     """Gọi từng nguồn, mỗi nguồn tự nuốt lỗi (trống → section hướng dẫn)."""
     sections = {}
     for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
-                     ("audit", _audit_section), ("backlink", _backlink_section)):
+                     ("audit", _audit_section), ("backlink", _backlink_section),
+                     ("aeo", _aeo_section)):
         try:
             sections[name] = fn()
         except Exception:
@@ -187,16 +209,48 @@ def _render_backlink(data: dict) -> str:
     return "\n".join(out)
 
 
+def _render_aeo(data: dict) -> str:
+    """AEO: hàng mỗi từ khóa, cột mỗi engine đã hỏi — engine chưa hỏi không hiện cột."""
+    if not data:
+        return _empty_hint("AEO (AI nhắc brand)",
+                           "hỏi AI theo 1 từ khóa → python main.py --aeo-check answer.txt "
+                           "--aeo-keyword \"kw\" (docs/USE_AEO.md)")
+    engines = data["engines"]
+    asked = sum(1 for per in data["rows"].values() for _ in per.values())
+    hit = sum(1 for per in data["rows"].values() for v in per.values() if v["mark"] == "✓")
+    out = [f'<p class="meta">Đã hỏi {asked} cặp (từ khóa × engine) — {hit} lần engine nhắc brand. '
+           f"Dán tay qua tab 📢 AI Nói Gì hoặc --aeo-check.</p>",
+           "<table><tr><th>Từ khóa</th>" + "".join(f"<th>{escape(e)}</th>" for e in engines) +
+           "</tr><tbody>"]
+    for kw in sorted(data["rows"]):
+        cells = []
+        for e in engines:
+            info = data["rows"][kw].get(e)
+            if info is None:
+                cells.append('<td class="dim">—</td>')
+            else:
+                cls = "ok" if info["mark"] == "✓" else "bad"
+                n = f' <span class="dim">x{info["mentions"]}</span>' if info["mentions"] > 1 else ""
+                cells.append(f'<td class="{cls}">{info["mark"]}{n}</td>')
+        out.append(f"<tr><td>{escape(kw)}</td>" + "".join(cells) + "</tr>")
+    out.append("</tbody></table>")
+    out.append('<p class="meta">✓ = engine nhắc brand, ✗ = không nhắc, — = chưa hỏi. '
+               "1 bản ghi/ngày/từ khóa/engine (dán lại là cập nhật).</p>")
+    return "\n".join(out)
+
+
 def _empty_hint(title: str, hint: str) -> str:
     return (f'<p class="empty">Chưa có dữ liệu {escape(title.lower())}. '
             f'<code>{escape(hint)}</code></p>')
 
 
 _RENDER = {"rank": _render_rank, "gsc": _render_gsc,
-           "audit": _render_audit, "backlink": _render_backlink}
+           "audit": _render_audit, "backlink": _render_backlink,
+           "aeo": _render_aeo}
 
 _TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
-           "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt"}
+           "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
+           "aeo": "AEO — AI trả lời có nhắc brand?"}
 
 _CSS = (":root{--ink:#1f2430;--line:#e3e6ee;--soft:#f6f7fb;--cao:#b3261e;"
         "--trung:#b26a00;--thap:#5f6b7a;--ok:#1e7d40;--warn:#b26a00;--bad:#b3261e}"
@@ -234,7 +288,7 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink"):
+    for name in ("rank", "gsc", "audit", "backlink", "aeo"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
