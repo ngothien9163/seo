@@ -72,11 +72,12 @@ def show_strategy():
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --weekly     Bao cao tuan gop SERP+GSC+AEO -> Telegram (1 lan/tuan)")
     print("  python main.py --daily-report [-save]  Bao cao buoi sang 1 tin: rank tail + GSC tail + viec hom nay")
-    print("  python main.py --run-job rank|gsc|traffic|daily|weekly|airobots  Gọi 1 job (Windows Task Scheduler)")
+    print("  python main.py --run-job rank|gsc|traffic|daily|weekly|airobots|pagespeed  Gọi 1 job (Windows Task Scheduler)")
     print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
     print("  python main.py --scheduler-install Sinh lenh schtasks /Create theo gio settings (IN THOI, tu copy chay)")
     print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
+    print("  python main.py --pagespeed-posts [URL]  Diem PageSpeed tung bai da push (T33); URL = do lai bai do")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
     print("  python main.py --audit-diff       Loi moi phat hien vs da sua giua 2 lan audit gan nhat")
@@ -368,6 +369,13 @@ if __name__ == "__main__":
         nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
         target = nxt if nxt and not nxt.startswith("-") else ""
         sys.exit(run_pagespeed_cli(target))
+
+    elif "--pagespeed-posts" in sys.argv:
+        from utils.pagespeed import run_pagespeed_posts_cli
+        i = sys.argv.index("--pagespeed-posts")
+        nxt = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        target = nxt if nxt and not nxt.startswith("-") else ""
+        sys.exit(run_pagespeed_posts_cli(target))
 
     elif "--backlink-check" in sys.argv or "--backlink-refresh" in sys.argv:
         from utils.backlink_checker import run_backlink_check_cli

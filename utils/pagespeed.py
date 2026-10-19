@@ -212,3 +212,236 @@ def run_pagespeed_cli(url: str = "") -> int:
             print(f"[PageSpeed] ⚠️ {strategy} thiếu: {results[strategy]['error']}")
     print(f"[PageSpeed] Ghi chú: {LAB_NOTE}.")
     return 0
+
+
+# ─── T33: PageSpeed cho bài vừa push — 1 request/URL TRỌN ĐỜI, nhắc khi yếu ──
+# Lớp trên F6: cùng seam fetch()/parse(), state riêng pagespeed_posts.json
+# (không đụng data/pagespeed.json của F6 — nơi lưu --pagespeed 1 URL).
+# Đo MOBILE (Google index mobile-first); desktop đo tay bằng --pagespeed URL.
+# Mỗi bài trong wp_pushed.json đo đúng MỘT LẦN thành công rồi ghi key — job
+# sau đó bỏ qua (0 request); lỗi không ghi state nên lần chạy kế thử lại.
+# Điểm yếu (< PAGESPEED_WARN_SCORE) → 1 dòng nhắc trong báo cáo ngày.
+
+
+def _default_posts_path() -> str:
+    folder = getattr(cfg, "PAGESPEED_STATE_DIR", "data") or "data"
+    if not os.path.isabs(folder):
+        folder = os.path.join(ROOT, folder)
+    return site_paths.per_site("pagespeed_posts.json", folder)
+
+
+POSTS_FILE = _default_posts_path()      # test gán POSTS_FILE → _posts_path() tôn trọng
+
+
+def _posts_path() -> str:
+    if POSTS_FILE != _default_posts_path():
+        return POSTS_FILE
+    return _default_posts_path()
+
+
+def _norm_post_key(url: str) -> str:
+    """Key bài đo = host + path bỏ query + '/' cuối — wp_pushed ↔ state khớp nhau."""
+    try:
+        from urllib.parse import urlsplit
+        p = urlsplit(str(url or ""))
+        return f"{p.netloc}{p.path}".rstrip("/").lower()
+    except Exception:
+        return str(url or "").lower().rstrip("/")
+
+
+def posts_load() -> dict:
+    """{"urls": {key: {url, kw, at, score, lcp, cls, tbt, fcp}}} — hỏng → rỗng."""
+    try:
+        with open(_posts_path(), encoding="utf-8") as handle:
+            data = json.load(handle)
+        urls = data.get("urls") if isinstance(data, dict) else None
+        return {"urls": urls if isinstance(urls, dict) else {}}
+    except Exception:
+        return {"urls": {}}
+
+
+def posts_save(data: dict) -> None:
+    """Atomic (tmp + os.replace) — crash giữa chừng không cụt file."""
+    path = _posts_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def posts_to_measure(limit: int = None, pushed: dict = None) -> list:
+    """Bài đã push CHƯA có điểm → [{url, kw, key}]; chặn limit mỗi lần chạy."""
+    if limit is None:
+        try:
+            limit = int(getattr(cfg, "PAGESPEED_MAX_PER_RUN", 5) or 5)
+        except (TypeError, ValueError):
+            limit = 5
+    if pushed is None:
+        try:
+            from utils.plan_progress import load_pushed as _load_pushed
+            pushed = _load_pushed()
+        except Exception:
+            pushed = {}
+    known = set(posts_load()["urls"])
+    out = []
+    for fk, entry in (pushed or {}).items():
+        entry = entry if isinstance(entry, dict) else {}
+        link = str(entry.get("link") or "").strip()
+        if not link.startswith(("http://", "https://")):
+            continue
+        key = _norm_post_key(link)
+        if not key or key in known:
+            continue
+        out.append({"url": link, "kw": str(entry.get("keyword") or fk), "key": key})
+        if limit and len(out) >= limit:
+            break
+    return out
+
+
+def _record_from(result: dict, it: dict) -> dict:
+    return {"url": it["url"], "kw": it["kw"], "key": it["key"],
+            "at": datetime.now().isoformat(timespec="seconds"),
+            "score": result.get("score"),
+            "lcp": str(result.get("lcp") or ""), "cls": str(result.get("cls") or ""),
+            "tbt": str(result.get("tbt") or ""), "fcp": str(result.get("fcp") or "")}
+
+
+def measure_new_posts(fetcher=None, limit: int = None, pushed: dict = None) -> tuple:
+    """(results, stop_note) — đo đợt bài chưa có điểm; thành công mới GHI state
+    (1 lần/URL). Lỗi từng bài không chặn, PSI 429 → dừng cả đợt (quota cạn,
+    chạy tiếp vô nghĩa — URL chưa ghi, lần kế thử lại). fetcher=None → fetch thật."""
+    runner = fetcher or fetch
+    todo = posts_to_measure(limit, pushed=pushed)
+    recorder = posts_load()
+    results = []
+    stop_note = ""
+    for it in todo:
+        try:
+            result = runner(it["url"], "mobile")
+        except Exception as exc:      # fetcher ném exception — coi như lỗi lượt này
+            result = {"error": f"{type(exc).__name__}: {exc}"}
+        result = result if isinstance(result, dict) else {}
+        rec = _record_from(result, it)
+        error = str(result.get("error") or "")
+        if error:
+            results.append({**rec, "error": error})
+            if error.startswith("PSI trả 429"):
+                stop_note = ("PSI 429 — dừng đợt này (quota); URL chưa ghi, lần "
+                             "--run-job pagespeed kế tiếp tự thử lại.")
+                break
+            continue                  # lỗi khác — không ghi state, bỏ qua bài này
+        recorder["urls"][it["key"]] = rec
+        posts_save(recorder)
+        results.append(rec)
+    return results, stop_note
+
+
+def weak_posts() -> list:
+    """Nhắc cho báo cáo ngày: bài điểm LAB < PAGESPEED_WARN_SCORE — tối đa 2 dòng,
+    kém nhất lên trước. Không nhắc bài chưa đo (job tự đo) hay đã đạt."""
+    warn = int(getattr(cfg, "PAGESPEED_WARN_SCORE", 60) or 60)
+    rows = sorted(posts_load()["urls"].values(),
+                  key=lambda r: (r.get("score") if isinstance(r.get("score"), int) else 999,
+                                 str(r.get("at") or "")))
+    lines = []
+    for r in rows:
+        score = r.get("score")
+        if not isinstance(score, int) or score >= warn:
+            continue
+        lcp = f", LCP {r['lcp']}" if r.get("lcp") else ""
+        kw = str(r.get("kw") or r.get("url") or "")[:50]
+        lines.append(f"- Bài '{kw}' PageSpeed LAB {score}/100{lcp} — "
+                     "cải thiện rồi đo lại: python main.py --pagespeed-posts \""
+                     + str(r.get("url") or "") + "\"")
+        if len(lines) >= 2:
+            break
+    return lines
+
+
+def reminder_lines() -> list:
+    """Tên đẹp cho daily_report — cùng ý weak_posts() (không đo lại là không nhắc thêm)."""
+    return weak_posts()
+
+
+def posts_report_text() -> str:
+    """Bảng điểm bài đã đo — kém nhất lên trước, đủ sạch để paste Telegram."""
+    rows = sorted(posts_load()["urls"].values(),
+                  key=lambda r: (r.get("score") if isinstance(r.get("score"), int) else 999,
+                                 str(r.get("at") or "")))
+    if not rows:
+        return ("Chưa đo bài nào — job scheduler 'pagespeed' tự đo bài mới sau "
+                "--wp-push; chạy đợt ngay: python main.py --run-job pagespeed")
+    lines = [f"== PAGESPEED BÀI VIẾT ({len(rows)} bài đã đo, LAB mobile — {LAB_NOTE}) ==",
+             f'{"Bài":<34}{"Điểm":>6}{"LCP":>8}{"CLS":>7}  URL', "-" * 104]
+    for r in rows:
+        score = "—" if not isinstance(r.get("score"), int) else str(r["score"])
+        kw = str(r.get("kw") or "")[:32]
+        lines.append(f'{kw:<34}{score:>6}{r["lcp"][:6]:>8}{r["cls"][:5]:>7}  {r["url"]}')
+    weak = weak_posts()
+    if weak:
+        lines.append("")
+        lines.append("Điểm yếu (nhắc trong báo cáo ngày):")
+        lines.extend(weak)
+    return "\n".join(lines)
+
+
+def run_pagespeed_posts_cli(url: str = "") -> int:
+    """Entry `--pagespeed-posts`: không URL = đo đợt bài mới (đúng job scheduler);
+    có URL = ĐO LẠI bài đó (xóa điểm cũ, 1 request mới) rồi in điểm."""
+    target = str(url or "").strip()
+    if target:
+        key = _norm_post_key(target)
+        data = posts_load()
+        if data["urls"].pop(key, None):
+            posts_save(data)
+            print(f"[PageSpeed] Đã xóa điểm cũ {key} — đo lại...")
+        else:
+            print(f"[PageSpeed] Đo tay thêm: {key}")
+        try:
+            result = fetch(target, "mobile")
+        except Exception as exc:
+            print(f"[PageSpeed] ❌ {type(exc).__name__}: {exc}")
+            return 1
+        if result.get("error"):
+            print(f"[PageSpeed] ❌ {result['error']}")
+            return 1
+        data = posts_load()
+        data["urls"][key] = _record_from(result, {"url": target, "kw": "", "key": key})
+        posts_save(data)
+        print(f"[PageSpeed] Điểm {result.get('score')}/100 | LCP {result['lcp']} | "
+              f"CLS {result['cls']} (LAB mobile)")
+        print("[PageSpeed] Đã ghi — xem hết: python main.py --pagespeed-posts")
+        return 0
+
+    results, stop_note = measure_new_posts()
+    if not results and not stop_note:
+        print("[PageSpeed] Bài nào push WP cũng đã có điểm — 1 request/URL trọn đời, 0 request lần này.")
+        return 0
+    for r in results:
+        if r.get("error"):
+            print(f"[PageSpeed] ⚠️ {str(r['kw'])[:40]}: {r['error']}")
+        else:
+            print(f"[PageSpeed] {str(r['kw'])[:40]}: điểm {r['score']}/100 | "
+                  f"LCP {r['lcp']} | CLS {r['cls']}")
+    if stop_note:
+        print(f"[PageSpeed] {stop_note}")
+    try:
+        from utils.plan_progress import load_pushed as _load_pushed
+        pushed = _load_pushed() or {}
+        total = sum(1 for p in pushed.values() if isinstance(p, dict)
+                    and str(p.get("link") or "").startswith(("http://", "https://")))
+        print(f"[PageSpeed] Đã đo {len(posts_load()['urls'])}/{total} bài push WP (1 lần/URL).")
+    except Exception:
+        pass
+    print("[PageSpeed] Ghi chú: " + LAB_NOTE + ". Điểm yếu sẽ nhắc trong báo cáo ngày.")
+    return 0

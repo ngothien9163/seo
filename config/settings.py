@@ -175,6 +175,11 @@ PAGESPEED_STATE_DIR = "data"        # nơi lưu pagespeed.json (chỉ số gọn
 # Điền key miễn phí (Google Cloud Console -> PageSpeed Insights API) để thoát cảnh đó; để trống vẫn chạy.
 PAGESPEED_API_KEY = ""
 
+# T33 job PageSpeed cho BÀI MỚI push — 1 request/URL trọn đời (state pagespeed_posts.json)
+PAGESPEED_WARN_SCORE = 60           # điểm LAB mobile dưới mốc → 1 dòng nhắc trong báo cáo ngày
+PAGESPEED_MAX_PER_RUN = 5           # mỗi lần job đo tối đa N URL mới (Lighthouse mất chục giây/URL)
+SCHEDULER_PAGESPEED_HOURS = [6]     # giờ job 'pagespeed' chạy mỗi ngày — bắt bài push chưa đo
+
 # ────────────────────────────────────────────────────────────────────────────
 # PHẦN I: BACKLINK AUTO-CHECK (F7) — verify link đã đặt, lịch sự với site người khác
 # ────────────────────────────────────────────────────────────────────────────

@@ -37,7 +37,7 @@ def _tail(text: str, tail: int = TAIL_SECTION) -> list[str]:
 
 
 def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
-                     outreach_lines: list = None) -> list[str]:
+                     outreach_lines: list = None, pspeed_lines: list = None) -> list[str]:
     """[dòng] của phần "Việc hôm nay" — thuần, không đọc file (caller cung cấp)."""
     lines = []
     todo = [r for r in (plan_rows or []) if not r.get("pushed") and not r.get("has_draft")]
@@ -53,12 +53,13 @@ def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
     if n_backlinks == 0:
         lines.append("- Backlink: chưa có link nào trong danh sách — đặt link đầu rồi --backlink-add")
     lines.extend(outreach_lines or [])   # T32: nhắc sổ outreach quá hạn (2 dòng tối đa)
+    lines.extend(pspeed_lines or [])     # T33: nhắc bài PageSpeed điểm kém (2 dòng tối đa)
     return lines
 
 
 def build_report(rank_text: str = None, gsc_text: str = None,
                  plan_rows: list = None, n_backlinks: int = -1,
-                 outreach_lines: list = None) -> str:
+                 outreach_lines: list = None, pspeed_lines: list = None) -> str:
     """Báo cáo gộp hàng ngày. Nguồn trống/hỏng → phần đó tự nói "chưa có dữ liệu"."""
     from datetime import datetime as _dt
 
@@ -71,7 +72,7 @@ def build_report(rank_text: str = None, gsc_text: str = None,
             lines.append(title)
             lines.extend(tail)
 
-    todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines)
+    todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines, pspeed_lines)
     if todo:
         lines.append("")
         lines.append("── VIỆC HÔM NAY ──")
@@ -143,9 +144,15 @@ def run_daily_cli(save_to_disk: bool = False) -> int:
         outreach_lines = reminder_lines()
     except Exception as e:
         _log(f"[Daily] phần outreach bỏ qua: {type(e).__name__}: {e}")
+    pspeed_lines = []
+    try:
+        from utils.pagespeed import weak_posts as pspeed_weak
+        pspeed_lines = pspeed_weak()
+    except Exception as e:
+        _log(f"[Daily] phần PageSpeed bỏ qua: {type(e).__name__}: {e}")
 
     text = _clip(build_report(rank_text, gsc_text, plan_rows, n_backlinks,
-                              outreach_lines))
+                              outreach_lines, pspeed_lines))
     ok = send(text)
     mode = delivery_mode()
     if ok:

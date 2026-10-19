@@ -122,6 +122,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Kết quả lưu vào `data/audit_last.json` → `python main.py --export audit` ra CSV (`severity,rule,url,detail`, UTF-8 BOM) mở bằng Excel. GUI: tab **📈 Xếp Hạng** → nút **🔍 AUDIT SITE** (thread nền, log in ra khung, chạy xong tự xuất CSV).
 - `python main.py --pagespeed [URL]`: **LCP / CLS / INP** + điểm hiệu năng, cả mobile lẫn desktop, qua PageSpeed Insights API; chỉ lưu số gọn trong `data/pagespeed.json` (không lưu response thô, vài MB).
 - Số PSI là **LAB** (Lighthouse do Google chạy hộ lúc gọi), **không phải field data CrUX**. API **không cần key**, nhưng quota ẩn danh là *"Queries per day" dùng chung toàn cầu* — **đo thật 2026-10-14: đang cạn**, nên lệnh hiện trả thông báo 429 và exit 1. Muốn có số: tạo key miễn phí rồi điền `PAGESPEED_API_KEY` (key là secret của bạn — code không in ra log, không ghi vào file).
+- **PageSpeed cho bài vừa push (T33)**: scheduler job `pagespeed` (mặc định 06:00 hằng ngày) tự đo **mới** bài nào trong `wp_pushed.json` chưa có điểm — **1 request/URL trọn đời** (đo xong ghi key vào `pagespeed_posts.json`, lần chạy kế bỏ qua = 0 request), mỗi đợt tối đa `PAGESPEED_MAX_PER_RUN` URL (5 — Lighthouse mất chục giây/URL). Bài lỗi (mất mạng, HTTP lạ) **không ghi state** — lần chạy kế tự thử lại; PSI 429 giữa đợt thì job dừng nguyên đợt (quota cạn, chạy tiếp vô nghĩa). Xem: `--pagespeed-posts` (bảng điểm kém nhất trước, LAB mobile); `--pagespeed-posts "URL"` = **đo lại** một bài (xóa điểm cũ, 1 request mới). Bài điểm < `PAGESPEED_WARN_SCORE` (60) → tối đa 2 dòng nhắc trong `--daily-report` kèm lệnh đo lại. Chỉ đo trang của MÌNH (TARGET_URL / link trong wp_pushed) — key nếu điền là secret, không in log.
 - `python main.py --audit-actions` (C2): biến findings của lần audit gần nhất thành **việc ưu tiên theo từ khóa** — URL của lỗi được ghép với từ khóa trong `config/keywords.json` (kỹ thuật so token không dấu, URL phải khớp ≥ 2 token có nghĩa → trang `/blog/p5` hay trang chủ không bao giờ bị gán oan), sắp xếp **CAO trước** rồi in tối đa 5 việc (`--limit N`). Lỗi trang chủ (không khớp từ khóa nào) thành nhóm "Trang chủ/tổng" vì ảnh hưởng mọi từ khóa. Chưa từng chạy `--audit`? Lệnh in ra hướng dẫn chạy `--audit` trước thay vì im lặng.
 
 ---
@@ -415,6 +416,9 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `PAGESPEED_TIMEOUT` | `90` | PageSpeed: giây/lượt — PSI tự chạy Lighthouse nên chậm hơn crawl nhiều |
 | `PAGESPEED_STATE_DIR` | `data` | Nơi lưu `pagespeed.json` (chỉ số gọn, không chứa response thô) |
 | `PAGESPEED_API_KEY` | `""` | PageSpeed: để trống vẫn chạy; điền key miễn phí khi quota ẩn danh (dùng chung toàn cầu) hết. **Secret** — đừng commit, đừng in ra log |
+| `PAGESPEED_WARN_SCORE` | `60` | PageSpeed bài viết (T33): điểm LAB mobile dưới mốc → 1 dòng nhắc trong báo cáo ngày |
+| `PAGESPEED_MAX_PER_RUN` | `5` | PageSpeed bài viết (T33): mỗi đợt job đo tối đa N URL mới (Lighthouse mất chục giây/URL) |
+| `SCHEDULER_PAGESPEED_HOURS` | `[6]` | Giờ job `pagespeed` chạy mỗi ngày — đo bài mới push chưa có điểm (1 request/URL trọn đời) |
 | `BACKLINK_PARALLEL` | `5` | Backlink: số luồng tối đa khi check — mức lịch sự với site người khác, không bao giờ vượt số URL của đợt |
 | `BACKLINK_TIMEOUT` | `15` | Backlink: giây/request — một trang treo không được giữ cả đợt check |
 | `BACKLINK_CACHE_HOURS` | `24` | Backlink: URL đã check trong N giờ thì dùng kết quả cũ (`--backlink-refresh` để bỏ qua) |

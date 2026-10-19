@@ -403,6 +403,20 @@ def _run_airobots() -> int:
     return run_ai_robots_cli()
 
 
+def _guard_pagespeed() -> tuple:
+    """T33 — PSI chạy được cả không key (quota chung); ổn hơn là chặn job:
+    1 request/URL trọn đời nên tổng quota dùng rất nhỏ. Không có bài chạy
+    nhanh, in thông báo 0 request."""
+    return True, ""
+
+
+def _run_pagespeed() -> int:
+    """Đúng engine --pagespeed-posts (T33): đo bài mới push chưa có điểm
+    (1 request/URL, LAB mobile), điểm yếu nhắc trong báo cáo ngày."""
+    from utils.pagespeed import run_pagespeed_posts_cli
+    return run_pagespeed_posts_cli()
+
+
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
@@ -428,6 +442,9 @@ JOBS = {
                  "hours": list(getattr(cfg, "SCHEDULER_AIROBOTS_HOURS", [7])),
                  "weekly": bool(getattr(cfg, "SCHEDULER_AIROBOTS_WEEKLY", True)),
                  "guard": "_guard_airobots", "runner": "_run_airobots"},
+    "pagespeed": {"desc": "PageSpeed Insights cho bài vừa push (1 request/URL trọn đời, LAB mobile — T33)",
+                  "hours": list(getattr(cfg, "SCHEDULER_PAGESPEED_HOURS", [6])),
+                  "guard": "_guard_pagespeed", "runner": "_run_pagespeed"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},

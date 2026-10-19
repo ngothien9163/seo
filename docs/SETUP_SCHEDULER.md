@@ -68,6 +68,21 @@ schtasks /Create /F /TN "SEO-Bot-Logon" /SC ONLOGON /RL LIMITED ^
   /TR "cmd /c cd /d D:\Projects\OpenSource\SEO\seo-by-Tung && venv\Scripts\python.exe main.py --run-job rank >> data\scheduler.log 2>&1"
 ```
 
+### Job pagespeed (T33) — PageSpeed cho bài vừa push
+
+Job `pagespeed` đo **PageSpeed Insights** (so LAB mobile) cho bài nào trong
+`wp_pushed.json` **chưa có điểm** — **1 request/URL trọn đời**: đo xong ghi key
+`data/pagespeed_posts.json`, các lần chạy sau là 0 request. Mỗi đợt tối đa
+`PAGESPEED_MAX_PER_RUN` (5) URL vì Lighthouse mất chục giây/URL; PSI 429 giữa
+đợt thì job dừng nguyên đợt (URL chưa ghi — lần chạy kế tự thử lại). Bài điểm
+< `PAGESPEED_WARN_SCORE` (60) được nhắc về sửa rồi đo lại, qua dòng trong báo
+cáo ngày. Giờ: `SCHEDULER_PAGESPEED_HOURS = [6]`.
+
+```bat
+schtasks /Create /F /TN "SEO-Bot-Pagespeed-0600" /SC DAILY /ST 06:00 /RL LIMITED ^
+  /TR "cmd /c cd /d D:\Projects\OpenSource\SEO\seo-by-Tung && venv\Scripts\python.exe main.py --run-job pagespeed >> data\scheduler.log 2>&1"
+```
+
 ## 3. Đổi giờ thì đổi ở đâu?
 
 **Trên Windows, không phải trong settings.** `SCHEDULER_RANK_HOURS = [7, 13, 19]` và
