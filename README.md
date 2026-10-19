@@ -182,6 +182,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 - `python main.py --doctor` quét nhanh mọi thứ setup xong chưa: site/từ khóa, lịch rank, dữ liệu GSC, Telegram, Ollama (thêm `--net` để gọi thật), backlink, WordPress, bản nháp, thư mục state — mỗi mục trả ✓ sẵn sàng / ! cần lưu ý / ✗ thiếu, kèm hướng dẫn sửa; cuối bảng là dòng tổng và con trỏ tới **[`docs/CHECKLIST_FIRST_RUN.md`](docs/CHECKLIST_FIRST_RUN.md)**.
 - `python main.py --setup-wizard` (T14): **wizard "bật nhà mới"** — 6 bước theo thứ tự (site & từ khóa → check rank lần đầu → Search Console → Ollama → Telegram tùy chọn → WordPress tùy chọn), mỗi bước chỉ báo xong/thiếu kèm lệnh hoặc docs cần làm; **chỉ đọc file/config, 0 request, không cấu hình gì thay owner**. Bước tùy chọn không chặn tổng thể. GUI cũng có tab **🧙 Cài Đặt Lần Đầu** (nút kiểm tra lại + nút mở checklist docs). Secret (token WP/Telegram) chỉ hiện 4 ký tự cuối.
+- `python main.py --first-run` (T15): **chạy thử tuần tự lần đầu** — wizard trạng thái → doctor môi trường → **audit crawl thật site mình** (tối đa 100 trang HTML tĩnh) → xuất CSV các nguồn có (rỗng vẫn chạy, file chỉ có tiêu đề); mỗi bước tự nuốt lỗi riêng, output dài bị cắt với ghi chú "chạy lệnh riêng để xem đầy đủ"; cuối bảng tổng kết [✓]/[✗] mỗi bước + **VIỆC KẾ TIẾP** rút từ wizard steps (bắt buộc trước, tùy chọn kèm nhãn). KHÔNG check GSC thật (403 ở lần đầu là chắn — việc đó thuộc SETUP_GSC.md), KHÔNG mở browser, KHÔNG tự sửa config; exit 0 luôn. GUI cũng có nút **🌱 FIRST RUN** trong tab 🧙 (thread nền, chặn chồng crawl với bot/audit đang chạy).
 - **Không bao giờ crash**: mỗi mục tự nuốt lỗi của nó → vấn đề nào có câu trả lời, vấn đề nào không → ra `!`. Secret (Telegram token) chỉ hiện 4 ký tự cuối. Thoát code luôn 0 — đây là lệnh đọc, không phải lệnh chặn.
 
 ---
@@ -328,6 +329,7 @@ python main.py --content-brief "kw" [-save]  # Brief trộn dữ liệu cho 1 t�
 python main.py --va-pack  # Gói việc ngày cho VA — 1 file md checklist (data/<slug>/va_pack_<ngay>.md)
 python main.py --yoast-meta <post_id> --kw "tu khoa"  # Patch Yoast focuskw/meta cho bai draft/pending sau --wp-push
 python main.py --setup-wizard  # Wizard cai dat lan dau — buoc nao xong, con thieu gi (docs nao de lam)
+python main.py --first-run  # Chay thu tuan tu lan dau: wizard → doctor → audit → export CSV + viec ke tiep
 python main.py --gsc-trend  # Xu hướng imps/clicks/CTR theo query, 8 mốc gần nhất + cờ sụt sớm
 python main.py --gsc-alerts  # Canh bao imps rut manh (<50% hoac mat) giua 2 snapshot GSC
 python main.py --audit-diff  # Lỗi mới phát hiện vs đã sửa, giữa 2 lần audit gần nhất

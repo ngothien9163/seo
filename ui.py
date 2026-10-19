@@ -75,6 +75,7 @@ class TrafficBotUI(ctk.CTk):
         self._chart_running = False
         self._chart_visible = False
         self._wizard_running = False
+        self._firstrun_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -920,6 +921,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.open_wizard_docs,
         )
         self.btn_wizard_docs.pack(side="left", padx=(12, 0))
+        self.btn_firstrun = ctk.CTkButton(
+            wf, text="🌱  FIRST RUN (chạy thử từng bước)",
+            fg_color="#2a6b35", hover_color="#3a8544",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_first_run_now,
+        )
+        self.btn_firstrun.pack(side="left", padx=(12, 0))
 
         self.lbl_wizard_summary = ctk.CTkLabel(
             t, text="", font=ctk.CTkFont(size=13, weight="bold"), anchor="w")
@@ -1006,6 +1014,28 @@ class TrafficBotUI(ctk.CTk):
             _os.startfile(path)  # Windows: open bằng app mặc định
         except Exception as e:
             print(f"[Wizard] Không mở được file docs: {e}")
+
+    def run_first_run_now(self):
+        """🌱: chạy thử tuần tự wizard→doctor→audit→export (T15) — audit crawl thật nên thread."""
+        if self._firstrun_running:
+            return
+        if self.is_running or getattr(self, "_audit_running", False):
+            print("[FirstRun] ⚠️ Bot/audit đang chạy — đừng chồng crawl lên nhau.")
+            return
+        self._firstrun_running = True
+        self.btn_firstrun.configure(state="disabled", text="⏳ Đang chạy thử...")
+        threading.Thread(target=self._firstrun_worker, daemon=True).start()
+
+    def _firstrun_worker(self):
+        try:
+            from utils.first_run import run_first_run_cli
+            run_first_run_cli()  # in thẳng vào System Logs (stdout được redirect)
+        except Exception as e:
+            print(f"[FirstRun] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._firstrun_running = False
+            self.after(0, lambda: self.btn_firstrun.configure(
+                state="normal", text="🌱  FIRST RUN (chạy thử từng bước)"))
 
     # ── F10k — CHART: đường hạng thật bằng canvas (hạng nhỏ = ở trên) ──
     def run_chart_now(self):
