@@ -66,6 +66,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Lấy **clicks, impressions, vị trí trung bình, CTR** theo từng query trực tiếp từ Google (Search Analytics API) — không scrape, không CAPTCHA, không phụ thuộc IP.
 - **Báo cáo gộp**: mỗi từ khóa hiển thị hạng SERP (Rank Tracker) cạnh dữ liệu thật từ Google; kèm mục "Query mới phát hiện" — các query người dùng tìm mà bạn chưa theo dõi (dữ liệu đầu vào cho keyword research).
 - Snapshot lưu `gsc_history.json` (giữ 90 ngày), tối đa 4 lần fetch/ngày, xem lại không tốn quota.
+- **Hạng dự phòng khi SERP CAPTCHA (T29)**: Google SERP đôi khi trả CAPTCHA → từ khóa đó không có hạng thật. Khi vậy, `--rank-report` / `--rank` và section SERP trong `--html-report` hiển thị **hạng trung bình GSC 28 ngày** với nhãn `~8 (GSC)` + dòng giải thích dưới bảng; GSC không có từ khóa đó thì giữ `>100` như cũ. **Chỉ hiển thị** — không ghi vào rank history (hạng SERP thật vẫn là nguồn thật, chạy lại `--rank` khi bớt CAPTCHA là tự mất nhãn). Chưa setup GSC → tính năng tự ẩn.
 - Setup service account Google ~10 phút, làm 1 lần: xem **[docs/SETUP_GSC.md](docs/SETUP_GSC.md)**.
 
 ### 8. Xuất báo cáo CSV — mang dữ liệu đi nơi khác

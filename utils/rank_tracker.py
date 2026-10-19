@@ -366,6 +366,30 @@ def delta_str(cur, prv) -> str:
     return "="
 
 
+def gsc_positions() -> dict:
+    """T29 — hạng trung bình theo GSC (28 ngày gần nhất) làm hạng DỰ PHÒNG hiển thị
+    khi SERP bị CAPTCHA. {kw: int} — kw khớp CHÍNH XÁC tên từ khóa đang theo dõi.
+
+    Chỉ ĐỌC gsc_history.json (nếu GSC chưa setup → {} — fallback tự tắt, báo cáo
+    như cũ). Không ghi gì vào rank history: hạng SERP thật vẫn là nguồn thật,
+    GSC chỉ tô chỗ trống và luôn kèm nhãn '(GSC)'.
+    """
+    try:
+        from utils.gsc_client import _load_history
+        snaps = _load_history().get("snapshots", {})
+    except Exception:
+        return {}
+    if not snaps:
+        return {}
+    snap = snaps[sorted(snaps.keys())[-1]] or {}
+    out = {}
+    for kw, r in (snap.get("rows") or {}).items():
+        pos = (r or {}).get("position") or 0
+        if pos and pos > 0:
+            out[str(kw)] = max(1, int(round(float(pos))))
+    return out
+
+
 def build_report(tail_spark: int = 8) -> str:
     """Bảng báo cáo xếp hạng: từ khóa | hạng hiện tại | Δ | xu hướng."""
     h = _load_history()
@@ -391,16 +415,28 @@ def build_report(tail_spark: int = 8) -> str:
     lines.append("-" * 76)
 
     found_positions = []
+    gsc = gsc_positions()  # T29 — hạng dự phòng khi SERP CAPTCHA (chỉ hiển thị)
+    gsc_used = 0
     for kw in sorted(latest_data.keys()):
         cur = (latest_data.get(kw) or {}).get("pos")
         prv = (prev_data.get(kw) or {}).get("pos")
         trend = [(checks[k].get(kw) or {}).get("pos") for k in keys[-tail_spark:]]
-        pos_str = str(cur) if cur is not None else f">{depth}"
+        src = ""
+        if cur is None and kw in gsc:
+            # SERP không trả vị trí (CAPTCHA/0 kết quả) — GSC nói hạng TB 28 ngày
+            pos_str = f"~{gsc[kw]} (GSC)"
+            src = "gsc"
+            gsc_used += 1
+        else:
+            pos_str = str(cur) if cur is not None else f">{depth}"
         lines.append(f"  {kw[:40]:<40}{pos_str:>7}  {delta_str(cur, prv):>5}  {sparkline(trend)}")
         if cur is not None:
             found_positions.append(cur)
 
     lines.append("-" * 76)
+    if gsc_used:
+        lines.append(f"  ({gsc_used} từ khóa SERP không trả hạng — hiển thị hạng trung bình "
+                     f"GSC 28 ngày, nhãn ~(GSC); chạy lại --rank khi bớt CAPTCHA để có hạng thật)")
     total = len(latest_data)
     if found_positions:
         top3 = sum(1 for p in found_positions if p <= 3)

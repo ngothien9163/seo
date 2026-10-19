@@ -26,7 +26,9 @@ def _report_path() -> str:
 
 
 def _rank_section() -> dict:
-    """SERP: kw → (pos, delta, trend_text). Trống nếu chưa --rank lần nào."""
+    """SERP: kw → (pos, delta, trend_text, src). Trống nếu chưa --rank lần nào.
+    T29 — SERP không trả hạng (CAPTCHA) mà GSC có → pos = hạng GSC, src='GSC'
+    (chỉ hiển thị, không ghi vào rank history — hạng SERP thật vẫn là nguồn thật)."""
     try:
         from utils.rank_tracker import _load_history, delta_str, sparkline
     except Exception:
@@ -36,13 +38,22 @@ def _rank_section() -> dict:
         return {}
     keys = sorted(checks.keys())
     latest, prev = checks[keys[-1]], (checks[keys[-2]] if len(keys) >= 2 else {})
+    try:
+        from utils.rank_tracker import gsc_positions
+        gsc = gsc_positions()
+    except Exception:
+        gsc = {}
     rows = {}
     for kw in sorted(latest.keys()):
         cur = (latest.get(kw) or {}).get("pos")
         prv = (prev.get(kw) or {}).get("pos")
         trend = [(checks[k].get(kw) or {}).get("pos") for k in keys[-8:]]
-        rows[kw] = {"pos": cur, "delta": delta_str(cur, prv),
-                    "trend": sparkline(trend) if any(t is not None for t in trend) else "—"}
+        src = ""
+        if cur is None and kw in gsc:
+            cur, src = gsc[kw], "GSC"
+        rows[kw] = {"pos": cur, "delta": delta_str(cur, prv) if src == "" else "—",
+                    "trend": sparkline(trend) if any(t is not None for t in trend) else "—",
+                    "src": src}
     return {"stamp": keys[-1], "rows": rows}
 
 
@@ -188,15 +199,27 @@ _SEV_CLASS = {"CAO": "sev-cao", "TRUNG BÌNH": "sev-trung", "THẤP": "sev-thap"
 def _render_rank(data: dict) -> str:
     if not data:
         return _empty_hint("SERP", "python main.py --rank")
+    gsc_used = 0
     out = [f'<p class="meta">Lần check gần nhất: {escape(data["stamp"][:19].replace("T", " "))}</p>',
            "<table><tr><th>Từ khóa</th><th>Hạng</th><th>Δ</th><th>Xu hướng</th></tr>",
            "<tbody>"]
     for kw, r in data["rows"].items():
-        pos = escape(str(r["pos"])) if r["pos"] is not None else f'<span class="dim">&gt;{getattr(cfg, "RANK_CHECK_DEPTH", 100)}</span>'
+        if r["pos"] is not None:
+            pos = escape(str(r["pos"]))
+            if r.get("src") == "GSC":
+                # T29 — hạng trung bình GSC 28 ngày (SERP lần check bị CAPTCHA)
+                pos = f'~{pos} <span class="dim">(GSC)</span>'
+                gsc_used += 1
+        else:
+            pos = f'<span class="dim">&gt;{getattr(cfg, "RANK_CHECK_DEPTH", 100)}</span>'
         out.append(f'<tr><td>{escape(kw)}</td><td class="num">{pos}</td>'
                    f'<td class="num">{escape(r["delta"])}</td>'
                    f'<td class="trend">{escape(r["trend"])}</td></tr>')
     out.append("</tbody></table>")
+    if gsc_used:
+        out.append(f'<p class="meta">SERP không trả hạng cho {gsc_used} từ khóa (CAPTCHA) — '
+                   "đang hiển thị hạng trung bình GSC 28 ngày, nhãn ~(GSC). "
+                   "Chạy lại --rank khi bớt CAPTCHA để có hạng thật.</p>")
     return "\n".join(out)
 
 
