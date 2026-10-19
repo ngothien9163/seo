@@ -217,3 +217,18 @@ def trend_words(cur, prev) -> str:
     if cur < prev:
         return "giảm"
     return "đứng yên"
+
+
+def gsc_trend_series(history: dict, last: int = 8) -> dict:
+    """T42 — {"labels": [ngày fetch], "clicks": [...], "imps": [...]} tổng từng
+    mốc GSC snapshot (key = ngày fetch, rows.key tương ứng query). Ít nhất 2
+    mốc mới đáng vẽ — caller kiểm tra len trước. 0 request mới — chỉ READ."""
+    snaps = (history or {}).get("snapshots") or {}
+    labels = sorted(snaps)[-last:]
+    clicks, imps = [], []
+    for k in labels:
+        rows = (snaps[k] or {}).get("rows") or {}
+        clicks.append(sum(int((r or {}).get("clicks") or 0) for r in rows.values()))
+        imps.append(sum(int((r or {}).get("impressions") or 0)
+                        for r in rows.values()))
+    return {"labels": labels, "clicks": clicks, "imps": imps}

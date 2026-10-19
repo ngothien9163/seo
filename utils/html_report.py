@@ -99,6 +99,14 @@ def _gsc_section() -> dict:
                                      for k, v in top]}
     except Exception:
         pass
+    # T42 — trend clicks/imps theo các lần fetch GSC (snapshot series; ≥ 2 mốc)
+    try:
+        from utils.gui_charts import gsc_trend_series
+        series = gsc_trend_series(_load_history())
+        if len(series.get("clicks") or []) >= 2:
+            out["trend"] = series
+    except Exception:
+        pass
     return out
 
 
@@ -484,6 +492,43 @@ def _render_rank(data: dict) -> str:
     return "\n".join(out)
 
 
+def _svg_trend(series: dict) -> str:
+    """T42 — SVG tự chứa (không JS): clicks (xanh liền) + hiển thị (xám đứt)
+    qua từng lần fetch GSC. Chỉ gồm số nguyên + ngày đã escape — an toàn.
+    Trả chuỗi svg hoặc '' khi không đủ 2 điểm."""
+    labels = list((series or {}).get("labels") or [])
+    clicks = list((series or {}).get("clicks") or [])
+    imps = list((series or {}).get("imps") or [])
+    n = len(clicks)
+    if n < 2 or len(labels) != n:
+        return ""
+    pad_l, pad_r = 6, 6
+    inner_w = 560 - pad_l - pad_r
+    xs = [pad_l + (inner_w * i) / (n - 1) for i in range(n)]
+    hi = max(max(clicks), max(imps), 1)
+
+    def ys(vals):
+        return [(64 - (v / hi) * 54) for v in vals]
+
+    pts_c = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys(clicks)))
+    pts_i = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys(imps)))
+    dot_c = " ".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.5" fill="#1e7d40"/>'
+                     for x, y in zip(xs, ys(clicks)))
+    first, last_day = escape(str(labels[0])), escape(str(labels[-1]))
+    return (
+        '<svg class="ct-svg" viewBox="0 0 560 78" role="img" '
+        'aria-label="Trend clicks va hien thi theo lan fetch GSC">'
+        f'<line x1="0" y1="64" x2="560" y2="64" stroke="#e3e6ee"/>'
+        f'<polyline fill="none" stroke="#5f6b7a" stroke-width="1.5" '
+        f'stroke-dasharray="4 3" points="{pts_i}"/>'
+        f'<polyline fill="none" stroke="#1e7d40" stroke-width="2" points="{pts_c}"/>'
+        f"{dot_c}"
+        f'<text x="0" y="76" font-size="9" fill="#5f6b7a">{first}</text>'
+        f'<text x="560" y="76" font-size="9" fill="#5f6b7a" text-anchor="end">{last_day}</text>'
+        f'<text x="0" y="9" font-size="9" fill="#5f6b7a">clicks/lan fetch — '
+        f'toi da {hi}</text></svg>')
+
+
 def _render_gsc(data: dict) -> str:
     if not data:
         return _empty_hint("Search Console",
@@ -496,6 +541,13 @@ def _render_gsc(data: dict) -> str:
                    f'<td class="num">{r["clicks"]}</td><td class="num">{r["impressions"]}</td>'
                    f'<td class="num">{r["position"]:.1f}</td><td class="num">{r["ctr"] * 100:.1f}%</td></tr>')
     out.append("</tbody></table>")
+    # T42 — trend mini SVG theo từng lần fetch (0 request mới; < 2 mốc → ẩn)
+    tr = data.get("trend") or {}
+    if len(tr.get("clicks") or []) >= 2:
+        out.append('<p class="meta">Clicks / hiển thị theo từng lần fetch GSC '
+                   "(đường xanh = clicks, xám đứt = hiển thị; 0 request mới — "
+                   "đọc lại snapshot đã lưu).</p>")
+        out.append(_svg_trend(tr))
     # T35 — trang nào đang gánh traffic: nhiều query cùng đấm 1 trang hay service
     # page nào thật sự được bấm — bảng path gọn, không in URL nguyên si dài
     pg = data.get("pages") or {}
