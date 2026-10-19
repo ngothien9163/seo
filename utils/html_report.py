@@ -118,7 +118,16 @@ def _audit_section() -> dict:
     top = [{"severity": f.get("severity", "THẤP"), "rule": f.get("rule", ""),
             "url": f.get("url", ""), "detail": f.get("detail", "")}
            for f in findings[:12]]
-    return {"total": len(findings), "sev_count": sev_count, "top": top}
+    out = {"total": len(findings), "sev_count": sev_count, "top": top}
+    # T41 — trend rule qua các lần audit (audit_history có sẵn, 0 request)
+    try:
+        from utils.audit_trend import trend_summary_for_html
+        trend = trend_summary_for_html()
+        if trend:
+            out["trend"] = trend
+    except Exception:
+        pass
+    return out
 
 
 def _backlink_section() -> dict:
@@ -532,6 +541,32 @@ def _render_audit(data: dict) -> str:
                    f'{escape(f["severity"])}</span></td><td>{escape(f["rule"])}</td>'
                    f'<td class="url">{escape(f["url"])}</td><td>{escape(f["detail"])}</td></tr>')
     out.append("</tbody></table>")
+    # T41 — bảng trend: loại lỗi qua các lần audit, giảm là tốt (↓ xanh)
+    trend = (data.get("trend") or {}).get("rules")
+    if trend:
+        trend_meta = data.get("trend") or {}
+        tf, tl = trend_meta.get("total_first"), trend_meta.get("total_last")
+        n_checks = trend_meta.get("n_checks") or 0
+        mark = "↓ tốt" if (tl or 0) < (tf or 0) else "↑ tệ" if (tl or 0) > (tf or 0) else "— đứng yên"
+        out.append(f'<p class="meta">Trend audit — từng loại lỗi qua {n_checks} lần audit; '
+                   f"tổng {tf} → {tl} ({mark}). ↓ nghĩa là đang sửa có công hiệu — "
+                   "số đếm mỗi loại lấy từ chính findings đã lưu (0 request mới).</p>")
+        out.append('<table><tr><th>Loại lỗi</th><th>Mốc đầu → hiện tại</th><th>Đỉnh</th>'
+                   "<th>Chuỗi 8 mốc gần</th></tr><tbody>")
+        for r in trend:
+            series_txt = " ".join(str(n) for n in (r.get("series") or []))
+            arw = r.get("arrow") or "—"
+            cls = "ok" if (arw == "↓") else "bad" if (arw == "↑") else ""
+            out.append(f'<tr><td>{escape(str(r.get("rule") or ""))}</td>'
+                       f'<td class="num">{r.get("first")} → {r.get("last")}'
+                       f' <span class="{cls}">{escape(arw)}</span></td>'
+                       f'<td class="num">{r.get("peak")}</td>'
+                       f'<td class="trend">{escape(series_txt)}</td></tr>')
+        out.append("</tbody></table>")
+        nr_all = trend_meta.get("n_rules_all") or 0
+        if nr_all > len(trend):
+            out.append(f'<p class="meta dim">…và {nr_all - len(trend)} loại lỗi nữa '
+                       "(số đếm nhỏ hơn) — bảng giữ top 8.</p>")
     return "\n".join(out)
 
 
