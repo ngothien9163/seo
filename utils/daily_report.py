@@ -37,8 +37,11 @@ def _tail(text: str, tail: int = TAIL_SECTION) -> list[str]:
 
 
 def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
-                     outreach_lines: list = None, pspeed_lines: list = None) -> list[str]:
-    """[dòng] của phần "Việc hôm nay" — thuần, không đọc file (caller cung cấp)."""
+                     outreach_lines: list = None, pspeed_lines: list = None,
+                     actions_lines: list = None) -> list[str]:
+    """[dòng] của phần "Việc hôm nay" — thuần, không đọc file (caller cung cấp).
+    T37: actions_lines = việc gấp gom từ utils.actions (chỉ 3 nguồn audit/
+    backlink/post — outreach + PageSpeed đã có 2 dòng riêng dưới, không nhắc kép)."""
     lines = []
     todo = [r for r in (plan_rows or []) if not r.get("pushed") and not r.get("has_draft")]
     waiting = [r for r in (plan_rows or []) if r.get("has_draft") and not r.get("pushed")]
@@ -52,6 +55,7 @@ def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
         lines.append(f"- {len(waiting)} draft CHỜ DUYỆT chưa push WP (xem: --plan-progress, đẩy: --wp-push)")
     if n_backlinks == 0:
         lines.append("- Backlink: chưa có link nào trong danh sách — đặt link đầu rồi --backlink-add")
+    lines.extend(actions_lines or [])    # T37: việc gấp CAO/backlink/bài (top 4)
     lines.extend(outreach_lines or [])   # T32: nhắc sổ outreach quá hạn (2 dòng tối đa)
     lines.extend(pspeed_lines or [])     # T33: nhắc bài PageSpeed điểm kém (2 dòng tối đa)
     return lines
@@ -59,7 +63,8 @@ def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
 
 def build_report(rank_text: str = None, gsc_text: str = None,
                  plan_rows: list = None, n_backlinks: int = -1,
-                 outreach_lines: list = None, pspeed_lines: list = None) -> str:
+                 outreach_lines: list = None, pspeed_lines: list = None,
+                 actions_lines: list = None) -> str:
     """Báo cáo gộp hàng ngày. Nguồn trống/hỏng → phần đó tự nói "chưa có dữ liệu"."""
     from datetime import datetime as _dt
 
@@ -72,7 +77,8 @@ def build_report(rank_text: str = None, gsc_text: str = None,
             lines.append(title)
             lines.extend(tail)
 
-    todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines, pspeed_lines)
+    todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines, pspeed_lines,
+                            actions_lines)
     if todo:
         lines.append("")
         lines.append("── VIỆC HÔM NAY ──")
@@ -150,9 +156,17 @@ def run_daily_cli(save_to_disk: bool = False) -> int:
         pspeed_lines = pspeed_weak()
     except Exception as e:
         _log(f"[Daily] phần PageSpeed bỏ qua: {type(e).__name__}: {e}")
+    # T37: việc gấp audit CAO + backlink + bài lẻo (outreach/PageSpeed đã nhắc
+    # riêng phía trên — lấy 3 nguồn này thôi để không nhắc kép về cùng một việc)
+    actions_lines = []
+    try:
+        from utils.actions import priority_lines
+        actions_lines = priority_lines(n=4, sources=("audit", "backlink", "post"))
+    except Exception as e:
+        _log(f"[Daily] phần việc gấp bỏ qua: {type(e).__name__}: {e}")
 
     text = _clip(build_report(rank_text, gsc_text, plan_rows, n_backlinks,
-                              outreach_lines, pspeed_lines))
+                              outreach_lines, pspeed_lines, actions_lines))
     ok = send(text)
     mode = delivery_mode()
     if ok:

@@ -144,6 +144,16 @@ def build_digest() -> str:
     except Exception:
         pass                    # trend là phần tốt thêm — thiếu thì bỏ, không chết digest
 
+    # T37 — Việc Ưu Tiên: tối đa 3 việc gấp ghép từ 5 nguồn (CAO trước;
+    # chi tiết + lệnh đầy đủ ở section "Việc nên làm trước" của report.html)
+    try:
+        from utils.actions import priority_lines
+        weekly_actions = priority_lines(n=3)
+        if weekly_actions:
+            sections.append(_section("VIỆC ƯU TIÊN", "\n".join(weekly_actions)))
+    except Exception:
+        pass                    # như các phần tốt thêm khác — thiếu thì bỏ, không chết digest
+
     lines = [f"BÁO CÁO TUẦN — {site_paths.site_domain() or '(chưa cấu hình)'}",
              f"Tuần {iso_week()} ({date.today().isoformat()})"]
     any_data = False

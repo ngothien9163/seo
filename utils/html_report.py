@@ -412,72 +412,14 @@ def _render_summary(data: dict) -> str:
 
 
 def _actions_section() -> dict:
-    """T36 — Việc nên làm trước: gộp việc từ 5 nguồn có sẵn (0 request mới),
-    xếp CAO trước; nguồn nào hỏng tự bỏ qua. 5 nguồn tự cap lại (3/2/2/2/2)."""
-    items = []
-    # 1. audit CAO — lỗi nghiêm nhất trên trang (tối đa 3)
+    """T36/T37 — Việc nên làm trước: gom từ utils.actions (đồng bộ daily/weekly);
+    CAO trước, cap 8; nguồn hỏng tự bỏ qua trong module."""
     try:
-        sec = _audit_section()
-        for f in (sec.get("top") or [])[:3]:
-            if f.get("severity") != "CAO":
-                continue
-            tail = _url_path_tail(str(f.get("url") or ""))
-            items.append({"src": "audit", "sev": "CAO",
-                          "text": f'{f.get("rule")}: {f.get("detail")}',
-                          "tail": tail, "fix": "--audit-actions"})
+        from utils.actions import collect_items
+        items = collect_items()
     except Exception:
-        pass
-    # 2. backlink có vấn đề (tối đa 2) — link đã đặt rủi ro mất
-    try:
-        from utils import backlinks as bl
-        from utils.backlink_checker import state_rows
-        _header, bg_rows = state_rows(bl.load_state())
-        for row in [r for r in bg_rows if not str(r[0]).startswith("Còn sống")][:2]:
-            st = str(row[0])
-            items.append({"src": "backlink", "sev": "CAO",
-                          "text": f"Link đã đặt {st.lower()}: {row[1]}",
-                          "tail": "", "fix": "--backlink-check"})
-    except Exception:
-        pass
-    # 3. bài lẻo / phơi không ai bấm (T30, tối đa 2 — đang kéo là tốt, bỏ)
-    try:
-        from utils.post_report import build_post_rows
-        for r in (x for x in build_post_rows()[:6] if x["state"] in ("dead", "show")):
-            items.append({"src": "post", "sev": "nặng",
-                          "text": f'Bài "{r["keyword"]}" {r["status"].lower()}: {r["advice"]}',
-                          "tail": _url_path_tail(str(r.get("url") or "")),
-                          "fix": "--post-report"})
-    except Exception:
-        pass
-    # 4. outreach quá hạn (T32 — reminder_lines tự cap 2)
-    try:
-        from utils.outreach import reminder_lines
-        for ln in (s.strip().lstrip("-").lstrip() for s in reminder_lines()):
-            items.append({"src": "outreach", "sev": "chờ", "text": ln,
-                          "tail": "", "fix": "--outreach-list"})
-    except Exception:
-        pass
-    # 5. PageSpeed yếu (T33 — weak_posts tự cap 2 + gợi lệnh đo lại)
-    try:
-        from utils.pagespeed import weak_posts
-        for ln in weak_posts():
-            items.append({"src": "pagespeed", "sev": "chờ",
-                          "text": str(ln).strip().lstrip("-").lstrip(),
-                          "tail": "", "fix": "--pagespeed-posts"})
-    except Exception:
-        pass
-    order = {"CAO": 0, "nặng": 1, "chờ": 2}
-    items.sort(key=lambda it: order.get(it["sev"], 3))
+        items = []
     return {"items": items[:8]}
-
-
-def _url_path_tail(url: str) -> str:
-    """Đuôi path của URL để gắn cuối dòng việc — '/spa-nail-quan-2' ('/' → '')."""
-    from urllib.parse import urlparse
-    path = (urlparse(url or "").path or "").rstrip("/")
-    if not path or path == "/":
-        return ""
-    return "/" + path.rsplit("/", 1)[-1] if "/" in path else path
 
 
 def _render_actions(data: dict) -> str:
