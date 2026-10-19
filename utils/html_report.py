@@ -219,10 +219,11 @@ def _aeo_section() -> dict:
 def collect() -> dict:
     """Gọi từng nguồn, mỗi nguồn tự nuốt lỗi (trống → section hướng dẫn)."""
     sections = {}
-    for name, fn in (("summary", _summary_section), ("rank", _rank_section),
-                     ("gsc", _gsc_section), ("audit", _audit_section),
-                     ("backlink", _backlink_section), ("outreach", _outreach_section),
-                     ("aeo", _aeo_section), ("competitors", _competitors_section),
+    for name, fn in (("summary", _summary_section), ("actions", _actions_section),
+                     ("rank", _rank_section), ("gsc", _gsc_section),
+                     ("audit", _audit_section), ("backlink", _backlink_section),
+                     ("outreach", _outreach_section), ("aeo", _aeo_section),
+                     ("competitors", _competitors_section),
                      ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
@@ -406,6 +407,98 @@ def _render_summary(data: dict) -> str:
             "warn" if airobots.get("blocked") else "ok")
     else:
         row("Bot AI (robots.txt)", "", "dim")
+    out.append("</tbody></table>")
+    return "\n".join(out)
+
+
+def _actions_section() -> dict:
+    """T36 — Việc nên làm trước: gộp việc từ 5 nguồn có sẵn (0 request mới),
+    xếp CAO trước; nguồn nào hỏng tự bỏ qua. 5 nguồn tự cap lại (3/2/2/2/2)."""
+    items = []
+    # 1. audit CAO — lỗi nghiêm nhất trên trang (tối đa 3)
+    try:
+        sec = _audit_section()
+        for f in (sec.get("top") or [])[:3]:
+            if f.get("severity") != "CAO":
+                continue
+            tail = _url_path_tail(str(f.get("url") or ""))
+            items.append({"src": "audit", "sev": "CAO",
+                          "text": f'{f.get("rule")}: {f.get("detail")}',
+                          "tail": tail, "fix": "--audit-actions"})
+    except Exception:
+        pass
+    # 2. backlink có vấn đề (tối đa 2) — link đã đặt rủi ro mất
+    try:
+        from utils import backlinks as bl
+        from utils.backlink_checker import state_rows
+        _header, bg_rows = state_rows(bl.load_state())
+        for row in [r for r in bg_rows if not str(r[0]).startswith("Còn sống")][:2]:
+            st = str(row[0])
+            items.append({"src": "backlink", "sev": "CAO",
+                          "text": f"Link đã đặt {st.lower()}: {row[1]}",
+                          "tail": "", "fix": "--backlink-check"})
+    except Exception:
+        pass
+    # 3. bài lẻo / phơi không ai bấm (T30, tối đa 2 — đang kéo là tốt, bỏ)
+    try:
+        from utils.post_report import build_post_rows
+        for r in (x for x in build_post_rows()[:6] if x["state"] in ("dead", "show")):
+            items.append({"src": "post", "sev": "nặng",
+                          "text": f'Bài "{r["keyword"]}" {r["status"].lower()}: {r["advice"]}',
+                          "tail": _url_path_tail(str(r.get("url") or "")),
+                          "fix": "--post-report"})
+    except Exception:
+        pass
+    # 4. outreach quá hạn (T32 — reminder_lines tự cap 2)
+    try:
+        from utils.outreach import reminder_lines
+        for ln in (s.strip().lstrip("-").lstrip() for s in reminder_lines()):
+            items.append({"src": "outreach", "sev": "chờ", "text": ln,
+                          "tail": "", "fix": "--outreach-list"})
+    except Exception:
+        pass
+    # 5. PageSpeed yếu (T33 — weak_posts tự cap 2 + gợi lệnh đo lại)
+    try:
+        from utils.pagespeed import weak_posts
+        for ln in weak_posts():
+            items.append({"src": "pagespeed", "sev": "chờ",
+                          "text": str(ln).strip().lstrip("-").lstrip(),
+                          "tail": "", "fix": "--pagespeed-posts"})
+    except Exception:
+        pass
+    order = {"CAO": 0, "nặng": 1, "chờ": 2}
+    items.sort(key=lambda it: order.get(it["sev"], 3))
+    return {"items": items[:8]}
+
+
+def _url_path_tail(url: str) -> str:
+    """Đuôi path của URL để gắn cuối dòng việc — '/spa-nail-quan-2' ('/' → '')."""
+    from urllib.parse import urlparse
+    path = (urlparse(url or "").path or "").rstrip("/")
+    if not path or path == "/":
+        return ""
+    return "/" + path.rsplit("/", 1)[-1] if "/" in path else path
+
+
+def _render_actions(data: dict) -> str:
+    """T36 — bảng việc gộp; trống → dòng dim (KHÔNG class 'empty' — section
+    này luôn hiện, không phá đếm hint của các section)."""
+    items = (data or {}).get("items") or []
+    if not items:
+        return ('<p class="meta dim">Không có việc gấp nào từ 5 nguồn gộp '
+                "(audit CAO, link backlink, bài lẻo, outreach quá hạn, PageSpeed "
+                "yếu) — tình hình ổn; chi tiết từng mảng xem các section dưới.</p>")
+    out = ['<p class="meta">Gộp việc từ 5 nguồn có sẵn, CAO trước — 0 request '
+           "mới; lệnh ở cột cuối chạy bình thường sau khi đọc kỹ dòng việc "
+           "(không có gì tự chạy cả).</p>",
+           '<table><tr><th>Việc</th><th>Nguồn</th><th>Lệnh</th></tr><tbody>']
+    for it in items:
+        cls = "sev-cao" if it.get("sev") == "CAO" else "sev-trung" if it.get(
+            "sev") == "nặng" else "dim"
+        tail = f' <span class="dim">{escape(str(it.get("tail") or ""))}</span>' if it.get("tail") else ""
+        out.append(f'<tr><td class="{cls}">{escape(str(it.get("text") or ""))}{tail}</td>'
+                   f'<td class="dim">{escape(str(it.get("src") or ""))}</td>'
+                   f'<td class="url">{escape(str(it.get("fix") or ""))}</td></tr>')
     out.append("</tbody></table>")
     return "\n".join(out)
 
@@ -753,7 +846,7 @@ def _render_posts(data: dict) -> str:
     return "\n".join(out)
 
 
-_RENDER = {"summary": _render_summary,
+_RENDER = {"summary": _render_summary, "actions": _render_actions,
            "rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
            "outreach": _render_outreach,
@@ -761,6 +854,7 @@ _RENDER = {"summary": _render_summary,
            "posts": _render_posts, "airobots": _render_airobots}
 
 _TITLES = {"summary": "Tóm tắt — tình hình nhanh",
+           "actions": "Việc nên làm trước",
            "rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
            "outreach": "Sổ outreach — xin đặt link",
@@ -805,8 +899,8 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("summary", "rank", "gsc", "audit", "backlink", "outreach", "aeo",
-                 "competitors", "posts", "airobots"):
+    for name in ("summary", "actions", "rank", "gsc", "audit", "backlink",
+                 "outreach", "aeo", "competitors", "posts", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
