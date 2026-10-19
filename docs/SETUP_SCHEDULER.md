@@ -24,6 +24,10 @@ giới hạn sẵn có của từng module), chặn hai job chồng nhau, và gh
 
 ## 2. Đăng ký task (Command Prompt, không cần PowerShell)
 
+**Lãi nhanh: `python main.py --scheduler-install`** in sẵn toàn bộ lệnh `schtasks /Create`
+theo giờ trong `config/settings.py` (`SCHEDULER_*_HOURS`) — không tự đăng ký gì, copy dán là xong.
+Các lệnh mẫu dưới đây resolve tay khi muốn hiểu cú pháp.
+
 Thay `D:\Projects\OpenSource\SEO\seo-by-Tung` bằng đường dẫn thật nếu bạn đặt project ở chỗ khác.
 Mỗi task một giờ, vì `schtasks /Create` chỉ nhận một `/ST` (định dạng `HH:mm` 24h).
 Log ghi dồn vào `data\scheduler.log` để xem được lúc job chạy khi không có ai ngồi máy.

@@ -430,6 +430,63 @@ def describe_jobs() -> list:
     return lines
 
 
+# ─── T20: sinh sẵn lệnh đăng ký schtasks — IN RA THÔI, không tự chạy ─────────
+
+TASK_PREFIX = "SEO-Bot"
+
+LOG_REL = os.path.join("data", "scheduler.log")
+
+
+def schtasks_commands() -> list:
+    """Mỗi dòng 1 lệnh `schtasks /Create` (1 giờ/nhiệm vụ vì /Create chỉ nhận một /ST,
+    định dạng docs/SETUP_SCHEDULER.md). Jobs không tự chạy (hours []) được BỎ QUA —
+    chạy tay --run-job thì dùng được rồi.
+
+    Thuần dữ liệu: sinh chuỗi, không thực thi — việc đăng ký thay đổi lịch máy,
+    chủ sở hữu tự copy vào Command Prompt (hoặc administrator nếu dính Access denied).
+    """
+    py = os.path.join("venv", "Scripts", "python.exe")
+    out = []
+    for name, job in JOBS.items():
+        for hour in job["hours"]:
+            hhmm = f"{int(hour):02d}:00"
+            tn = f"{TASK_PREFIX}-{name.capitalize()}-{hhmm.replace(':', '')}"
+            tr = (f"cmd /c cd /d {ROOT} && {py} main.py --run-job {name} "
+                  f">> {LOG_REL} 2>&1")
+            out.append({"name": tn, "desc": job["desc"], "hour": hhmm,
+                        "command": (f'schtasks /Create /F /TN "{tn}" /SC DAILY '
+                                    f'/ST {hhmm} /RL LIMITED ^\n  /TR "{tr}"')})
+    return out
+
+
+def run_install_cli() -> int:
+    """--scheduler-install: in các lệnh /Create tương ứng giờ trong JOBS — IN THÔI.
+
+    Không tự đăng ký: tạo task là sửa lịch của máy — owner tự quyết (chạy tay trong
+    Command Prompt, hoặc admin khi dính Access denied). Đổi giờ trong settings rồi
+    chạy lại lệnh này (/F ghi đè task cũ) là được.
+    """
+    cmds = schtasks_commands()
+    print("=" * 96)
+    print("  ĐĂNG KÝ WINDOWS TASK SCHEDULER — lệnh sinh sẵn theo giờ trong config/settings.py")
+    print("  (lệnh chỉ ĐƯỢC IN ra — copy dán vào Command Prompt tự chạy; không tự đăng ký)")
+    print("=" * 96)
+    if not cmds:
+        print("  Không job nào có giờ tự chạy (hours []) — sổ trống hay SCHEDULER_*_HOURS=[]?")
+        print("  Jobs chạy tay thì dùng --run-job <tên>, không cần task.")
+        return 0
+    for c in cmds:
+        print(f"  ── {c['name']} — {c['desc']} ({c['hour']})")
+        print(f"  {c['command']}")
+        print()
+    print("  Sau đó kiểm tra:")
+    print(f"    schtasks /Query /TN \"{TASK_PREFIX}-Rank-0700\" /V /FO LIST   (đổi tên theo task bạn đăng ký)")
+    print(f"    type {LOG_REL}                    (log job chạy khi không ai ngồi máy)")
+    print("  Gặp 'Access is denied' → Command Prompt kiểu Run as administrator rồi chạy lại.")
+    print(f"  Chi tiết: docs/SETUP_SCHEDULER.md — {CLOCK_NOTE}")
+    return 0
+
+
 def run_job(name: str) -> int:
     """Chạy 1 job theo tên. Không bao giờ raise — Task Scheduler chỉ cần exit code."""
     print(f"[Scheduler] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} — job '{name}'")
