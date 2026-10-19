@@ -144,8 +144,39 @@ def build_digest() -> str:
     except Exception:
         pass                    # trend là phần tốt thêm — thiếu thì bỏ, không chết digest
 
-    # T37 — Việc Ưu Tiên: tối đa 3 việc gấp ghép từ 5 nguồn (CAO trước;
-    # chi tiết + lệnh đầy đủ ở section "Việc nên làm trước" của report.html)
+    # T44 — TREND AUDIT: tổng lỗi mốc đầu → mốc mới nhất (reuse T41, 0 request)
+    try:
+        from utils.audit_trend import trend_summary_for_html
+        trend = trend_summary_for_html()
+        if trend and len(trend.get("rules") or []) >= 1:
+            tf, tl = int(trend.get("total_first", 0)), int(trend.get("total_last", 0))
+            n = int(trend.get("n_checks", 0))
+            mark = "↓ tốt" if tl < tf else ("↑ xấu" if tl > tf else "không đổi")
+            sections.append(_section(
+                "TREND AUDIT",
+                f"Tổng lỗi {tf} → {tl} qua {n} lần audit ({mark}). "
+                "Chi tiết từng loại: python main.py --audit-trend."))
+    except Exception:
+        pass                    # trend là phần tốt thêm — thiếu thì bỏ, không chết digest
+
+    # T44 — ĐỐI THỦ ĐANG LEO: domain tăng số lần xuất hiện top-10 (reuse T43)
+    try:
+        from utils.competitors import _domain_from_target, trend_counters
+        from utils.rank_tracker import _load_history
+        own = _domain_from_target(getattr(cfg, "TARGET_URL", ""))
+        first, last = trend_counters(_load_history(), own)
+        rows = sorted(((d, last.get(d, 0) - first.get(d, 0),
+                        first.get(d, 0), last.get(d, 0))
+                       for d in set(first) | set(last)), key=lambda t: -t[1])
+        movers = [f"{d} {f0}→{l0} ({dv:+d})" for d, dv, f0, l0 in rows if dv > 0][:3]
+        if movers:
+            sections.append(_section(
+                "ĐỐI THỦ ĐANG LEO",
+                "Đang tăng lần xuất hiện top-10 (mốc đầu → mới nhất): "
+                + "; ".join(movers) + ". Chi tiết: --competitors."))
+    except Exception:
+        pass                    # như các phần tốt thêm khác — thiếu thì bỏ, không chết digest
+
     try:
         from utils.actions import priority_lines
         weekly_actions = priority_lines(n=3)
