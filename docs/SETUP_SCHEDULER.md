@@ -48,6 +48,19 @@ schtasks /Create /F /TN "SEO-Bot-GSC-0900" /SC DAILY /ST 09:00 /RL LIMITED ^
 
 `/F` = ghi đè task trùng tên, chạy lại lệnh này khi muốn đổi giờ là được.
 
+### Job airobots (T26) — 1 lần/tuần, chỉ chạy thứ Hai
+
+Job `airobots` đọc robots.txt site (1 request, **chỉ báo cáo** — không tự sửa gì),
+kết quả lưu `ai_robots_last.json` → section Bot AI trong report.html luôn tươi.
+`SCHEDULER_AIROBOTS_WEEKLY = True` (mặc định) → task đăng ký `/SC DAILY` nhưng
+**chỉ chạy đúng thứ Hai**, ngày khác in dòng giải thích rồi thoát (không tốn request).
+Muốn hằng ngày: đặt `False`. Giờ: `SCHEDULER_AIROBOTS_HOURS = [7]`.
+
+```bat
+schtasks /Create /F /TN "SEO-Bot-Airobots-0700" /SC DAILY /ST 07:00 /RL LIMITED ^
+  /TR "cmd /c cd /d D:\Projects\OpenSource\SEO\seo-by-Tung && venv\Scripts\python.exe main.py --run-job airobots >> data\scheduler.log 2>&1"
+```
+
 **Tùy chọn — máy hay bật muộn:** thêm task bắt kịp khi đăng nhập. `RANK_CHECK_MIN_INTERVAL` chặn nếu vừa check xong, nên task này không gây check dồn:
 
 ```bat

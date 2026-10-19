@@ -389,6 +389,20 @@ def _run_weekly() -> int:
     return run_weekly_cli(force=False)
 
 
+def _guard_airobots() -> tuple:
+    """T26 — 1 request robots.txt, tuần 1 lần là đủ (robots.txt hiếm đổi).
+    Kết quả chỉ là báo cáo state — không có exit-code có nghĩa hơn 0/1."""
+    return True, ""
+
+
+def _run_airobots() -> int:
+    """Đúng engine --ai-robots: fetch robots.txt 1 lần, in bảng + lưu
+    ai_robots_last.json (section Bot AI trong --html-report đọc lại 0 request).
+    Tool chỉ báo cáo — không tự sửa robots.txt, đúng nguyên tắc T22."""
+    from utils.ai_robots import run_ai_robots_cli
+    return run_ai_robots_cli()
+
+
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
@@ -410,6 +424,10 @@ JOBS = {
     "weekly": {"desc": "Báo cáo tuần gộp rank/GSC/AEO 1 tin — 1 lần/tuần (chạy ngày nào cũng chỉ gửi thứ 2 đầu tiên nó gặp)",
                "hours": [9],
                "guard": "_guard_weekly", "runner": "_run_weekly"},
+    "airobots": {"desc": "Check robots.txt chặn bot AI (1 request, chỉ báo cáo) — T26: mặc định 1 lần/tuần, chỉ chạy THỨ HAI",
+                 "hours": list(getattr(cfg, "SCHEDULER_AIROBOTS_HOURS", [7])),
+                 "weekly": bool(getattr(cfg, "SCHEDULER_AIROBOTS_WEEKLY", True)),
+                 "guard": "_guard_airobots", "runner": "_run_airobots"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},
@@ -501,6 +519,16 @@ def run_job(name: str) -> int:
     if name == "traffic" and not SCHEDULER_TRAFFIC_ENABLE:
         print("[Scheduler] Traffic đang TẮT theo quyết định của owner "
               "(SCHEDULER_TRAFFIC_ENABLE=False trong config/settings.py) — bỏ qua.")
+        return 0
+
+    if job.get("weekly") and datetime.now().weekday() != 0:
+        # T26 — job tuần chạy đúng thứ 2 (weekday 0): task Windows đăng ký /SC DAILY
+        # nên chạy hằng ngày, nhưng bỏ qua: robots.txt hiếm đổi, 1 lần/tuần đủ.
+        today = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'][datetime.now().weekday()]
+        print(f"[Scheduler] airobots: hôm nay {today} — job này đặt 1 lần/tuần chỉ chạy "
+              "THỨ HAI (SCHEDULER_AIROBOTS_WEEKLY=True trong config/settings.py; "
+              "đặt False cho chạy hằng ngày). Cũng chạy tay được mọi lúc: "
+              "python main.py --ai-robots")
         return 0
 
     allowed, reason = globals()[job["guard"]]()

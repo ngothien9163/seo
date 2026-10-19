@@ -154,6 +154,8 @@ SCHEDULER_RANK_HOURS = [7, 13, 19]   # giờ trong ngày check thứ hạng từ
 SCHEDULER_GSC_HOURS = [9]            # giờ kéo dữ liệu Search Console
 SCHEDULER_BACKLINK_HOURS = []        # giờ verify backlink — rỗng = chỉ chạy tay [--run-job backlink]
 SCHEDULER_REPORT_HOURS = []          # giờ xuất report.html — rỗng = khớp giờ gsc (tổng hợp sau GSC)
+SCHEDULER_AIROBOTS_HOURS = [7]       # giờ check robots.txt chặn bot AI — rỗng = chỉ chạy tay
+SCHEDULER_AIROBOTS_WEEKLY = True     # True = job airobots chỉ chạy đúng THỨ HAI (1 lần/tuần — robots.txt cũng ít đổi)
 SCHEDULER_TRAFFIC_ENABLE = False     # traffic tự chạy = quyết định của owner, mặc định TẮT
 SCHEDULER_NOTIFY_ENABLE = False      # tin Telegram tóm tắt sau mỗi job — bật cùng ALERTS_ENABLE
 SCHEDULER_LOCK_STALE = 1200          # giây không heartbeat là lock bị coi đã chết (20 phút)

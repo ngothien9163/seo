@@ -72,7 +72,7 @@ def show_strategy():
     print("  python main.py --alerts     Canh bao tut hang (Telegram/console, xem SETUP_ALERTS)")
     print("  python main.py --weekly     Bao cao tuan gop SERP+GSC+AEO -> Telegram (1 lan/tuan)")
     print("  python main.py --daily-report [-save]  Bao cao buoi sang 1 tin: rank tail + GSC tail + viec hom nay")
-    print("  python main.py --run-job rank|gsc|traffic|daily|weekly  Gọi 1 job (Windows Task Scheduler)")
+    print("  python main.py --run-job rank|gsc|traffic|daily|weekly|airobots  Gọi 1 job (Windows Task Scheduler)")
     print("  python main.py --scheduler-status Xem job nao den gio chay, ket qua ra sao")
     print("  python main.py --scheduler-install Sinh lenh schtasks /Create theo gio settings (IN THOI, tu copy chay)")
     print("  python main.py --audit [--audit-limit N]  Audit on-page site cua minh (HTML tinh)")
