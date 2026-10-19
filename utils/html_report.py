@@ -496,12 +496,24 @@ def _render_gsc(data: dict) -> str:
                    "GSC không trả page cho query chưa ai phơi, số dưới có thể thấp hơn tổng lượt phơi.</p>")
         out.append('<table><tr><th>Trang</th><th>Clicks</th><th>Hiện</th>'
                    "<th>CTR</th></tr><tbody>")
+        n_noclick = 0
         for r in pg["rows"]:
             ctr = (r["clicks"] / r["imps"] * 100) if r["imps"] else 0.0
-            out.append(f'<tr><td class="url">{escape(r["path"])}</td>'
-                       f'<td class="num">{r["clicks"]}</td><td class="num">{r["imps"]}</td>'
-                       f'<td class="num">{ctr:.1f}%</td></tr>')
+            if (r["imps"] or 0) >= 20 and (r["clicks"] or 0) == 0:
+                n_noclick += 1
+                out.append(f'<tr><td class="url">{escape(r["path"])}'
+                           f'<span class="warn"> phơi {r["imps"]} chưa ai bấm</span></td>'
+                           f'<td class="num">{r["clicks"]}</td><td class="num">{r["imps"]}</td>'
+                           f'<td class="num">{ctr:.1f}%</td></tr>')
+            else:
+                out.append(f'<tr><td class="url">{escape(r["path"])}</td>'
+                           f'<td class="num">{r["clicks"]}</td><td class="num">{r["imps"]}</td>'
+                           f'<td class="num">{ctr:.1f}%</td></tr>')
         out.append("</tbody></table>")
+        if n_noclick:
+            out.append(f'<p class="meta warn">⚠️ {n_noclick} trang đang phơi mà chưa ai bấm '
+                       "(≥ 20 hiển thị, 0 clicks) — review title + meta description của trang đó; "
+                       "CTR lên là clicks lên, không cần đợi thêm bài mới.</p>")
         if (pg.get("n") or 0) > (pg.get("shown") or 0):
             out.append(f'<p class="meta dim">…và {pg["n"] - pg["shown"]} trang nữa '
                        "(clicks/imps thấp hơn) — đủ 8 hàng là đủ nhìn.</p>")
@@ -826,6 +838,7 @@ _CSS = (":root{--ink:#1f2430;--line:#e3e6ee;--soft:#f6f7fb;--cao:#b3261e;"
         ".sev-cao{background:#fbe9e7;color:var(--cao)}.sev-trung{background:#fff3e0;color:var(--trung)}"
         ".sev-thap{background:var(--soft)}.badge-ok{color:var(--ok)}.badge-warn{color:var(--warn)}"
         ".badge-bad{color:var(--bad)}td.ok{color:var(--ok)}td.warn{color:var(--warn)}td.bad{color:var(--bad)}"
+        ".ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}"
         ".empty{color:#5f6b7a}code{background:var(--soft);padding:1px 5px;border-radius:4px;"
         "font-size:12px}")
 
