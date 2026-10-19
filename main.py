@@ -94,7 +94,7 @@ def show_strategy():
     print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
     print("  python main.py --ai-robots     Bot AI nao bi robots.txt chan — AEO co doc duoc site khong (1 request, chi bao cao)")
     print("  python main.py --indexnow-key    Sinh key IndexNow (luu data/indexnow_key.txt)")
-    print("  python main.py --indexnow [URL...] [--dry-run|--force]  Day URL moi vao Bing/Yandex/mach IndexNow (1 lan/ngay)")
+    print("  python main.py --indexnow [URL...] [--dry-run|--force]  Day URL moi vao engine IndexNow; khong URL = doc sitemap, chi submit URL MOI (T24)")
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
     print("  python main.py --backlink-check   Verify backlink da dat: con song + co link toi site + dofollow")
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
