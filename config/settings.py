@@ -184,6 +184,11 @@ BACKLINK_CACHE_HOURS = 24           # link vừa check trong vòng này không f
 BACKLINK_STATE_DIR = "data"         # nơi lưu backlink_status.json (kết quả check — gitignored)
 BACKLINK_STORE_FILE = "backlinks.json"  # nằm trong config/, danh sách link owner tự thêm
 
+# T32 sổ outreach — tool chỉ GHI SỔ + NHẮC, không tự liên hệ ai, không crawl site người ta
+OUTREACH_REMIND_PROPOSED = 7        # ngày đề xuất chưa phản hồi → nhắc follow-up 1 nhịp
+OUTREACH_REMIND_AGREED = 5          # ngày đồng ý chưa đặt link → nhắc gửi anchor/xem lại
+OUTREACH_STATE_DIR = "data"         # nơi lưu outreach.json (sổ outreach — gitignored)
+
 # ────────────────────────────────────────────────────────────────────────────
 # PHẦN J: CONTENT GENERATION (F8) — chỉ nói chuyện với Ollama localhost, chỉ sinh draft
 # ────────────────────────────────────────────────────────────────────────────

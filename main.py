@@ -101,6 +101,10 @@ def show_strategy():
     print('  python main.py --backlink-add "URL"  Them 1 backlink vao danh sach theo doi')
     print("  python main.py --backlink-import <file.csv>  Nap CSV 'External links' tai tu Search Console")
     print("  python main.py --backlink-refresh [--backlink-limit N]  Check lai het, bo qua cache 24h")
+    print("  python main.py --outreach-add URL --outreach-kw \"anchor\"  Ghi so lien he dat link (T32; khong tu lien he, khong crawl)")
+    print("  python main.py --outreach-list  Xem so outreach: da de xuat / dong y / da dat / mai mot + ngay cho")
+    print("  python main.py --outreach-set URL --outreach-state proposed|agreed|placed|dead  Cap nhat trang thai")
+    print("  python main.py --outreach-remove URL  Xoa mot muc khoi so")
     print('  python main.py --generate "tu khoa"  Sinh bai bang Ollama (chi draft, khong tu dang)')
     print("  python main.py --generate --day 3    Lay muc ngay 3 trong content plan 30 ngay")
     print("  python main.py --generate \"kw\" --dry-run  Chi in prompt, khong goi Ollama")
@@ -377,6 +381,28 @@ if __name__ == "__main__":
     elif "--backlink-import" in sys.argv:
         from utils.backlink_checker import run_backlink_import_cli
         sys.exit(run_backlink_import_cli(_flag_value("--backlink-import")))
+
+    elif "--outreach-add" in sys.argv:
+        from utils.outreach import run_add_cli
+        sys.exit(run_add_cli(url=_flag_value("--outreach-add"),
+                             kw=_flag_value("--outreach-kw"),
+                             contact=_flag_value("--outreach-contact"),
+                             note=_flag_value("--outreach-note"),
+                             title=_flag_value("--outreach-title")))
+
+    elif "--outreach-list" in sys.argv:
+        from utils.outreach import run_list_cli
+        sys.exit(run_list_cli())
+
+    elif "--outreach-set" in sys.argv:
+        from utils.outreach import run_set_cli
+        sys.exit(run_set_cli(key_part=_flag_value("--outreach-set"),
+                             state=_flag_value("--outreach-state"),
+                             note=_flag_value("--outreach-note")))
+
+    elif "--outreach-remove" in sys.argv:
+        from utils.outreach import run_remove_cli
+        sys.exit(run_remove_cli(key_part=_flag_value("--outreach-remove")))
 
     elif "--generate" in sys.argv:
         from content.generator import run_generate_cli

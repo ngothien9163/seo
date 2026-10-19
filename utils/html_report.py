@@ -120,6 +120,19 @@ def _backlink_section() -> dict:
     return {"rows": rows}
 
 
+def _outreach_section() -> dict:
+    """T32 — sổ liên hệ đặt link: đề xuất → đồng ý → đặt / mai một (0 request,
+    chỉ đọc outreach.json). Trống → section hint hướng dẫn --outreach-add."""
+    try:
+        from utils.outreach import list_rows
+        rows = list_rows()
+    except Exception:
+        return {}
+    if not rows:
+        return {}
+    return {"rows": rows}
+
+
 def _competitors_section() -> dict:
     """T27 — domain đối thủ hay xuất hiện top-10 SERP theo rank history (0 request).
     Đọc cùng nguồn --competitors (P2-1): top_urls từng mốc check."""
@@ -191,7 +204,8 @@ def collect() -> dict:
     sections = {}
     for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
                      ("audit", _audit_section), ("backlink", _backlink_section),
-                     ("aeo", _aeo_section), ("competitors", _competitors_section),
+                     ("outreach", _outreach_section), ("aeo", _aeo_section),
+                     ("competitors", _competitors_section),
                      ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
@@ -275,6 +289,40 @@ def _render_backlink(data: dict) -> str:
                    f'<td>{"✓" if r["has_link"] else "—"}</td><td>{"✓" if r["dofollow"] else "—"}</td></tr>')
     out.append("</tbody></table>")
     out.append(f'<p class="meta">{alive}/{len(data["rows"])} link còn sống.</p>')
+    return "\n".join(out)
+
+
+def _render_outreach(data: dict) -> str:
+    """T32 — sổ outreach: đề xuất → đồng ý → đặt / mai một; ngày chờ + ghi chú."""
+    if not data:
+        return _empty_hint("Sổ outreach",
+                           'python main.py --outreach-add "URL-bài-of-site-người-ta" '
+                           '--outreach-kw "anchor" (chỉ ghi sổ + nhắc, không tự liên hệ)')
+    out = ['<p class="meta">Sổ liên hệ đặt link — việc liên hệ làm tay ngoài tool; '
+           "tại đây ghi trạng thái để báo cáo ngày nhắc follow-up đúng chu kỳ.</p>",
+           "<table><tr><th>Trạng thái</th><th>Trang đích</th><th>Anchor</th>"
+           "<th>Chờ</th><th>Ghi chú</th></tr><tbody>"]
+    cls_of = {"proposed": "warn", "agreed": "", "placed": "ok", "dead": "bad"}
+    for r in data["rows"]:
+        note = escape(r["note"]) if r["note"] else ""
+        stage = (f'{r["days"]} ngày' if r["days"] > 0 else ("hôm nay" if r["days"] == 0 else ""))
+        addr = (f'{escape(r["title"]) if r["title"] else ""}'
+                f'<br><span class="url">{escape(r["url"])}</span>')
+        out.append(f'<tr><td class="{cls_of.get(r["state"], "")}">{escape(r["status"])}</td>'
+                   f'<td>{addr}</td><td>{escape(r["kw"] or "—")}</td>'
+                   f'<td class="num">{stage or "—"}</td><td>{note or "—"}</td></tr>')
+    out.append("</tbody></table>")
+    c = {}
+    for r in data["rows"]:
+        c[r["state"]] = c.get(r["state"], 0) + 1
+    parts = [f"{c[k]} {lab}" for k, lab in
+             (("proposed", "chờ phản hồi"), ("agreed", "chờ đặt"), ("placed", "đã đặt"),
+              ("dead", "mai một")) if c.get(k)]
+    if parts:
+        out.append('<p class="meta">Tổng: ' + escape(", ".join(parts)) + ".</p>")
+    out.append('<p class="meta dim">Set "placed" xong chạy '
+               '<code>python main.py --backlink-add "URL"</code> để hệ verify theo dõi '
+               "còn sống/dofollow — sổ này không tự bấm gì thay bạn.</p>")
     return "\n".join(out)
 
 
@@ -493,11 +541,13 @@ def _render_posts(data: dict) -> str:
 
 _RENDER = {"rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
+           "outreach": _render_outreach,
            "aeo": _render_aeo, "competitors": _render_competitors,
            "posts": _render_posts, "airobots": _render_airobots}
 
 _TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
+           "outreach": "Sổ outreach — xin đặt link",
            "aeo": "AEO — AI trả lời có nhắc brand?",
            "competitors": "Domain đối thủ thường xuất hiện (SERP top-10)",
            "posts": "Hiệu quả từng bài viết (GSC × WP × AEO × IndexNow)",
@@ -539,8 +589,8 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink", "aeo", "competitors", "posts",
-                 "airobots"):
+    for name in ("rank", "gsc", "audit", "backlink", "outreach", "aeo", "competitors",
+                 "posts", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")

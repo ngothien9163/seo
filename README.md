@@ -137,6 +137,12 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - Thêm link: `--backlink-add "https://blog-nguoi-khac/bai-cua-ban"`, hoặc nạp cả loạt bằng `--backlink-import <file.csv>` đọc từ CSV **"External links"** tải tay trong Search Console (Properties → Links). **API của GSC không có endpoint external links** nên con đường duy nhất là tay export; parser không tin tiêu đề cột (GSC đổi tên cột theo phiên bản) mà nhận ra URL trong **mọi ô**, bỏ trang của chính site mình và URL đã có.
 - **Giới hạn**: không đo DA/DR/traffic của trang đặt link (Ahrefs/Moz API trả phí) nên không xếp được "link này tốt hay xấu", không tự tìm backlink mới, không tự đặt link. Chỉ đọc HTML tĩnh — link render bằng JS (widget, iframe lazy) không được đếm. Check link chỉ trả lời "trang đó còn tồn tại và còn link tới site mình không", không chứng minh Google đã index hay tính giá trị link.
 
+### 13b. Sổ outreach — lời đề xuất đặt link (T32)
+
+- **Vòng đời lời xin link**: **proposed** (đã gửi mail/tin nhắn bằng tay) → **agreed** (người ta đồng ý) → **placed** (link đã sống — chạy tiếp `--backlink-add` để hệ verify ở trên lo phần còn sống/dofollow) — hoặc **dead** (mai một). Lệnh: `--outreach-add "URL-bài-người-ta" --outreach-kw "anchor" [--outreach-title] [--outreach-contact] [--outreach-note]`, `--outreach-list`, `--outreach-set URL --outreach-state proposed|agreed|placed|dead`, `--outreach-remove`. Trang đích nên là **bài cụ thể** chứa chỗ đặt link, không phải trang chủ.
+- **Chống trùng + mốc thời gian**: một trang = một mục (chuẩn key bỏ tham số tracking của backlink store — `?utm_*`, trailing slash là một); mỗi state tự ghi mốc `proposed_at/agreed_at/placed_at/dead_at`; thêm lại URL đang dead là **mở vòng mới** (mốc đề xuất reset), URL đang placed thì chặn (đã vào danh sách verify rồi). Đi lui được: agreed → proposed.
+- **Nhắc đúng chu kỳ, không spam**: `--daily-report` (và scheduler job `daily`) thêm dòng cho bài **proposed ≥ 7 ngày** chưa phản hồi hoặc **agreed ≥ 5 ngày** chưa đặt link (ngưỡng `OUTREACH_REMIND_PROPOSED`/`OUTREACH_REMIND_AGREED`), tối đa 2 dòng/lần; đặt xong / dead / còn tươi không xuất hiện. Sổ đầy đủ trong section "Sổ outreach — xin đặt link" của `--html-report` (table trạng thái + số ngày chờ). **Tool chỉ ghi sổ + nhắc** — tự liên hệ, tự gửi mail, tự crawl site người ta đều KHÔNG làm; hướng dẫn: [docs/USE_OUTREACH.md](docs/USE_OUTREACH.md).
+
 ---
 
 ### 14. Content generation bằng Ollama — draft bài tiếng Việt (F8)
@@ -414,6 +420,9 @@ Mode `--search`/`--direct` kiểm tra rate limiter trước khi chạy và thoá
 | `BACKLINK_CACHE_HOURS` | `24` | Backlink: URL đã check trong N giờ thì dùng kết quả cũ (`--backlink-refresh` để bỏ qua) |
 | `BACKLINK_STATE_DIR` | `data` | Nơi lưu `backlink_status.json` (kết quả check, để `--export backlinks` đọc lại) |
 | `BACKLINK_STORE_FILE` | `backlinks.json` | Tên file danh sách link đã đặt, nằm trong `config/` — **đã gitignore** vì là dữ liệu kinh doanh |
+| `OUTREACH_REMIND_PROPOSED` | `7` | Sổ outreach (T32): đề xuất đã gửi N ngày chưa phản hồi → nhắc follow-up trong báo cáo ngày |
+| `OUTREACH_REMIND_AGREED` | `5` | Sổ outreach (T32): người ta đồng ý N ngày mà chưa đặt link → nhắc gửi anchor / đánh dead |
+| `OUTREACH_STATE_DIR` | `data` | Nơi lưu `outreach.json` (sổ lời đề xuất — gitignored) |
 | `CONTENT_MODEL` | `qwen3:30b-a3b` | Content (F8): model Ollama sinh bài — bản nháp, owner duyệt rồi mới dùng |
 | `CONTENT_GEN_TIMEOUT` | `300` | Content: giây/lượt gọi Ollama — model 30b chậm, draft dài cần thời gian |
 | `CONTENT_GEN_RETRIES` | `1` | Content: số lần retry, **chỉ khi timeout**; connection error báo ngay không retry |

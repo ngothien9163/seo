@@ -36,7 +36,8 @@ def _tail(text: str, tail: int = TAIL_SECTION) -> list[str]:
     return content[-tail:]
 
 
-def build_todo_lines(plan_rows: list, n_backlinks: int = -1) -> list[str]:
+def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
+                     outreach_lines: list = None) -> list[str]:
     """[dòng] của phần "Việc hôm nay" — thuần, không đọc file (caller cung cấp)."""
     lines = []
     todo = [r for r in (plan_rows or []) if not r.get("pushed") and not r.get("has_draft")]
@@ -51,11 +52,13 @@ def build_todo_lines(plan_rows: list, n_backlinks: int = -1) -> list[str]:
         lines.append(f"- {len(waiting)} draft CHỜ DUYỆT chưa push WP (xem: --plan-progress, đẩy: --wp-push)")
     if n_backlinks == 0:
         lines.append("- Backlink: chưa có link nào trong danh sách — đặt link đầu rồi --backlink-add")
+    lines.extend(outreach_lines or [])   # T32: nhắc sổ outreach quá hạn (2 dòng tối đa)
     return lines
 
 
 def build_report(rank_text: str = None, gsc_text: str = None,
-                 plan_rows: list = None, n_backlinks: int = -1) -> str:
+                 plan_rows: list = None, n_backlinks: int = -1,
+                 outreach_lines: list = None) -> str:
     """Báo cáo gộp hàng ngày. Nguồn trống/hỏng → phần đó tự nói "chưa có dữ liệu"."""
     from datetime import datetime as _dt
 
@@ -68,7 +71,7 @@ def build_report(rank_text: str = None, gsc_text: str = None,
             lines.append(title)
             lines.extend(tail)
 
-    todo = build_todo_lines(plan_rows, n_backlinks)
+    todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines)
     if todo:
         lines.append("")
         lines.append("── VIỆC HÔM NAY ──")
@@ -131,15 +134,18 @@ def run_daily_cli(save_to_disk: bool = False) -> int:
     except Exception as e:
         _log(f"[Daily] phần plan bỏ qua: {type(e).__name__}: {e}")
     try:
-        import json
-        from utils.site_paths import site_file
-        p = site_file("backlinks.json")
-        if os.path.exists(p):
-            n_backlinks = len(json.load(open(p, encoding="utf-8")).get("backlinks", []))
+        from utils.backlinks import load_links
+        n_backlinks = len(load_links())
     except Exception:
         pass
+    try:
+        from utils.outreach import reminder_lines
+        outreach_lines = reminder_lines()
+    except Exception as e:
+        _log(f"[Daily] phần outreach bỏ qua: {type(e).__name__}: {e}")
 
-    text = _clip(build_report(rank_text, gsc_text, plan_rows, n_backlinks))
+    text = _clip(build_report(rank_text, gsc_text, plan_rows, n_backlinks,
+                              outreach_lines))
     ok = send(text)
     mode = delivery_mode()
     if ok:
