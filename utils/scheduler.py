@@ -377,6 +377,18 @@ def _run_daily() -> int:
     return run_daily_cli()
 
 
+def _guard_weekly() -> tuple:
+    """Báo cáo tuần tự chống spam ở weekly_digest (1 lần/tuần ISO qua state) —
+    job chạy hàng ngày cũng an toàn: tuần đã gửi chỉ in nhắc rồi thoát."""
+    return True, ""
+
+
+def _run_weekly() -> int:
+    """Báo cáo tuần gộp rank/GSC/AEO — đánh dấu tuần CHỈ KHI send thành công."""
+    from utils.weekly_digest import run_weekly_cli
+    return run_weekly_cli(force=False)
+
+
 # guard/runner lưu TÊN hàm, không lưu object: monkeypatch module là đổi được hành vi
 JOBS = {
     "rank": {"desc": "Kiểm tra vị trí từ khóa trên Google",
@@ -395,6 +407,9 @@ JOBS = {
     "daily": {"desc": "Báo cáo buổi sáng gộp 1 tin (rank tail + GSC tail + việc hôm nay)",
               "hours": [7],
               "guard": "_guard_daily", "runner": "_run_daily"},
+    "weekly": {"desc": "Báo cáo tuần gộp rank/GSC/AEO 1 tin — 1 lần/tuần (chạy ngày nào cũng chỉ gửi thứ 2 đầu tiên nó gặp)",
+               "hours": [9],
+               "guard": "_guard_weekly", "runner": "_run_weekly"},
     "traffic": {"desc": "1 session traffic — mặc định TẮT, quyết định của owner",
                 "hours": [],
                 "guard": "_guard_traffic", "runner": "_run_traffic"},

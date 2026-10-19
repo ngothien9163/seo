@@ -187,6 +187,14 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
+### 17b. Job `weekly` trong scheduler — báo cáo tuần tự động 1 lần/tuần (T16)
+
+- Scheduler thêm job **`weekly`**: mỗi ngày 09:00 chạy `python main.py --run-job weekly` (giờ thật vẫn do Windows Task Scheduler quyết định), job gọi `run_weekly_cli(force=False)` — build digest gộp rank/GSC/AEO rồi gửi qua kênh alerts (1 tin Telegram, hay console khi ALERTS_ENABLE=False).
+- **Chống gửi lặp nằm ở `utils/weekly_digest.py`, không ở guard**: state `data/weekly_digest.json` ghi tuần ISO đã gửi; đánh dấu CHỈ KHI send thành công — hỏng mạng thì tuần này chưa đánh dấu, lần chạy kế thử lại. Job chạy mấy lần trong ngày cũng chỉ in nhắc "đã gửi rồi" rồi thoát 0. Guard để trống (luôn mở) vì vậy.
+- Mặc định 0 config cần đổi: `SCHEDULER_*` thêm gì thì settings, job chạy theo mặc định. Đăng ký như các job khác trong **[`docs/SETUP_SCHEDULER.md`](docs/SETUP_SCHEDULER.md)**; gửi ngay thử: `python main.py --weekly` (hoặc `--weekly --force` để gửi lại bất chấp state).
+
+---
+
 ### 18. Báo cáo HTML 1-file + bộ phân tích từ rank history (P1/P2)
 
 Một cụm tính năng cùng nguyên tắc: **đọc lại dữ liệu đã có** (rank history, audit, backlink status, GSC snapshot) — không thêm request nào, không thêm dependency nào.
