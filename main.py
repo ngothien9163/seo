@@ -62,6 +62,7 @@ def show_strategy():
     print("  python main.py --content-gap  Query Google phoi ma site chua co trang rieng (tu GSC)")
     print("  python main.py --refresh-diff  Bai nen refresh da den buoc nao: chua draft / cho duyet / da push")
     print("  python main.py --va-pack       Goi viec ngay cho VA — 1 file md checklist (data/<slug>/va_pack_<ngay>.md)")
+    print('  python main.py --yoast-meta ID  Patch Yoast focuskw/meta cho bai draft/pending tren WP')
     print('  python main.py --content-brief "kw" [-save]  Brief tron du lieu cho 1 tu khoa (khong goi Ollama)')
     print("  python main.py --gsc-trend   Xu huong imps/clicks/CTR theo query, 8 moc gan nhat")
     print("  python main.py --gsc-alerts  Canh bao imps rut manh giua 2 snapshot GSC (ve --gsc truoc)")
@@ -198,6 +199,11 @@ if __name__ == "__main__":
     elif "--va-pack" in sys.argv:
         from utils.va_pack import run_va_pack_cli
         sys.exit(run_va_pack_cli())
+
+    elif "--yoast-meta" in sys.argv:
+        from utils.wp_yoast import run_yoast_cli
+        sys.exit(run_yoast_cli(post_id=_flag_value("--yoast-meta"),
+                               keyword=_flag_value("--kw")))
 
     elif "--content-brief" in sys.argv:
         from utils.content_brief import run_content_brief_cli
