@@ -81,6 +81,27 @@ def per_keyword_top(per_kw: dict, keyword: str, own_domain: str = "",
             if d and d != own_domain]
 
 
+def trend_counters(history: dict, own_domain: str = "") -> tuple:
+    """(Counter mốc đầu, Counter mốc cuối) theo domain — nhìn domain nào đang
+    lên/lên mạnh qua lịch sử rank. Mốc đầu = lần check cũ nhất có top_urls,
+    mốc cuối = mới nhất. Cần ≥ 2 mốc khác nhau mới có ý nghĩa so."""
+    checks = history.get("checks") or {}
+    stamps = sorted(checks)
+
+    def acc(stamp: str, c: Counter):
+        for kw, val in (checks.get(stamp) or {}).items():
+            top = ((val or {}).get("top_urls") or []) if isinstance(val, dict) else []
+            for d in _competitor_domains(top):
+                if d and d != own_domain:
+                    c[d] += 1
+
+    first, last = Counter(), Counter()
+    if stamps:
+        acc(stamps[0], first)
+        acc(stamps[-1], last)
+    return first, last
+
+
 def format_overall(rows, stamps: int, kws: int) -> str:
     lines = [f"  DOMAIN ĐỐI THỦ xuất hiện nhiều nhất ({kws} từ khóa × {stamps} mốc có dữ liệu SERP)",
              "  " + "-" * 60]
@@ -117,6 +138,17 @@ def run_competitors_cli() -> int:
     per_kw, _, stamps = competitor_history_from(history, own)
     keywords_with_data = len([1 for per in per_kw.values() if per])
     print(format_overall(overall_top(per_kw, own), len(stamps), keywords_with_data))
+    first, last = trend_counters(history, own)
+    merged = sorted(set(first) | set(last),
+                    key=lambda d: (last.get(d, 0) - first.get(d, 0), last.get(d, 0), d),
+                    reverse=True)
+    if len(stamps) >= 2 and merged:
+        print()
+        print("  THAY ĐỔI (mốc đầu → mốc mới nhất; dương = đang leo)")
+        print("  " + "-" * 60)
+        for d in merged[:10]:
+            delta = last.get(d, 0) - first.get(d, 0)
+            print(f"  {d:<35}{first.get(d, 0):>4} → {last.get(d, 0):<4}{delta:+d}")
     print()
     for kw in sorted(per_kw):
         print(format_keyword(per_kw, kw, own))

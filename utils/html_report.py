@@ -188,7 +188,18 @@ def _competitors_section() -> dict:
     if not overall:
         return {}
     kws_with_data = len([1 for per in per_kw.values() if per])
-    rows = [{"domain": d, "count": int(n)} for d, n in overall]
+    # T43 — chuyển động mốc đầu → mốc cuối cùng nguồn 0 request
+    trend_map = {}
+    try:
+        first, last = comp.trend_counters(history, own)
+        trend_map = {d: {"first": int(first.get(d, 0)), "last": int(last.get(d, 0))}
+                     for d in set(first) | set(last)}
+    except Exception:
+        trend_map = {}
+    rows = [{"domain": d, "count": int(n),
+             "first": trend_map.get(d, {}).get("first"),
+             "last": trend_map.get(d, {}).get("last")}
+            for d, n in overall]
     per_kw_top = []
     for kw in sorted(per_kw):
         tops = comp.per_keyword_top(per_kw, kw, own, 3)
@@ -810,7 +821,7 @@ def _render_competitors(data: dict) -> str:
             "XUẤT HIỆN trên top-10, không khẳng định ai 'chiếm hạng'.</p>")
     out = [head,
            "<table><tr><th>Domain đối thủ</th><th>Lần xuất hiện</th>"
-           "<th>Xuất hiện nhiều ở từ khóa</th></tr><tbody>"]
+           "<th>Chuyển động</th><th>Xuất hiện nhiều ở từ khóa</th></tr><tbody>"]
     kw_of = {}
     for entry in (data.get("per_kw") or []):
         for t in entry.get("tops", []):
@@ -819,10 +830,19 @@ def _render_competitors(data: dict) -> str:
     own = str(data.get("own") or "")
     for r in (data.get("rows") or []):
         kws = ", ".join(kw_of.get(r["domain"], [])[:3]) or "—"
+        trend = ""
+        if r.get("first") is not None and r.get("last") is not None:
+            delta = r["last"] - r["first"]
+            txt = f'{r["first"]} → {r["last"]}' + (f" ({delta:+d})" if delta else "")
+            cls = "ok" if delta > 0 else ("bad" if delta < 0 else "dim")
+            trend = f'<td class="{cls} number">{escape(txt)}</td>'
+        else:
+            trend = '<td class="dim">—</td>'
         out.append(f'<tr><td>{escape(r["domain"])}'
                    + (' <span class="dim">(mình)</span>' if r["domain"] == own and own else "")
                    + f'</td><td class="num">{r["count"]}</td>'
-                   f'<td>{escape(kws)}</td></tr>')
+                   + trend
+                   + f'<td>{escape(kws)}</td></tr>')
     out.append("</tbody></table>")
     out.append('<p class="meta dim">Chỉ 10 domain xuất hiện nhiều nhất; chi tiết theo '
                "từ khóa: python main.py --competitors.</p>")
