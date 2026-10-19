@@ -109,6 +109,38 @@ def _backlink_section() -> dict:
     return {"rows": rows}
 
 
+def _competitors_section() -> dict:
+    """T27 — domain đối thủ hay xuất hiện top-10 SERP theo rank history (0 request).
+    Đọc cùng nguồn --competitors (P2-1): top_urls từng mốc check."""
+    try:
+        from urllib.parse import urlparse
+        import utils.competitors as comp
+        from utils.rank_tracker import _load_history
+    except Exception:
+        return {}
+    own = ""
+    try:
+        own = (urlparse(getattr(cfg, "TARGET_URL", "")).netloc or "").lower()
+        own = own[4:] if own.startswith("www.") else own
+    except ValueError:
+        own = ""
+    history = _load_history()
+    per_kw, own, stamps = comp.competitor_history_from(history, own)
+    overall = comp.overall_top(per_kw, own, 10)
+    if not overall:
+        return {}
+    kws_with_data = len([1 for per in per_kw.values() if per])
+    rows = [{"domain": d, "count": int(n)} for d, n in overall]
+    per_kw_top = []
+    for kw in sorted(per_kw):
+        tops = comp.per_keyword_top(per_kw, kw, own, 3)
+        if tops:
+            per_kw_top.append({"keyword": kw,
+                               "tops": [{"domain": d, "count": int(n)} for d, n in tops]})
+    return {"rows": rows, "stamps": len(stamps), "keywords": kws_with_data,
+            "per_kw": per_kw_top[:20], "own": own}
+
+
 def _aeo_section() -> dict:
     """AEO (F9/T17): kw × engine — ✓/✗ nhắc brand, ngày đo. 0 request — chỉ đọc history.
     T23 thêm share-of-voice: đối thủ nhắc trong cùng câu trả lời (từ record mới)."""
@@ -141,7 +173,8 @@ def collect() -> dict:
     sections = {}
     for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
                      ("audit", _audit_section), ("backlink", _backlink_section),
-                     ("aeo", _aeo_section), ("airobots", _airobots_section)):
+                     ("aeo", _aeo_section), ("competitors", _competitors_section),
+                     ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
         except Exception:
@@ -317,13 +350,45 @@ def _render_airobots(data: dict) -> str:
     return "\n".join(out)
 
 
+def _render_competitors(data: dict) -> str:
+    """T27 — bảng domain đối thủ thường xuất hiện top-10 SERP + top 3 theo từ khóa."""
+    if not data:
+        return _empty_hint("domain đối thủ trên SERP",
+                           "python main.py --rank (≥ 2 lần — top_urls ghi trong history) "
+                           '→ python main.py --competitors xem chi tiết')
+    head = (f'<p class="meta">{escape(str(data.get("keywords", 0)))} từ khóa × '
+            f'{escape(str(data.get("stamps", 0)))} mốc có dữ liệu SERP — đếm tần suất '
+            "XUẤT HIỆN trên top-10, không khẳng định ai 'chiếm hạng'.</p>")
+    out = [head,
+           "<table><tr><th>Domain đối thủ</th><th>Lần xuất hiện</th>"
+           "<th>Xuất hiện nhiều ở từ khóa</th></tr><tbody>"]
+    kw_of = {}
+    for entry in (data.get("per_kw") or []):
+        for t in entry.get("tops", []):
+            kw_of.setdefault(t["domain"], []).append(
+                f'{entry["keyword"]} ({t["count"]})')
+    own = str(data.get("own") or "")
+    for r in (data.get("rows") or []):
+        kws = ", ".join(kw_of.get(r["domain"], [])[:3]) or "—"
+        out.append(f'<tr><td>{escape(r["domain"])}'
+                   + (' <span class="dim">(mình)</span>' if r["domain"] == own and own else "")
+                   + f'</td><td class="num">{r["count"]}</td>'
+                   f'<td>{escape(kws)}</td></tr>')
+    out.append("</tbody></table>")
+    out.append('<p class="meta dim">Chỉ 10 domain xuất hiện nhiều nhất; chi tiết theo '
+               "từ khóa: python main.py --competitors.</p>")
+    return "\n".join(out)
+
+
 _RENDER = {"rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
-           "aeo": _render_aeo, "airobots": _render_airobots}
+           "aeo": _render_aeo, "competitors": _render_competitors,
+           "airobots": _render_airobots}
 
 _TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
            "aeo": "AEO — AI trả lời có nhắc brand?",
+           "competitors": "Domain đối thủ thường xuất hiện (SERP top-10)",
            "airobots": "Bot AI có vào được site? (robots.txt)"}
 
 _CSS = (":root{--ink:#1f2430;--line:#e3e6ee;--soft:#f6f7fb;--cao:#b3261e;"
@@ -362,7 +427,7 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink", "aeo", "airobots"):
+    for name in ("rank", "gsc", "audit", "backlink", "aeo", "competitors", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
