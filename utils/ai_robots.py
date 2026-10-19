@@ -25,6 +25,10 @@ from utils import site_paths
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+def robots_state_path() -> str:
+    """File state lần chạy gần nhất — report HTML (T25) đọc lại, 0 request."""
+    return site_paths.per_site("ai_robots_last.json", os.path.join(ROOT, "data"))
+
 # Danh mục AI crawler — tên theo quy ước robots.txt GroupUser-Agent.
 # docs song song: khi thêm bot mới, chỉ chạm bảng này (thuần data).
 AI_BOTS = {
@@ -195,8 +199,7 @@ def run_ai_robots_cli() -> int:
     if not url:
         print(f"[AIRobots] ⚠️ TARGET_URL='{target}' không phân tích được scheme/host.")
         return 2
-    state_path = site_paths.per_site("ai_robots_last.json",
-                                     os.path.join(ROOT, "data"))
+    state_path = robots_state_path()
     print(f"[AIRobots] Đọc {url}")
     lines = report(text, status)
     for line in lines:

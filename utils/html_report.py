@@ -141,7 +141,7 @@ def collect() -> dict:
     sections = {}
     for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
                      ("audit", _audit_section), ("backlink", _backlink_section),
-                     ("aeo", _aeo_section)):
+                     ("aeo", _aeo_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
         except Exception:
@@ -268,13 +268,63 @@ def _empty_hint(title: str, hint: str) -> str:
             f'<code>{escape(hint)}</code></p>')
 
 
+def _airobots_section() -> dict:
+    """T25 — bot AI nào bị robots.txt chặn? 0 request: đọc file state T22
+    (ai_robots_last.json, ghi mỗi lần chạy --ai-robots hoặc nút 🤖 GUI)."""
+    try:
+        from utils import ai_robots as ar
+    except Exception:
+        return {}
+    path = ar.robots_state_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    bots = [b for b in (raw.get("bots") or []) if isinstance(b, dict) and b.get("bot")]
+    if not bots:
+        return {}
+    return {"url": raw.get("url", ""), "status": raw.get("status"),
+            "bots": bots}
+
+
+def _render_airobots(data: dict) -> str:
+    if not data:
+        return _empty_hint("bot AI bị chặn",
+                           "python main.py --ai-robots "
+                           "(1 request — chỉ báo cáo, tool không sửa robots.txt)")
+    blocked = [b for b in data["bots"] if b.get("status") == "blocked"]
+    head = (f'<p class="meta">robots.txt HTTP {escape(str(data["status"]))} — '
+            f'{len(blocked)}/{len(data["bots"])} bot AI bị chặn. '
+            "Tool chỉ báo cáo — KHÔNG tự sửa robots.txt.</p>")
+    out = [head,
+           "<table><tr><th>Bot AI</th><th>Trạng thái</th><th>Đường dẫn bị chặn</th></tr><tbody>"]
+    for b in data["bots"]:
+        st = str(b.get("status") or "")
+        if st == "blocked":
+            cls, label = "bad", "CHẶN"
+        elif st == "explicit":
+            cls, label = "ok", "Cho phép (khai rõ)"
+        else:
+            cls, label = "dim", "Mặc định (không đề cập — được vào)"
+        paths = ", ".join(str(p) for p in (b.get("paths") or [])[:6])
+        out.append(f'<tr><td>{escape(str(b.get("bot") or ""))}</td>'
+                   f'<td class="{cls}">{escape(label)}</td>'
+                   f'<td class="url">{escape(paths or "—")}</td></tr>')
+    out.append("</tbody></table>")
+    if data.get("url"):
+        out.append(f'<p class="meta dim">Trạng thái của robots.txt: {escape(str(data["url"]))}</p>')
+    return "\n".join(out)
+
+
 _RENDER = {"rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
-           "aeo": _render_aeo}
+           "aeo": _render_aeo, "airobots": _render_airobots}
 
 _TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
-           "aeo": "AEO — AI trả lời có nhắc brand?"}
+           "aeo": "AEO — AI trả lời có nhắc brand?",
+           "airobots": "Bot AI có vào được site? (robots.txt)"}
 
 _CSS = (":root{--ink:#1f2430;--line:#e3e6ee;--soft:#f6f7fb;--cao:#b3261e;"
         "--trung:#b26a00;--thap:#5f6b7a;--ok:#1e7d40;--warn:#b26a00;--bad:#b3261e}"
@@ -312,7 +362,7 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink", "aeo"):
+    for name in ("rank", "gsc", "audit", "backlink", "aeo", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
