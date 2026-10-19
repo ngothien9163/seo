@@ -1187,8 +1187,28 @@ class TrafficBotUI(ctk.CTk):
                     continue
                 mark = "✓" if info["mentioned"] else "✗"
                 n = f"{info['mentions']} lần" if info["mentions"] > 1 else "có"
+                # T23 — share-of-voice: đối thủ nhắc trong CÙNG câu trả lời
+                comps = (info.get("competitors") or {}) if isinstance(info, dict) else {}
+                tail = " | so với: " + ", ".join(
+                    f"{name}×{c['mentions']}" for name, c in sorted(comps.items()))
                 lines.append(f"  {kw[:38]:<38}{engine[:13]:<14}{mark + ' ' + n:<12}"
-                             f"{info.get('date', '')}")
+                             f"{info.get('date', '')}{tail}")
+        # tổng share-of-voice mua hàng tổng trên cùng — nhìn phát biết mình đang đứng đâu
+        try:
+            from utils.aeo import sov_summary
+            sov = sov_summary(matrix)
+            if sov["own"]["asked"]:
+                ow = sov["own"]
+                lines.append("")
+                lines.append(f"  SHARE-OF-VOICE: mình nhắc {ow['hit']}/{ow['asked']} câu "
+                             f"({ow['hit'] * 100.0 / ow['asked']:.0f}%)"
+                             + ("  — đối thủ: " + "; ".join(
+                                 f"{name} được nhắc {c['hit']} câu (cùng mình {c['co']})"
+                                 for name, c in sov["competitors"].items())
+                                if sov["competitors"] else
+                                "  — chưa khai báo AEO_COMPETITORS trong settings"))
+        except Exception:
+            pass
         return lines
 
     def run_aeo_now(self):

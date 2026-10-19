@@ -110,9 +110,10 @@ def _backlink_section() -> dict:
 
 
 def _aeo_section() -> dict:
-    """AEO (F9/T17): kw × engine — ✓/✗ nhắc brand, ngày đo. 0 request — chỉ đọc history."""
+    """AEO (F9/T17): kw × engine — ✓/✗ nhắc brand, ngày đo. 0 request — chỉ đọc history.
+    T23 thêm share-of-voice: đối thủ nhắc trong cùng câu trả lời (từ record mới)."""
     try:
-        from utils.aeo import ai_matrix
+        from utils.aeo import ai_matrix, sov_summary
         matrix = ai_matrix()
     except Exception:
         return {}
@@ -123,11 +124,16 @@ def _aeo_section() -> dict:
         rows[kw] = {
             engine: {"mark": "✓" if info.get("mentioned") else "✗",
                      "mentions": info.get("mentions", 0),
-                     "date": info.get("date", "")}
+                     "date": info.get("date", ""),
+                     "competitors": (info.get("competitors") or {})}
             for engine, info in per.items()
         }
     engines = sorted({e for per in matrix.values() for e in per})
-    return {"rows": rows, "engines": engines}
+    try:
+        sov = sov_summary(matrix)
+    except Exception:
+        sov = {}
+    return {"rows": rows, "engines": engines, "sov": sov}
 
 
 def collect() -> dict:
@@ -236,6 +242,24 @@ def _render_aeo(data: dict) -> str:
     out.append("</tbody></table>")
     out.append('<p class="meta">✓ = engine nhắc brand, ✗ = không nhắc, — = chưa hỏi. '
                "1 bản ghi/ngày/từ khóa/engine (dán lại là cập nhật).</p>")
+    # T23 share-of-voice: bảng nhỏ dưới — AI nhắc ai trong cùng câu trả lời
+    sov = (data.get("sov") or {}).get("own") or {}
+    if sov.get("asked"):
+        own_total, own_hit = int(sov.get("asked", 0)), int(sov.get("hit", 0))
+        out.append('<p class="meta">Share-of-voice (' + str(own_total) +
+                   f" câu có dữ liệu): mình được nhắc {own_hit}/"
+                   f"{own_total} ({int(own_hit * 100.0 / own_total) if own_total else 0}%).</p>")
+        comps = (data.get("sov") or {}).get("competitors") or {}
+        if comps:
+            out.append("<table><tr><th>Đối thủ</th><th>Được nhắc (câu)</th>"
+                       "<th>Cùng mình (câu)</th></tr><tbody>")
+            for name, c in comps.items():
+                out.append(f"<tr><td>{escape(name)}</td><td class=\"num\">{c.get('hit', 0)}"
+                           f"</td><td class=\"num\">{c.get('co', 0)}</td></tr>")
+            out.append("</tbody></table>")
+        else:
+            out.append('<p class="meta dim">Chưa khai báo AEO_COMPETITORS trong settings — '
+                       "không so đối thủ nào.</p>")
     return "\n".join(out)
 
 

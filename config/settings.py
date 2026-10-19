@@ -197,6 +197,13 @@ CONTENT_DRAFTS_DIR = "content/drafts"  # nơi lưu bài nháp .md (gitignored �
 # --aeo-check; công cụ chỉ phân tích text, KHÔNG gửi request nào.
 AEO_BRANDS = ["Nanky Beauty", "nankybeauty.com", "nanky beauty"]  # biến thể brand cần nhận ra
 AEO_HISTORY_KEEP = 500            # số bản ghi tối đa — cũ nhất bị cắt (theo ngày dán)
+# AEO share-of-voice (T23): brand đối thủ để đếm trong cùng câu trả lời AI — AI nhắc
+# ai thay vì mình? Điền biến thể token của từng đối thủ (so không dấu, token trọn vẹn
+# như AEO_BRANDS); [] = tắt tính năng, phân tích chỉ đếm brand mình.
+AEO_COMPETITORS = {
+    "name-A": ["name A", "namea.com"],
+    "name-B": ["name B"],
+}
 
 # ────────────────────────────────────────────────────────────────────────────
 # PHẦN L: WORDPRESS DRAFT (C1) — tool chỉ đẩy bài NHÁP, owner duyệt rồi publish

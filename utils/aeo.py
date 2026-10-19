@@ -32,8 +32,9 @@ from utils import gsc_client
 from utils import site_paths
 from utils.gsc_client import _fold  # noqa: F401 — tái dùng chiến lược fold, không copy
 
-__all__ = ["analyze_answer", "add_result", "load_history", "ai_matrix",
-           "build_report", "run_aeo_check_cli", "run_aeo_report_cli"]
+__all__ = ["analyze_answer", "analyze_competitors", "add_result", "load_history",
+           "ai_matrix", "sov_summary", "build_report", "run_aeo_check_cli",
+           "run_aeo_report_cli"]
 
 _AEO_NAME = "aeo_history.json"
 _DEFAULT_AEO_PATH = site_paths.site_file(_AEO_NAME)
@@ -82,6 +83,36 @@ def analyze_answer(answer: str, brands: list[str] | None = None) -> dict:
                 hits.add(i)  # 1 nhắc = 1 vị trí đối TRƯỚC; token thêu không gộp dupicate
     sorted_hits = sorted(hits)
     return {"mentioned": bool(sorted_hits), "mentions": len(sorted_hits), "positions": sorted_hits}
+
+
+# ─── SHARE-OF-VOICE (T23): AI nhắc AI đối thủ nào ngay trong cùng câu trả lời ──
+
+def analyze_competitors(answer: str,
+                        competitors: dict[str, list[str]] | None = None) -> dict:
+    """Đếm nhắc cho từng đối thủ trong AEO_COMPETITORS — cùng FetchType fold + token
+    trọn vẹn như analyze_answer.
+
+    Output: {name: {mentioned, mentions, positions}} chỉ gồm đối thủ CÓ nhắc.
+    Rìy: đối thủ YẾU (bản ghi cũ) không thấp thiệt — chỉ ở record mới cần thấy
+    cạnh tranh thật là cùng câu trả lời AI đang phơi ai.
+    """
+    comps = dict(competitors if competitors is not None
+                 else getattr(cfg, "AEO_COMPETITORS", {}))
+    tokens = _tokens(answer)
+    out: dict[str, dict] = {}
+    for name, variants in (comps or {}).items():
+        hits: set[int] = set()
+        for variant in list(variants or []):
+            sub = _tokens(str(variant or ""))
+            if not sub or len(sub) > len(tokens):
+                continue
+            for i in range(len(tokens) - len(sub) + 1):
+                if tokens[i:i + len(sub)] == sub:
+                    hits.add(i)
+        if hits:
+            out[str(name)] = {"mentioned": True, "mentions": len(hits),
+                              "positions": sorted(hits)}
+    return out
 
 # ─── LỊCH SỬ: đọc / ghi ─────────────────────────────────────────────────────
 
@@ -143,6 +174,7 @@ def add_result(answer: str, brands: list[str] | None = None, engine: str = "Chat
     """
     date = date or datetime.now().strftime("%Y-%m-%d")
     verdict = analyze_answer(answer, brands=brands)
+    competitors = analyze_competitors(answer)
     record = {
         "date": date,
         "engine": (engine or "AI").strip() or "AI",
@@ -150,6 +182,7 @@ def add_result(answer: str, brands: list[str] | None = None, engine: str = "Chat
         "mentioned": verdict["mentioned"],
         "mentions": verdict["mentions"],
         "positions": verdict["positions"],
+        "competitors": competitors,
         "chars": len(answer or ""),
         "added_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -166,7 +199,9 @@ def add_result(answer: str, brands: list[str] | None = None, engine: str = "Chat
 
 def ai_matrix() -> dict[str, dict[str, dict]]:
     """
-    {keyword: {engine: {mentioned, mentions, date}}} — bản ghi MỚI NHẤT mỗi cặp.
+    {keyword: {engine: {mentioned, mentions, date, competitors}}} — bản ghi MỚI NHẤT
+    mỗi cặp. `competitors` là dict đối thủ nhắc trong cùng câu trả lời (T23); bản ghi
+    cũ trước T23 không có field này → không tính là nhắc đối thủ nào (an toàn, self-safe).
     Rỗng khi chưa có dữ liệu AEO (báo cáo gộp sẽ bỏ cột AI — không breaking).
     """
     last: dict[tuple, dict] = {}  # (kw, engine) -> record
@@ -176,12 +211,57 @@ def ai_matrix() -> dict[str, dict[str, dict]]:
             last[key] = r
     matrix: dict[str, dict] = {}
     for (kw, engine), r in last.items():
+        comps = r.get("competitors") if isinstance(r.get("competitors"), dict) else {}
+        comp_clean = {str(name): {"mentions": int(info.get("mentions", 0)),
+                                  "positions": list(info.get("positions") or [])}
+                      for name, info in (comps or {}).items() if info}
         matrix.setdefault(kw, {})[engine] = {
             "mentioned": r.get("mentioned", False),
             "mentions": r.get("mentions", 0),
             "date": r.get("date", ""),
+            "competitors": comp_clean,
         }
     return matrix
+
+
+def sov_summary(matrix: dict[str, dict[str, dict]] | None = None) -> dict:
+    """Share-of-voice tổng: mình vs từng đối thủ, đo theo số CÂU TRẢ LỜI có nhắc.
+
+    Output: {own: {hit, asked}, competitors: {name: {hit, said_alone, co}}}
+    - own.hit        = số câu trả lời (cặp kw×engine) mình được nhắc
+    - asked          = số câu có dữ liệu (không nhắc ai cũng đếm — không bỏ bớt)
+    - comp.hit       = số câu nhắc đối thủ đó (kể cả câu mình không được nhắc)
+    - comp.co        = số câu nhắc CẢ MÌNH VÀ đối thủ (case đề-hai-ai — Click chẳng hạn)
+    Cung cấp None matrix = lấy ai_matrix() sẵn.
+    """
+    matrix = matrix if matrix is not None else ai_matrix()
+    name_of = {}
+    for name, variants in (getattr(cfg, "AEO_COMPETITORS", {}) or {}).items():
+        name_of[str(name).strip().lower()] = str(name)
+
+    own_hit = asked = 0
+    comp_hit: dict[str, int] = {}
+    comp_co: dict[str, int] = {}
+    for per in matrix.values():
+        for info in per.values():
+            if not isinstance(info, dict):
+                continue
+            asked += 1
+            if info.get("mentioned"):
+                own_hit += 1
+            for cname, cinfo in (info.get("competitors") or {}).items():
+                key = str(cname).strip().lower()
+                if key not in name_of:
+                    # đối thủ đã xóa khỏi AEO_COMPETITORS thì thôi đếm — settings là
+                    # nguồn thật (record cũ dán khi dict còn khai tên đó)
+                    continue
+                display = name_of[key]
+                comp_hit[display] = comp_hit.get(display, 0) + 1
+                if info.get("mentioned"):
+                    comp_co[display] = comp_co.get(display, 0) + 1
+    comps = {name: {"hit": comp_hit.get(name, 0), "co": comp_co.get(name, 0)}
+             for name in sorted(comp_hit)}
+    return {"own": {"hit": own_hit, "asked": asked}, "competitors": comps}
 
 def build_report() -> str:
     """Báo cáo console per từ khóa × engine: ✓ nhắc / ✗ không nhắc + ngày đo."""
@@ -211,9 +291,28 @@ def build_report() -> str:
                 continue
             mark = "✓" if info["mentioned"] else "✗"
             n = f"{info['mentions']} lần" if info["mentions"] > 1 else "có"
+            comps = ", ".join(f"{name}×{c['mentions']}"
+                              for name, c in sorted((info.get("competitors") or {}).items()))
+            tail = f"  | đối thủ: {comps}" if comps else ""
             lines.append(f"  {kw[:40]:<40}{engine[:13]:<14}{mark + ' ' + n:<10}"
-                         f"{info.get('date', '')}")
+                         f"{info.get('date', '')}{tail}")
     lines.append("-" * 72)
+
+    sov = sov_summary(matrix)
+    if sov["own"]["asked"]:
+        lines.append("")
+        lines.append("  SHARE-OF-VOICE (T23 — AI nhắc ai trong cùng câu trả lời, "
+                     f"{sov['own']['asked']} câu có dữ liệu):")
+        ow = sov['own']
+        lines.append(f"  mình           : nhắc {ow['hit']}/{ow['asked']} câu"
+                     f" ({ow['hit'] * 100.0 / ow['asked']:.0f}%)")
+        if sov["competitors"]:
+            for name, c in sov["competitors"].items():
+                note = f", cùng mình {c['co']} câu" if c["co"] else " (luôn nhắc thay mình)"
+                lines.append(f"  {name[:14]:<14}: được nhắc trong {c['hit']} câu{note}")
+        else:
+            lines.append("  chưa khai báo AEO_COMPETITORS trong settings → không so ai")
+            lines.append("  (điền dict {tên đối thủ: [biến thể]} theo cùng mẫu AEO_BRANDS)")
     return "\n".join(lines)
 
 # ─── CLI ────────────────────────────────────────────────────────────────────
@@ -254,4 +353,13 @@ def run_aeo_check_cli(path: str, engine: str = "", keyword: str = "") -> int:
     else:
         print(f"[AEO] ✗ {engine} KHÔNG nhắc trong \"{record['keyword']}\" "
               f"(ngày {record['date']}) — đã lưu {_history_path()}")
+    # T23 — share-of-voice: nhắc đối thủ nào trong cùng câu trả lời
+    comps = record.get("competitors") or {}
+    if comps:
+        for name, info in sorted(comps.items()):
+            print(f"[AEO] ↔ Đối thủ {name} cũng được nhắc trong câu này "
+                  f"({info['mentions']} vị trí) — AI đang so mình với ai?")
+    elif not record["mentioned"] and getattr(cfg, "AEO_COMPETITORS", {}):
+        print("[AEO] → Câu này không nhắc mình lẫn bất kỳ đối thủ nào trong "
+              "AEO_COMPETITORS — thử hỏi khác / cụm khác.")
     return 0
