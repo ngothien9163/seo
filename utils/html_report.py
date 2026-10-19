@@ -202,16 +202,195 @@ def _aeo_section() -> dict:
 def collect() -> dict:
     """Gọi từng nguồn, mỗi nguồn tự nuốt lỗi (trống → section hướng dẫn)."""
     sections = {}
-    for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
-                     ("audit", _audit_section), ("backlink", _backlink_section),
-                     ("outreach", _outreach_section), ("aeo", _aeo_section),
-                     ("competitors", _competitors_section),
+    for name, fn in (("summary", _summary_section), ("rank", _rank_section),
+                     ("gsc", _gsc_section), ("audit", _audit_section),
+                     ("backlink", _backlink_section), ("outreach", _outreach_section),
+                     ("aeo", _aeo_section), ("competitors", _competitors_section),
                      ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
         except Exception:
             sections[name] = {}
     return sections
+
+
+def _summary_section() -> dict:
+    """T34 — tóm tắt 30 giây: 8 số quan trọng nhất ghép từ nguồn các section đã có.
+    Mỗi nguồn tự nuốt lỗi (thiếu → '—' ở render); không request mới nào."""
+    out = {}
+    # SERP — lần check gần nhất: bao nhiêu kw top-10, tốt nhất số mấy
+    try:
+        from utils.rank_tracker import _load_history
+        checks = _load_history().get("checks") or {}
+        if checks:
+            last = sorted(checks.keys())[-1]
+            rows = checks[last] or {}
+            positions = [e.get("pos") for e in rows.values()
+                         if isinstance(e, dict) and isinstance(e.get("pos"), int)]
+            if positions:
+                out["serp"] = {"stamp": last, "tracked": len(rows),
+                               "top10": sum(1 for p in positions if p <= 10),
+                               "best": min(positions), "measured": len(positions)}
+    except Exception:
+        pass
+    # GSC — snapshot gần nhất: tổng clicks/imps + kỳ trước để so
+    try:
+        from utils.gsc_client import _load_history
+        snaps = _load_history().get("snapshots") or {}
+        if snaps:
+            keys = sorted(snaps.keys())
+            rows = (snaps[keys[-1]] or {}).get("rows") or {}
+            clicks = sum(int((r or {}).get("clicks") or 0) for r in rows.values())
+            imps = sum(int((r or {}).get("impressions") or 0) for r in rows.values())
+            prev = None
+            if len(keys) >= 2:
+                prows = (snaps[keys[-2]] or {}).get("rows") or {}
+                prev = {"clicks": sum(int((r or {}).get("clicks") or 0) for r in prows.values()),
+                        "imps": sum(int((r or {}).get("impressions") or 0) for r in prows.values())}
+            out["gsc"] = {"stamp": keys[-1], "clicks": clicks, "imps": imps, "prev": prev}
+    except Exception:
+        pass
+    # AEO — % tuần này vs tuần trước (T31)
+    try:
+        from utils.aeo import load_history as aeo_load
+        from utils.gui_charts import aeo_trend_series, trend_compare
+        cur, prevw, n = trend_compare(aeo_trend_series(aeo_load()))
+        if cur is not None:
+            out["aeo"] = {"cur": cur, "prev": prevw, "weeks": n}
+    except Exception:
+        pass
+    # Bài viết (T30) — đang kéo / lẻo / draft
+    try:
+        from utils.post_report import build_post_rows, count_states
+        out["posts"] = count_states(build_post_rows())
+    except Exception:
+        pass
+    # Outreach (T32) — đếm theo trạng thái
+    try:
+        from utils.outreach import list_rows
+        c = {}
+        for r in list_rows():
+            c[r["state"]] = c.get(r["state"], 0) + 1
+        out["outreach"] = c
+    except Exception:
+        pass
+    # PageSpeed (T33) — đã đo bao nhiêu, bao nhiêu dưới ngưỡng
+    try:
+        from utils.pagespeed import posts_load, weak_posts
+        out["pspeed"] = {"measured": len(posts_load()["urls"]),
+                         "weak": len(weak_posts())}
+    except Exception:
+        pass
+    # Backlink — sống / tổng
+    try:
+        from utils import backlinks as bl
+        from utils.backlink_checker import state_rows
+        state = bl.load_state()
+        if state:
+            _header, data = state_rows(state)
+            out["backlink"] = {"total": len(data),
+                               "alive": sum(1 for row in data
+                                            if str(row[0]).startswith("Còn sống"))}
+    except Exception:
+        pass
+    # Bot AI — bao nhiêu bị chặn / tổng bot đã biết
+    try:
+        from utils.ai_robots import robots_state_path
+        with open(robots_state_path(), encoding="utf-8") as f:
+            last_state = json.load(f)
+        bots = [b for b in (last_state.get("bots") or []) if isinstance(b, dict)]
+        out["airobots"] = {"total": len(bots),
+                           "blocked": sum(1 for b in bots
+                                          if b.get("status") == "blocked")}
+    except Exception:
+        pass
+    return out
+
+
+def _render_summary(data: dict) -> str:
+    """T34 — bảng tóm tắt đầu report: mỗi dòng 1 nguồn, thiếu → '—' (không dùng
+    class 'empty' — section này luôn hiện, không phải 'chưa lấy dữ liệu')."""
+    out = ['<p class="meta">Tình hình nhanh ghép từ các section dưới — số chi tiết '
+           "và lịch sử xem ở section tương ứng. 0 request mới.</p>",
+           "<table><tr><th>Mảng</th><th>Hiện tại</th></tr><tbody>"]
+
+    def row(name: str, value: str, cls: str = "") -> None:
+        v = value or '<span class="dim">—</span>'
+        out.append(f'<tr><td>{escape(name)}</td><td class="{cls}">{v}</td></tr>')
+
+    serp = data.get("serp") or {}
+    if serp:
+        row("Xếp hạng (SERP)",
+            f'{serp["top10"]}/{serp["measured"]} kw top-10, tốt nhất #{serp["best"]} '
+            f'<span class="dim">(check {escape(str(serp["stamp"]))[:16].replace("T", " ")})</span>',
+            "ok" if serp["top10"] else "warn")
+    else:
+        row("Xếp hạng (SERP)", "", "dim")
+    gsc = data.get("gsc") or {}
+    if gsc:
+        delta = ""
+        prev = gsc.get("prev") or {}
+        if prev:
+            dc = gsc["clicks"] - prev.get("clicks", 0)
+            di = gsc["imps"] - prev.get("imps", 0)
+            delta = (f' <span class="dim">(kỳ trước {prev.get("clicks", 0)}/'
+                     f'{prev.get("imps", 0)}; Δ {dc:+d}/{di:+d})</span>')
+        row("Search Console (28 ngày)",
+            f'{gsc["clicks"]} clicks / {gsc["imps"]} imps{delta}',
+            "ok" if gsc["clicks"] else "")
+    else:
+        row("Search Console (28 ngày)", "", "dim")
+    aeo = data.get("aeo") or {}
+    if aeo:
+        word = "tăng" if (aeo.get("cur") or 0) > (aeo.get("prev") or 0) else \
+               "giảm" if (aeo.get("cur") or 0) < (aeo.get("prev") or 0) else "đứng yên"
+        row("AEO (AI nhắc brand)",
+            f'{aeo["cur"]}% câu trả lời được nhắc tuần này '
+            f'<span class="dim">(tuần trước {aeo.get("prev")}% — {word})</span>',
+            "ok" if (aeo.get("cur") or 0) >= (aeo.get("prev") or 0) else "warn")
+    else:
+        row("AEO (AI nhắc brand)", "", "dim")
+    posts = data.get("posts") or {}
+    if posts:
+        bits = [f'{posts.get(k, 0)} {lab}' for k, lab in
+                (("pull", "đang kéo"), ("show", "hiển thị"), ("dead", "lẻo"),
+                 ("nodata", "chưa có GSC"), ("draft", "draft")) if posts.get(k)]
+        row("Bài viết (T30)", " · ".join(bits) if bits else "", "")
+    else:
+        row("Bài viết (T30)", "", "dim")
+    outreach = data.get("outreach") or {}
+    if outreach:
+        bits = [f'{outreach.get(k, 0)} {lab}' for k, lab in
+                (("proposed", "chờ phản hồi"), ("agreed", "chờ đặt"),
+                 ("placed", "đã đặt"), ("dead", "mai một")) if outreach.get(k)]
+        row("Outreach (T32)", " · ".join(bits) if bits else "", "")
+    else:
+        row("Outreach (T32)", "", "dim")
+    pspeed = data.get("pspeed") or {}
+    if pspeed.get("measured"):
+        weak = pspeed.get("weak") or 0
+        row("PageSpeed (T33)",
+            f'{pspeed["measured"]} bài đã đo, {weak} bài dưới ngưỡng'
+            f'<span class="dim"> (--pagespeed-posts)</span>',
+            "warn" if weak else "ok")
+    else:
+        row("PageSpeed (T33)", "", "dim")
+    backlink = data.get("backlink") or {}
+    if backlink:
+        row("Backlink",
+            f'{backlink["alive"]}/{backlink["total"]} link còn sống',
+            "ok" if backlink["alive"] else "warn")
+    else:
+        row("Backlink", "", "dim")
+    airobots = data.get("airobots") or {}
+    if airobots:
+        row("Bot AI (robots.txt)",
+            f'{airobots["blocked"]}/{airobots["total"]} bot bị chặn',
+            "warn" if airobots.get("blocked") else "ok")
+    else:
+        row("Bot AI (robots.txt)", "", "dim")
+    out.append("</tbody></table>")
+    return "\n".join(out)
 
 
 _SEV_CLASS = {"CAO": "sev-cao", "TRUNG BÌNH": "sev-trung", "THẤP": "sev-thap"}
@@ -539,13 +718,15 @@ def _render_posts(data: dict) -> str:
     return "\n".join(out)
 
 
-_RENDER = {"rank": _render_rank, "gsc": _render_gsc,
+_RENDER = {"summary": _render_summary,
+           "rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
            "outreach": _render_outreach,
            "aeo": _render_aeo, "competitors": _render_competitors,
            "posts": _render_posts, "airobots": _render_airobots}
 
-_TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
+_TITLES = {"summary": "Tóm tắt — tình hình nhanh",
+           "rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
            "outreach": "Sổ outreach — xin đặt link",
            "aeo": "AEO — AI trả lời có nhắc brand?",
@@ -589,8 +770,8 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink", "outreach", "aeo", "competitors",
-                 "posts", "airobots"):
+    for name in ("summary", "rank", "gsc", "audit", "backlink", "outreach", "aeo",
+                 "competitors", "posts", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
