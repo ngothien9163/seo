@@ -178,9 +178,10 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 
 ---
 
-### 17. `--doctor` — kiểm tra môi trường một lệnh (combo #1)
+### 17. `--doctor` — kiểm tra môi trường một lệnh (combo #1); `--setup-wizard` — wizard lần đầu
 
 - `python main.py --doctor` quét nhanh mọi thứ setup xong chưa: site/từ khóa, lịch rank, dữ liệu GSC, Telegram, Ollama (thêm `--net` để gọi thật), backlink, WordPress, bản nháp, thư mục state — mỗi mục trả ✓ sẵn sàng / ! cần lưu ý / ✗ thiếu, kèm hướng dẫn sửa; cuối bảng là dòng tổng và con trỏ tới **[`docs/CHECKLIST_FIRST_RUN.md`](docs/CHECKLIST_FIRST_RUN.md)**.
+- `python main.py --setup-wizard` (T14): **wizard "bật nhà mới"** — 6 bước theo thứ tự (site & từ khóa → check rank lần đầu → Search Console → Ollama → Telegram tùy chọn → WordPress tùy chọn), mỗi bước chỉ báo xong/thiếu kèm lệnh hoặc docs cần làm; **chỉ đọc file/config, 0 request, không cấu hình gì thay owner**. Bước tùy chọn không chặn tổng thể. GUI cũng có tab **🧙 Cài Đặt Lần Đầu** (nút kiểm tra lại + nút mở checklist docs). Secret (token WP/Telegram) chỉ hiện 4 ký tự cuối.
 - **Không bao giờ crash**: mỗi mục tự nuốt lỗi của nó → vấn đề nào có câu trả lời, vấn đề nào không → ra `!`. Secret (Telegram token) chỉ hiện 4 ký tự cuối. Thoát code luôn 0 — đây là lệnh đọc, không phải lệnh chặn.
 
 ---
@@ -199,6 +200,7 @@ Một cụm tính năng cùng nguyên tắc: **đọc lại dữ liệu đã có
 - **GUI**: tab **📈 Xếp Hạng** có thêm hàng nút **🌐 XUẤT REPORT HTML / 🧩 GỢI Ý LINK NỘI BỘ / 📝 VIỆC ƯU TIÊN TỪ AUDIT / 🩺 DOCTOR / 📋 PLAN PROGRESS / 📉 GSC ALERTS / ⚖️ CỤM × GSC / 📊 GSC TREND / 🎯 CTR OPS** — cùng cơ chế thread nền với các nút cũ (Nút PLAN chạy `--plan-progress` chỉ đọc; nút GSC ALERTS chạy `--gsc-alerts`, chạy qua cùng kênh Telegram/console của bộ cảnh báo; nút CỤM × GSC chạy `--cluster-gsc`; nút GSC TREND chạy `--gsc-trend`; nút CTR OPS chạy `--ctr-ops`).
 - **GUI tab 🧰 Phân Tích (F10i)**: 6 lệnh phân tích mới gần đây có mặt sạch riêng, khỏi thêm nút vào tab Xếp Hạng đã chật — **🩺 DOCTOR --net / ⚖️ PAGE IMPACT / 🕳️ CONTENT GAP / 🔁 REFRESH DIFF / 📰 CONTENT BRIEF (có ô nhập từ khóa, `--save` luôn) / 🌅 DAILY REPORT**. Cùng mô hình thread nền (guard tag riêng → disable → thread → finally enable); kết quả in vào **System Logs** bên dưới. `utils/dispatch_tools.py` là nơi duy nhất map tag → lệnh — chỉ chứa lệnh đọc, không có lệnh ghi state.
 - **GUI nút 📈 CHART (F10k)**: nút trong tab Xếp Hạng vẽ **đường hạng thật** vào canvas (tkinter thuần — 0 dependency mới), toggle hiện/ẩn với textbox. Đường được vẽ cho tối đa 5 từ khóa đang có hạng, 8 mốc gần nhất, **trục đảo: hạng 1 ở trên** — đi lên nghĩa là tốt. Canvas ẩn/mở không che mất báo cáo chữ; `utils/gui_charts.py` để hình thuần (`chart_items`, `rank_series_from_history`) riêng khỏi vẽ — test khẳng được hình mà không cần GUI.
+- **GUI tab 🧙 Cài Đặt Lần Đầu (T14)**: wizard 6 bước bật nhà cho owner mới — bước nào ✓ xong, ✗ thiếu (kèm lệnh/docs để làm), bước tùy chọn Telegram/WordPress đánh `—`. **Chỉ đọc file/config — 0 request, không tự cấu hình gì thay owner**; dòng tổng "X/4 bước bắt buộc — nên làm trước: ..." ở trên bảng. Nút **🧙 KIỂM TRA LẠI** (thread nền, không chặn UI) và **📖 MỞ CHECKLIST DOCS** (`os.startfile` docs/CHECKLIST_FIRST_RUN.md). Secret (token Telegram/Pass WP) chỉ hiện 4 ký tự cuối — không bao giờ in nguyên.
 - **WP đẩy kèm category/tag mặc định** (P2-4): điền `WP_DEFAULT_CATEGORIES` / `WP_DEFAULT_TAGS` (TÊN, owner tự chọn) trong settings PHẦN L — mỗi lần `--wp-push`, tên được tra id qua REST (`GET /wp-json/wp/v2/categories|tags?search=...`), khớp tên chính xác (bỏ hoa/thường) → gán vào payload; term **chưa có trên WP bị bỏ qua + cảnh báo**, **KHÔNG tự tạo term**, bài vẫn đẩy. `[]` = không gán. Frontmatter không nặn term — defaults là quyết định của owner.
 
 ---
@@ -325,6 +327,7 @@ python main.py --refresh-diff  # Bài nên refresh đã đến bước nào: ch�
 python main.py --content-brief "kw" [-save]  # Brief trộn dữ liệu cho 1 từ khóa (cụm + SERP + GSC + plan)
 python main.py --va-pack  # Gói việc ngày cho VA — 1 file md checklist (data/<slug>/va_pack_<ngay>.md)
 python main.py --yoast-meta <post_id> --kw "tu khoa"  # Patch Yoast focuskw/meta cho bai draft/pending sau --wp-push
+python main.py --setup-wizard  # Wizard cai dat lan dau — buoc nao xong, con thieu gi (docs nao de lam)
 python main.py --gsc-trend  # Xu hướng imps/clicks/CTR theo query, 8 mốc gần nhất + cờ sụt sớm
 python main.py --gsc-alerts  # Canh bao imps rut manh (<50% hoac mat) giua 2 snapshot GSC
 python main.py --audit-diff  # Lỗi mới phát hiện vs đã sửa, giữa 2 lần audit gần nhất

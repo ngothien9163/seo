@@ -82,6 +82,7 @@ def show_strategy():
     print("  python main.py --plan-progress    Muc nao cua plan 30 ngay da co draft / da push WP")
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
+    print("  python main.py --setup-wizard    Cai dat lan dau — wizard cac buoc, con thieu gi + docs nao de lam")
     print("  python main.py --internal-links  Goi y link noi bo tu du lieu audit + rank hien co")
     print("  python main.py --competitors     Domain doi thu xuat hien nhieu nhat tren SERP (tu rank history)")
     print("  python main.py --keyword-groups  Cum tu khoa + danh sach bai nen refresh (tu du lieu co san)")
@@ -204,6 +205,10 @@ if __name__ == "__main__":
         from utils.wp_yoast import run_yoast_cli
         sys.exit(run_yoast_cli(post_id=_flag_value("--yoast-meta"),
                                keyword=_flag_value("--kw")))
+
+    elif "--setup-wizard" in sys.argv:
+        from utils.setup_wizard import run_wizard_cli
+        sys.exit(run_wizard_cli())
 
     elif "--content-brief" in sys.argv:
         from utils.content_brief import run_content_brief_cli

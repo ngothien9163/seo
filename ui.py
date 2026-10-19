@@ -74,6 +74,7 @@ class TrafficBotUI(ctk.CTk):
                                 "refresh-diff", "content-brief", "daily-report")}
         self._chart_running = False
         self._chart_visible = False
+        self._wizard_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -168,6 +169,7 @@ class TrafficBotUI(ctk.CTk):
         self.tab_warmup   = self.tabs.add("🔥 Nuôi Nick")
         self.tab_rank     = self.tabs.add("📈 Xếp Hạng")
         self.tab_tools    = self.tabs.add("🧰 Phân Tích")
+        self.tab_wizard   = self.tabs.add("🧙 Cài Đặt Lần Đầu")
 
         self._setup_tab_general()
         self._setup_tab_loop()
@@ -177,6 +179,7 @@ class TrafficBotUI(ctk.CTk):
         self._setup_tab_warmup()
         self._setup_tab_rank()
         self._setup_tab_tools()
+        self._setup_tab_wizard()
 
         # Log
         log_frame = ctk.CTkFrame(main)
@@ -892,6 +895,117 @@ class TrafficBotUI(ctk.CTk):
             label = self.TOOLS_LABELS[tag][0]
             if btn is not None:
                 self.after(0, lambda: btn.configure(state="normal", text=label))
+
+    # ── T14 — tab 🧙 Cài Đặt Lần Đầu: trạng thái các bước bật nhà (chỉ đọc) ──
+    def _setup_tab_wizard(self):
+        t = self.tab_wizard
+        ctk.CTkLabel(
+            t, text="Wizard bật nhà cho owner mới — hiển thị bước nào đã xong, còn thiếu gì. "
+                    "Chỉ ĐỌC file/config: wizard không cấu hình gì thay bạn, không gửi request nào.",
+            font=ctk.CTkFont(size=12), text_color="gray", justify="left",
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+
+        wf = ctk.CTkFrame(t, fg_color="transparent")
+        wf.grid(row=1, column=0, sticky="w", padx=20, pady=6)
+        self.btn_wizard = ctk.CTkButton(
+            wf, text="🧙  KIỂM TRA LẠI TỪNG BƯỚC",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_wizard_now,
+        )
+        self.btn_wizard.pack(side="left")
+        self.btn_wizard_docs = ctk.CTkButton(
+            wf, text="📖  MỞ CHECKLIST DOCS", fg_color="#5a5a6a", hover_color="#6d6d80",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.open_wizard_docs,
+        )
+        self.btn_wizard_docs.pack(side="left", padx=(12, 0))
+
+        self.lbl_wizard_summary = ctk.CTkLabel(
+            t, text="", font=ctk.CTkFont(size=13, weight="bold"), anchor="w")
+        self.lbl_wizard_summary.grid(row=2, column=0, sticky="w", padx=20, pady=(10, 4))
+
+        self.txt_wizard = ctk.CTkTextbox(
+            t, font=ctk.CTkFont(family="Consolas", size=12), height=300)
+        self.txt_wizard.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 12))
+        t.grid_rowconfigure(3, weight=1)
+
+        self._wizard_refresh(silent=True)
+
+    def _wizard_refresh(self, silent: bool = False):
+        """Chạy wizard_steps() trên main thread và vẽ lại bảng. silent=True: không đếm lỗi."""
+        try:
+            from utils.setup_wizard import STEP_LABELS, ready_summary, wizard_steps
+            steps = wizard_steps()
+            ok, miss, warn, skip = "✓", "✗", "!", "—"
+            lines = [f"  {'BƯỚC':<34}{'TRẠNG THÁI':<8}HIỆN TRẠNG", "  " + "─" * 94]
+            for s in steps:
+                mark = ok if s["done"] else (skip if s["optional"] and not s["detail"].startswith(("ALERTS", "WP đ")) else warn)
+                if s["optional"] and s["done"]:
+                    mark = ok
+                lines.append(f"  {STEP_LABELS[s['key']]:<34}{mark:<8}{s['detail'][:64]}")
+                if not s["done"] and s["hint"]:
+                    lines.append(f"       ↳ {s['hint']}")
+            lines.append("  " + "─" * 94)
+            lines.append(f"  {ready_summary(steps)}")
+            lines.append('  Chi tiết từng bước: docs/CHECKLIST_FIRST_RUN.md — tab 🧰 Phân Tích chạy được mỗi lệnh qua nút.')
+            self.txt_wizard.delete("0.0", END)
+            self.txt_wizard.insert("0.0", "\n".join(lines))
+            self.lbl_wizard_summary.configure(text=ready_summary(steps))
+        except Exception as e:
+            if not silent:
+                print(f"[Wizard] Lỗi vẽ lại: {type(e).__name__}: {e}")
+
+    def run_wizard_now(self):
+        """🧙: nạp wizard_steps từ thread rồi vẽ lại trên main thread — nút disable khi chạy."""
+        if self._wizard_running:
+            return
+        self._wizard_running = True
+        self.btn_wizard.configure(state="disabled", text="⏳ Đang kiểm tra...")
+        threading.Thread(target=self._wizard_worker, daemon=True).start()
+
+    def _wizard_worker(self):
+        try:
+            # wizard_steps đọc file/config — đọc trong thread để không chặn UI,
+            # vẽ trên main thread qua after như mọi worker khác.
+            from utils.setup_wizard import wizard_steps
+            steps = wizard_steps()
+            self.after(0, lambda: self._wizard_draw(steps))
+        except Exception as e:
+            print(f"[Wizard] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._wizard_running = False
+            self.after(0, lambda: self.btn_wizard.configure(
+                state="normal", text="🧙  KIỂM TRA LẠI TỪNG BƯỚC"))
+
+    def _wizard_draw(self, steps):
+        """Vẽ bảng wizard từ `steps` đã nạp ở worker (main thread)."""
+        from utils.setup_wizard import STEP_LABELS, ready_summary
+        ok, miss, opt = "✓", "✗", "—"
+        lines = [f"  {'BƯỚC':<34}{'XONG':<6}HIỆN TRẠNG", "  " + "─" * 94]
+        for s in steps:
+            mark = ok if s["done"] else (opt if s["optional"] else miss)
+            lines.append(f"  {STEP_LABELS[s['key']]:<34}{mark:<6}{s['detail'][:70]}")
+            if not s["done"] and s["hint"]:
+                lines.append(f"       ↳ {s['hint']}")
+        lines.append("  " + "─" * 94)
+        lines.append(f"  {ready_summary(steps)}")
+        lines.append("  Chi tiết từng bước: docs/CHECKLIST_FIRST_RUN.md — tab 🧰 Phân Tích có nút chạy sẵn.")
+        self.txt_wizard.delete("0.0", END)
+        self.txt_wizard.insert("0.0", "\n".join(lines))
+        self.lbl_wizard_summary.configure(text=ready_summary(steps))
+
+    def open_wizard_docs(self):
+        """📖: mở docs/CHECKLIST_FIRST_RUN.md bằng chương trình mặc định của Windows."""
+        import os as _os
+        path = _os.path.join(site_paths.ROOT, "docs", "CHECKLIST_FIRST_RUN.md")
+        if not _os.path.isfile(path):
+            print("[Wizard] Không tìm thấy docs/CHECKLIST_FIRST_RUN.md trong project.")
+            return
+        try:
+            _os.startfile(path)  # Windows: open bằng app mặc định
+        except Exception as e:
+            print(f"[Wizard] Không mở được file docs: {e}")
 
     # ── F10k — CHART: đường hạng thật bằng canvas (hạng nhỏ = ở trên) ──
     def run_chart_now(self):
