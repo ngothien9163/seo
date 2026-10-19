@@ -802,6 +802,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.refresh_scheduler_status,
         )
         self.btn_scheduler_refresh.pack(side="right")
+        self.btn_scheduler_commands = ctk.CTkButton(
+            sch_head, text="📋  SINH LỆNH SCHEDULER", width=200, height=28,
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.show_scheduler_commands,
+        )
+        self.btn_scheduler_commands.pack(side="right", padx=(0, 6))
         self.txt_scheduler = ctk.CTkTextbox(
             sch, height=140, font=ctk.CTkFont(family="Consolas", size=11))
         self.txt_scheduler.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -820,6 +827,43 @@ class TrafficBotUI(ctk.CTk):
             lines = [f"[Scheduler] Không đọc được trạng thái: {type(e).__name__}: {e}"]
         self.txt_scheduler.delete("0.0", "end")
         self.txt_scheduler.insert("0.0", "\n".join(lines))
+
+    def show_scheduler_commands(self):
+        """📋 SINH LỆNH: in các lệnh schtasks /Create vào khung + COPY vào clipboard.
+
+        Đọc thẳng schtasks_commands() — thuần dữ liệu, không chạy schtasks, không
+        đăng ký gì (ranh giới giữ nguyên từ --scheduler-install: tạo task là sửa
+        lịch máy, owner tự paste vào Command Prompt). Có COPY để khỏi select tay.
+        """
+        try:
+            from utils.scheduler import schtasks_commands
+            cmds = schtasks_commands()
+        except Exception as e:
+            self.txt_scheduler.delete("0.0", "end")
+            self.txt_scheduler.insert(
+                "0.0", f"[Scheduler] Sinh lệnh lỗi: {type(e).__name__}: {e}")
+            return
+        if not cmds:
+            self.txt_scheduler.delete("0.0", "end")
+            self.txt_scheduler.insert(
+                "0.0", "[Scheduler] Không job nào có giờ tự chạy (SCHEDULER_*_HOURS=[]).\n"
+                       "Job chạy tay thì CLI: --run-job <tên>. Thêm giờ trong config/settings.py.")
+            return
+        lines = [f"── {c['name']} — {c['desc']} ({c['hour']})" for c in cmds]
+        commands = "\n\n".join(c["command"] for c in cmds)
+        lines += ["",
+                  "Lệnh chỉ HIỆN ở đây, không tự đăng ký gì — paste vào Command Prompt",
+                  "(Run as administrator nếu dính 'Access is denied'). Chi tiết: docs/SETUP_SCHEDULER.md"]
+        self.txt_scheduler.delete("0.0", "end")
+        self.txt_scheduler.insert("0.0", "\n".join(lines))
+        self.txt_scheduler.see("1.0")
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(commands + "\n")
+            lines.append("→ Đã COPY toàn bộ lệnh vào clipboard.")
+        except Exception as e:
+            lines.append(f"→ COPY thất bại ({type(e).__name__}: {e}) — select tay trong khung.")
+        self.txt_scheduler.insert("end", "\n" + "\n".join(lines[-2:]))
 
     # ── F10 — tab 🧰 Phân Tích: mỗi nút chạy 1 lệnh CLI báo cáo đọc-only ──
     TOOLS_LABELS = {

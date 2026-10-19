@@ -107,6 +107,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - **Không chạy bù**: máy tắt đúng giờ thì mất lượt trong ngày — không gom nhiều lần check một lúc cho đỡ "phí".
 - **Chạy nền không ngồi chờ**: job `rank` gặp CAPTCHA thì bỏ qua từ khóa đó (khác với bấm `--rank` trong GUI, có ô hỏi người giải).
 - Xem lại: `python main.py --scheduler-status` (job nào chạy lúc nào, exit code, lỗi cuối, 5 lần gần nhất) hoặc khung **🗓 LỊCH TỰ ĐỘNG** trong tab 📈 Xếp Hạng. GUI cố ý **không** có nút chạy job — muốn chạy tay thì dùng CLI để log nằm đúng chỗ.
+- **GUI nút 📋 SINH LỆNH SCHEDULER (T21)**: cạnh nút LOAD TRẠNG THÁI trong khung 🗓 LỊCH TỰ ĐỘNG — in các lệnh `schtasks /Create` (`schtasks_commands()`, thuần dữ liệu, không chạy schtasks) vào khung **và COPY sẵn vào clipboard**; paste vào Command Prompt để đăng ký. Jobs giờ rỗng → nhắc chạy tay `--run-job`, không lệnh nào. Cùng ranh giới T20: GUI chỉ HIỆN, không tự đăng ký gì.
 - Đăng ký lịch từng bước (4 lệnh `schtasks`): **[`docs/SETUP_SCHEDULER.md`](docs/SETUP_SCHEDULER.md)**.
 - **`--scheduler-install` (T20)**: **in sẵn toàn bộ lệnh `schtasks /Create`** theo giờ trong `config/settings.py` (`SCHEDULER_*_HOURS`) — tên task `SEO-Bot-<Job>-<HHMM>`, `/RL LIMITED`, log dồn `data\scheduler.log`. Tool chỉ **IN THÔI, không tự đăng ký** (không gọi schtasks) — bạn copy dán vào Command Prompt; đổi giờ trong settings thì chạy lại lệnh rồi copy. Jobs không có giờ (backlink/traffic mặc định) bị bỏ qua và được nhắc chạy tay `--run-job`.
 
