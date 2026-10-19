@@ -16,6 +16,8 @@ Nguyên tắc:
   kết luận hợp lệ — bot rơi vào group `*`; bảng mô tả chứ không khuyến cáo cứng.
 """
 import os
+import json
+import time as time_mod
 from urllib.parse import urlsplit
 
 import requests
@@ -28,6 +30,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def robots_state_path() -> str:
     """File state lần chạy gần nhất — report HTML (T25) đọc lại, 0 request."""
     return site_paths.per_site("ai_robots_last.json", os.path.join(ROOT, "data"))
+
+
+def robots_history_path() -> str:
+    """T28 — lịch sử mốc check robots.txt (tối đa AI_ROBOTS_HISTORY_KEEP mốc).
+    Cùng thư mục với state; drift = khác biệt mốc gần nhất so mốc trước."""
+    return site_paths.per_site("ai_robots_history.json", os.path.join(ROOT, "data"))
 
 # Danh mục AI crawler — tên theo quy ước robots.txt GroupUser-Agent.
 # docs song song: khi thêm bot mới, chỉ chạm bảng này (thuần data).
@@ -46,6 +54,14 @@ AI_BOTS = {
     "Amazonbot": "Amazon — crawler cho Alexa/AI sản phẩm",
 }
 AI_BOTS_ORDER = list(AI_BOTS.keys())
+
+# T28 — history tối đa 30 mốc (tuần 1 lần ≈ 7 tháng nhìn lại), đủ so drift
+AI_ROBOTS_HISTORY_KEEP = 30
+
+BOT_STATUS_ORDER = {"blocked": 0, "explicit": 1, "default": 2, "missing": 3}
+BOT_KEYS = {"bot", "status", "paths"}
+BOT_LABEL = {"blocked": "CHẶN", "explicit": "KHAI BÁO 1 phần", "default": "không nêu",
+             "missing": "robots trống"}
 
 
 def robots_url_for(url: str) -> str:
@@ -178,6 +194,117 @@ def report(robots_text: str, robots_status: int) -> list:
     return lines
 
 
+# ─── T28: DRIFT — so tran trạng thái bot giữa các lần check robots.txt ──────
+
+def _bot_fingerprint(bots: list) -> dict:
+    """List bots (check_bots) → {bot: (status, paths tuple)} — so được bằng ==."""
+    fp = {}
+    for b in (bots or []):
+        if not isinstance(b, dict) or not b.get("bot"):
+            continue
+        fp[str(b["bot"])] = (str(b.get("status") or ""),
+                             tuple(str(p) for p in (b.get("paths") or [])))
+    return fp
+
+
+def diff_fingerprints(new_fp: dict, old_fp: dict) -> list:
+    """Hai fingerprint → các dòng mô tả khác biệt (bot, old, new).
+    Drift bot nào chưa từng thấy (bot mới bị khai) cũng bắt: old thiếu → 'trước: không nêu'."""
+    lines = []
+    for bot in sorted(set(new_fp) | set(old_fp)):
+        new = new_fp.get(bot)
+        old = old_fp.get(bot)
+        if new == old:
+            continue
+        old_txt = (f"{BOT_LABEL.get(old[0], old[0])}" + (f" ({', '.join(old[1])})" if old[1] else "")
+                   if old else "chưa từng được khai báo")
+        new_txt = (f"{BOT_LABEL.get(new[0], new[0])}" + (f" ({', '.join(new[1])})" if new[1] else "")
+                   if new else "không còn được nêu trong robots.txt")
+        lines.append((bot, old_txt, new_txt))
+    return lines
+
+
+def format_drift(diff_rows: list, old_at: str, new_at: str) -> list:
+    """drift rows diff_fingerprint → số dòng thông báo (hoặc [] khi không đổi)."""
+    if not diff_rows:
+        return []
+    out = ["",
+           "[AIRobots] ⚠️ ROBOTS.TXT THAY ĐỔI so lần check trước "
+           f"({old_at} → {new_at}):"]
+    for bot, old_txt, new_txt in diff_rows:
+        out.append(f"  • {bot}: {old_txt} → {new_txt}")
+    out.append("  (ai sửa robots.txt là quyết định trang quản trị — AI đọc trực tiếp "
+               "site mình phụ thuộc theo, xem lại bảng trên để cân nhắc AEO)")
+    return out
+
+
+def load_history() -> list:
+    """File history thiếu/hỏng → [] (không raise)."""
+    try:
+        with open(robots_history_path(), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    snaps = data.get("snapshots") if isinstance(data, dict) else None
+    if not isinstance(snaps, list):
+        return []
+    return [s for s in snaps if isinstance(s, dict)]
+
+
+def append_snapshot(payload: dict) -> list:
+    """Ghi 1 mốc check (atomic, giữ AI_ROBOTS_HISTORY_KEEP mốc gần nhất). Trả history mới."""
+    path = robots_history_path()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    snaps = load_history()
+    snaps.append(payload)
+    snaps = snaps[-AI_ROBOTS_HISTORY_KEEP:]
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"snapshots": snaps}, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    return snaps
+
+
+def drift_lines_for_text(history: list, new_bots: list) -> tuple:
+    """drift dòng text (CLI/GUI): format_drift với chấm thời gian now thật."""
+    new_fp = _bot_fingerprint(new_bots)
+    for snap in reversed(history):
+        if not isinstance(snap, dict) or not snap.get("bots"):
+            continue
+        old_fp = _bot_fingerprint(snap.get("bots"))
+        if old_fp == new_fp:
+            return [], snap
+        rows = diff_fingerprints(new_fp, old_fp)
+        at = str(snap.get("at") or "?")[:16].replace("T", " ")
+        now = time_mod.strftime("%Y-%m-%d %H:%M")
+        return format_drift(rows, at, now), snap
+    return [], None
+
+
+def drift_lines_for_html(history: list, new_bots: list) -> tuple:
+    """drift rows cho HTML (T28): [(bot, old_txt, new_txt)], KHÔNG chấm 'now' —
+    báo cáo được xuất sau, giờ xuất không thuộc nội dung so sánh. So cùng mốc
+    logic như phần CLI (mốc trước khác biệt gần nhất)."""
+    new_fp = _bot_fingerprint(new_bots)
+    for snap in reversed(history):
+        if not isinstance(snap, dict) or not snap.get("bots"):
+            continue
+        old_fp = _bot_fingerprint(snap.get("bots"))
+        if old_fp == new_fp:
+            return [], snap
+        return diff_fingerprints(new_fp, old_fp), snap
+    return [], None
+
+
 def robots_txt_of(target: str, fetcher=None) -> tuple:
     """URL site hiện tại → (robots_url, status, text). fetcher test được cắm vào."""
     from utils.site_auditor import _default_fetcher
@@ -190,7 +317,8 @@ def robots_txt_of(target: str, fetcher=None) -> tuple:
 
 
 def run_ai_robots_cli() -> int:
-    """`--ai-robots` — 1 request robots.txt, in bảng trạng thái từng bot AI."""
+    """`--ai-robots` — 1 request robots.txt, in bảng trạng thái từng bot AI.
+    T28: mỗi lần chạy ghi 1 mốc history + so mốc trước → in cảnh báo drift."""
     target = (getattr(cfg, "TARGET_URL", "") or "").strip()
     if not target:
         print("[AIRobots] ⚠️ Chưa đặt TARGET_URL trong config/settings.py.")
@@ -201,14 +329,17 @@ def run_ai_robots_cli() -> int:
         return 2
     state_path = robots_state_path()
     print(f"[AIRobots] Đọc {url}")
-    lines = report(text, status)
+    bots = check_bots(text)
+    history = load_history()
+    drift_lines, _ = (drift_lines_for_text(history, bots)
+                     if status != 0 else ([], None))
+    lines = report(text, status) + drift_lines
     for line in lines:
         print(line)
     # Lưu kết quả lần chạy — so sánh giữa các lần không cần fetch lại.
     try:
-        import json
-        payload = {"url": target, "status": status,
-                   "bots": check_bots(text)}
+        at = time_mod.strftime("%Y-%m-%dT%H:%M:%S")
+        payload = {"url": target, "status": status, "bots": check_bots(text)}
         os.makedirs(os.path.dirname(state_path), exist_ok=True)
         tmp = state_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
@@ -216,16 +347,26 @@ def run_ai_robots_cli() -> int:
         os.replace(tmp, state_path)
     except OSError:
         pass
+    # T28 — mốc history (status 0 cũng ghi: mạng chết 1 lần không phá chuỗi so sánh)
+    try:
+        append_snapshot({"at": at, "status": status, "bots": bots})
+    except Exception as e:
+        print(f"[AIRobots] Không ghi được history: {type(e).__name__}: {e}")
     return 0
 
 
 def run_ai_robots_gui() -> str:
-    """GUI build riêng kết quả cuối để đổ vào textbox — không print."""
+    """GUI build riêng kết quả cuối để đổ vào textbox — không print.
+    T28: gồm cả dòng drift so lần trước (đọc history) nhưng KHÔNG ghi mốc —
+    người dùng bấm nút cho xem kết quả là xem; mốc ghi qua schedule/CLI."""
     target = (getattr(cfg, "TARGET_URL", "") or "").strip()
     if not target:
         return "[AIRobots] Chưa đặt TARGET_URL trong config/settings.py."
     url, status, text = robots_txt_of(target)
     if not url:
         return f"[AIRobots] TARGET_URL không hợp lệ ({target})."
-    lines = report(text, status)
+    bots = check_bots(text)
+    history = load_history()
+    drift_lines, _ = drift_lines_for_text(history, bots)
+    lines = report(text, status) + drift_lines
     return "\n".join(lines)

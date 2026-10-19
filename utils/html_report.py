@@ -303,7 +303,8 @@ def _empty_hint(title: str, hint: str) -> str:
 
 def _airobots_section() -> dict:
     """T25 — bot AI nào bị robots.txt chặn? 0 request: đọc file state T22
-    (ai_robots_last.json, ghi mỗi lần chạy --ai-robots hoặc nút 🤖 GUI)."""
+    (ai_robots_last.json, ghi mỗi lần chạy --ai-robots hoặc nút 🤖 GUI).
+    T28 — thêm drift: mốc history trước mốc hiện tại có khác không."""
     try:
         from utils import ai_robots as ar
     except Exception:
@@ -317,8 +318,15 @@ def _airobots_section() -> dict:
     bots = [b for b in (raw.get("bots") or []) if isinstance(b, dict) and b.get("bot")]
     if not bots:
         return {}
+    drift = []
+    try:
+        history = ar.load_history()
+        drift_rows, _snap = ar.drift_lines_for_html(history, bots)
+        drift = [{"bot": b, "old": o, "new": n} for b, o, n in drift_rows]
+    except Exception:
+        drift = []
     return {"url": raw.get("url", ""), "status": raw.get("status"),
-            "bots": bots}
+            "bots": bots, "drift": drift}
 
 
 def _render_airobots(data: dict) -> str:
@@ -347,6 +355,11 @@ def _render_airobots(data: dict) -> str:
     out.append("</tbody></table>")
     if data.get("url"):
         out.append(f'<p class="meta dim">Trạng thái của robots.txt: {escape(str(data["url"]))}</p>')
+    # T28 — drift: khác biệt so mốc trước (nếu có)
+    for d in (data.get("drift") or []):
+        out.append(f'<p class="meta"><strong>⚠️ Thay đổi so lần check trước — '
+                   f'{escape(str(d["bot"]))}:</strong> {escape(str(d["old"]))} → '
+                   f'{escape(str(d["new"]))}.</p>')
     return "\n".join(out)
 
 
