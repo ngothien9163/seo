@@ -174,6 +174,7 @@ Search flow có xử lý sẵn: popup consent Google, detect CAPTCHA (cả URL l
 - **So brand theo từ trọn vẹn + bỏ dấu** (`AEO_BRANDS` trong settings): "nanky beauty" viết không dấu vẫn nhận ra; `nankybeautyva` không bị đếm nhầm là "nanky beauty". Thêm biến thể brand (viết tắt, tên khác, domain) bằng cách thêm vào `AEO_BRANDS`.
 - **1 bản ghi/ngày/từ khóa/engine**: dán lại trong cùng ngày là cập nhật, không spam; history lưu tối đa `AEO_HISTORY_KEEP` (500) bản ghi, ghi atomic vào `aeo_history.json` (per-site khi đã migrate).
 - **Xem kết quả**: `python main.py --aeo-report` hoặc cột **AI** trong báo cáo gộp (`--gsc-report`) — hiện `✓1/1` (số engine nhắc / số engine đã hỏi). **Chưa dán lần nào → báo cáo gộp y như cũ**, không breaking.
+- **Tab GUI 📢 AI Nói Gì (T17)**: khỏi tạo file answer.txt — hỏi AI, **dán câu trả lời vào khung**, điền từ khóa + engine rồi bấm **PHÂN TÍCH & LƯU**; cùng ngày/từ khóa/engine ghi đè y như CLI. Nút **KIỂM TRA LẠI BẢNG** vẽ matrix từ khóa × engine (engine chưa hỏi ra hàng `—` để nhìn phát biết chỗ trống), nút **IN BÁO CÁO AEO** đổ report đầy đủ vào System Logs. Tool chỉ đọc text — 0 request, chạy thread nền không kẹt cửa sổ, mỗi nút chặn chồng lần chạy trước.
 - Hướng dẫn từng bước: **[`docs/USE_AEO.md`](docs/USE_AEO.md)**.
 
 ---

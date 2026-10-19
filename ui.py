@@ -76,6 +76,7 @@ class TrafficBotUI(ctk.CTk):
         self._chart_visible = False
         self._wizard_running = False
         self._firstrun_running = False
+        self._aeo_running = False
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -170,6 +171,7 @@ class TrafficBotUI(ctk.CTk):
         self.tab_warmup   = self.tabs.add("🔥 Nuôi Nick")
         self.tab_rank     = self.tabs.add("📈 Xếp Hạng")
         self.tab_tools    = self.tabs.add("🧰 Phân Tích")
+        self.tab_aeo      = self.tabs.add("📢 AI Nói Gì")
         self.tab_wizard   = self.tabs.add("🧙 Cài Đặt Lần Đầu")
 
         self._setup_tab_general()
@@ -180,6 +182,7 @@ class TrafficBotUI(ctk.CTk):
         self._setup_tab_warmup()
         self._setup_tab_rank()
         self._setup_tab_tools()
+        self._setup_tab_aeo()
         self._setup_tab_wizard()
 
         # Log
@@ -1036,6 +1039,185 @@ class TrafficBotUI(ctk.CTk):
             self._firstrun_running = False
             self.after(0, lambda: self.btn_firstrun.configure(
                 state="normal", text="🌱  FIRST RUN (chạy thử từng bước)"))
+
+    # ── T17 — tab 📢 AI Nói Gì: AEO paste tay + bảng keyword × engine (chỉ đọc) ──
+    def _setup_tab_aeo(self):
+        t = self.tab_aeo
+        ctk.CTkLabel(
+            t, text="AI trả lời có nhắc brand mình không? Hỏi ChatGPT/Gemini/Perplexity bằng 1 từ khóa, "
+                    "copy câu trả lời dán vào khung dưới rồi bấm PHÂN TÍCH — tool chỉ đọc text, gửi 0 request.",
+            font=ctk.CTkFont(size=12), text_color="gray", justify="left", wraplength=900,
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+
+        af = ctk.CTkFrame(t, fg_color="transparent")
+        af.grid(row=1, column=0, sticky="w", padx=20, pady=6)
+        self.btn_aeo_refresh = ctk.CTkButton(
+            af, text="📢  KIỂM TRA LẠI BẢNG ĐỀU (REFRESH)",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_aeo_now,
+        )
+        self.btn_aeo_refresh.pack(side="left")
+        self.btn_aeo_report = ctk.CTkButton(
+            af, text="📄  IN BÁO CÁO AEO (CHI TIẾT)",
+            fg_color="#5a5a6a", hover_color="#6d6d80",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_aeo_report,
+        )
+        self.btn_aeo_report.pack(side="left", padx=(12, 0))
+
+        self.lbl_aeo_kw = ctk.CTkLabel(af, text="Từ khóa:",
+                                       font=ctk.CTkFont(size=12), anchor="w")
+        self.lbl_aeo_kw.pack(side="left", padx=(24, 4))
+        self.entry_aeo_kw = ctk.CTkEntry(af, width=260, height=36,
+                                         placeholder_text="vd: nối mi quận 2")
+        self.entry_aeo_kw.pack(side="left")
+        self.lbl_aeo_engine = ctk.CTkLabel(af, text="Engine:",
+                                           font=ctk.CTkFont(size=12), anchor="w")
+        self.lbl_aeo_engine.pack(side="left", padx=(24, 4))
+        self.entry_aeo_engine = ctk.CTkEntry(af, width=120, height=36,
+                                             placeholder_text="ChatGPT")
+        self.entry_aeo_engine.pack(side="left")
+
+        self.txt_aeo_answer = ctk.CTkTextbox(
+            t, font=ctk.CTkFont(family="Segoe UI", size=12), height=150)
+        self.txt_aeo_answer.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 6))
+        ctk.CTkLabel(
+            t, text="↓ dán nội dung câu trả lời AI vào khung trên + điền từ khóa + engine → bấm PHÂN TÍCH",
+            font=ctk.CTkFont(size=10), text_color="gray",
+        ).grid(row=3, column=0, sticky="w", padx=20)
+
+        self.btn_aeo_analyze = ctk.CTkButton(
+            t, text="🔍  PHÂN TÍCH & LƯU", fg_color="#2a6b35", hover_color="#3a8544",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_aeo_analyze_now,
+        )
+        self.btn_aeo_analyze.grid(row=4, column=0, sticky="w", padx=20, pady=8)
+
+        self.txt_aeo_matrix = ctk.CTkTextbox(
+            t, font=ctk.CTkFont(family="Consolas", size=12), height=280)
+        self.txt_aeo_matrix.grid(row=5, column=0, sticky="nsew", padx=20, pady=(4, 12))
+        t.grid_rowconfigure(5, weight=1)
+
+        self._aeo_refresh(silent=True)
+
+    def _aeo_refresh(self, silent: bool = False):
+        """Nạp ai_matrix() trên main thread + vẽ bảng. silent=True: không đếm lỗi."""
+        try:
+            lines = self._aeo_matrix_lines()
+            self.txt_aeo_matrix.delete("0.0", END)
+            self.txt_aeo_matrix.insert("0.0", "\n".join(lines))
+        except Exception as e:
+            if not silent:
+                print(f"[AEO] Lỗi vẽ lại: {type(e).__name__}: {e}")
+
+    def _aeo_matrix_lines(self) -> list:
+        """Bảng keyword × engine từ ai_matrix() — pure: không chạm widgets."""
+        from utils.aeo import ai_matrix
+        matrix = ai_matrix()
+        header = [f"  {'Từ khóa':<38}{'Engine':<14}{'Nhắc brand':<12}{'Ngày đo'}",
+                  "  " + "─" * 94]
+        if not matrix:
+            return header + [
+                "  Chưa có dữ liệu AEO.",
+                "  Mỗi ngày: hỏi 1 AI engine 1 câu theo từng từ khóa → copy câu trả lời",
+                "  dán vào khung trên → điền từ khóa + engine → bấm PHÂN TÍCH & LƯU.",
+            ]
+        # engine nào đang thiếu (chưa hỏi) cũng ra hàng '—' — nhìn phát biết chỗ chưa đo,
+        # lấy hợp các engine trông thấy + 3 engine phổ thường hay hỏi
+        engines = sorted({e for per_kw in matrix.values() for e in per_kw}
+                         | {"ChatGPT", "Gemini", "Perplexity"})
+        lines = header
+        for kw in sorted(matrix):
+            for engine in engines:
+                info = matrix[kw].get(engine)
+                if info is None:
+                    lines.append(f"  {kw[:38]:<38}{engine[:13]:<14}{'—':<12}{'—'}")
+                    continue
+                mark = "✓" if info["mentioned"] else "✗"
+                n = f"{info['mentions']} lần" if info["mentions"] > 1 else "có"
+                lines.append(f"  {kw[:38]:<38}{engine[:13]:<14}{mark + ' ' + n:<12}"
+                             f"{info.get('date', '')}")
+        return lines
+
+    def run_aeo_now(self):
+        """📢 REFRESH BẢNG: nạp matrix ở thread (đọc file) rồi vẽ trên main thread."""
+        if self._aeo_running:
+            return
+        self._aeo_running = True
+        self.btn_aeo_refresh.configure(state="disabled", text="⏳ Đang nạp...")
+        threading.Thread(target=self._aeo_worker, daemon=True).start()
+
+    def _aeo_worker(self):
+        try:
+            lines = self._aeo_matrix_lines()
+            self.after(0, lambda: self._aeo_draw(lines))
+        except Exception as e:
+            print(f"[AEO] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._aeo_running = False
+            self.after(0, lambda: self.btn_aeo_refresh.configure(
+                state="normal", text="📢  KIỂM TRA LẠI BẢNG ĐỀU (REFRESH)"))
+
+    def _aeo_draw(self, lines):
+        self.txt_aeo_matrix.delete("0.0", END)
+        self.txt_aeo_matrix.insert("0.0", "\n".join(lines))
+
+    def run_aeo_report(self):
+        """📄 IN BÁO CÁO: build_report() trả string — in vào System Logs qua worker."""
+        if self._aeo_running:
+            return
+        self._aeo_running = True
+        self.btn_aeo_report.configure(state="disabled", text="⏳ Đang đọc...")
+        threading.Thread(target=self._aeo_report_worker, daemon=True).start()
+
+    def _aeo_report_worker(self):
+        try:
+            from utils.aeo import build_report
+            print(build_report())
+        except Exception as e:
+            print(f"[AEO] Lỗi báo cáo: {type(e).__name__}: {e}")
+        finally:
+            self._aeo_running = False
+            self.after(0, lambda: self.btn_aeo_report.configure(
+                state="normal", text="📄  IN BÁO CÁO AEO (CHI TIẾT)"))
+
+    def run_aeo_analyze_now(self):
+        """🔍 PHÂN TÍCH & LƯU: validate input trước, sau đó thread (ghi file history)."""
+        if self._aeo_running:
+            return
+        kw = (self.entry_aeo_kw.get() or "").strip()
+        if not kw:
+            print("[AEO] Điền từ khóa đang theo dõi rồi mới phân tích.")
+            return
+        answer = self.txt_aeo_answer.get("0.0", END).strip()
+        if not answer:
+            print("[AEO] Dán câu trả lời AI vào khung trên rồi mới phân tích.")
+            return
+        self._aeo_running = True
+        self.btn_aeo_analyze.configure(state="disabled", text="⏳ Đang phân tích...")
+        threading.Thread(target=self._aeo_analyze_worker,
+                         args=(answer, kw, self.entry_aeo_engine.get()), daemon=True).start()
+
+    def _aeo_analyze_worker(self, answer: str, kw: str, engine: str):
+        try:
+            from utils.aeo import add_result
+            brands = getattr(cfg, "AEO_BRANDS", [])
+            record = add_result(answer, brands=brands,
+                                engine=(engine or "ChatGPT").strip() or "ChatGPT",
+                                keyword=kw)
+            mark = "✓ nhắc" if record["mentioned"] else "✗ không nhắc"
+            print(f"[AEO] {mark} brand trong \"{record['keyword']}\" "
+                  f"({record['engine']}, ngày {record['date']}) — đã lưu history.")
+            lines = self._aeo_matrix_lines()
+            self.after(0, lambda: self._aeo_draw(lines))
+            self.after(0, lambda: self.txt_aeo_answer.delete("0.0", END))
+        except Exception as e:
+            print(f"[AEO] Lỗi phân tích: {type(e).__name__}: {e}")
+        finally:
+            self._aeo_running = False
+            self.after(0, lambda: self.btn_aeo_analyze.configure(
+                state="normal", text="🔍  PHÂN TÍCH & LƯU"))
 
     # ── F10k — CHART: đường hạng thật bằng canvas (hạng nhỏ = ở trên) ──
     def run_chart_now(self):
