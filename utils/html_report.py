@@ -192,7 +192,7 @@ def collect() -> dict:
     for name, fn in (("rank", _rank_section), ("gsc", _gsc_section),
                      ("audit", _audit_section), ("backlink", _backlink_section),
                      ("aeo", _aeo_section), ("competitors", _competitors_section),
-                     ("airobots", _airobots_section)):
+                     ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
         except Exception:
@@ -433,15 +433,74 @@ def _render_competitors(data: dict) -> str:
     return "\n".join(out)
 
 
+def _posts_section() -> dict:
+    """T30 — hiệu quả từng bài viết: ghép wp_pushed + GSC pages + AEO + IndexNow.
+    0 request mới; nguồn nào hỏng builder tự bỏ — trống bài → section hint."""
+    try:
+        from utils.post_report import build_post_rows, count_states
+        rows = build_post_rows()
+    except Exception:
+        return {}
+    if not rows:
+        return {}
+    try:
+        from utils.post_report import pages_stamp
+        stamp = pages_stamp()
+    except Exception:
+        stamp = ""
+    return {"rows": rows, "stamp": stamp, "counts": count_states(rows)}
+
+
+def _render_posts(data: dict) -> str:
+    """T30 — bảng bài viết: Clicks/Impr khớp URL GSC, AEO theo từ khóa, advice."""
+    if not data:
+        return _empty_hint("Hiệu quả bài viết",
+                           "push bài (--wp-push) rồi: python main.py --post-report "
+                           "(ghép GSC pages + AEO + IndexNow)")
+    out = [f'<p class="meta">GSC snapshot: {escape(data.get("stamp") or "chưa fetch — chạy --gsc")}. '
+           "Ghép bài đã push WP (wp_pushed.json) với GSC pages + AEO + IndexNow — 0 request mới.</p>",
+           "<table><tr><th>Bài viết</th><th>URL</th><th>Clicks</th><th>Impr</th>"
+           "<th>AEO</th><th>Submit</th><th>Trạng thái</th></tr><tbody>"]
+    cls_of = {"pull": "ok", "show": "warn", "dead": "bad", "nodata": "dim", "draft": "dim"}
+    for r in data["rows"]:
+        aeo = f'{r["aeo_hit"]}/{r["aeo_asked"]}' if r["aeo_asked"] else '<span class="dim">—</span>'
+        sub = "✓" if r["submit"] else "—"
+        url_cell = (f'<span class="url">{escape(r["url"])}</span>'
+                    if r["url"] else '<span class="dim">—</span>')
+        clicks = str(r["clicks"]) if r["url"] else "—"
+        imps = str(r["imps"]) if r["url"] else "—"
+        st = escape(r["status"])
+        if r.get("advice"):
+            st += f'<br><span class="dim">↳ {escape(r["advice"])}</span>'
+        out.append(f'<tr><td>{escape(r["keyword"])}</td><td>{url_cell}</td>'
+                   f'<td class="num">{clicks}</td><td class="num">{imps}</td>'
+                   f'<td>{aeo}</td><td>{sub}</td>'
+                   f'<td class="{cls_of.get(r["state"], "")}">{st}</td></tr>')
+    out.append("</tbody></table>")
+    c = data.get("counts") or {}
+    parts = [f"{c[k]} {lab}" for k, lab in
+             (("pull", "đang kéo"), ("show", "hiển thị chưa bấm"), ("dead", "lẻo"),
+              ("nodata", "chưa có dữ liệu GSC"), ("draft", "draft chờ duyệt"))
+             if c.get(k)]
+    if parts:
+        out.append('<p class="meta">Tổng: ' + escape(", ".join(parts)) + ".</p>")
+    out.append('<p class="meta dim">Clicks/Impr = GSC pages snapshot gần nhất khớp permalink WP '
+               "(bỏ query/trailing slash) hoặc slug từ khóa; Submit = URL đã vào state IndexNow "
+               "— gõ --indexnow để submit URL mới. Bài mới chưa có GSC là bình thường "
+               "(cần vài ngày); khớp sai slug thì sửa link trong wp_pushed.json.</p>")
+    return "\n".join(out)
+
+
 _RENDER = {"rank": _render_rank, "gsc": _render_gsc,
            "audit": _render_audit, "backlink": _render_backlink,
            "aeo": _render_aeo, "competitors": _render_competitors,
-           "airobots": _render_airobots}
+           "posts": _render_posts, "airobots": _render_airobots}
 
 _TITLES = {"rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
            "aeo": "AEO — AI trả lời có nhắc brand?",
            "competitors": "Domain đối thủ thường xuất hiện (SERP top-10)",
+           "posts": "Hiệu quả từng bài viết (GSC × WP × AEO × IndexNow)",
            "airobots": "Bot AI có vào được site? (robots.txt)"}
 
 _CSS = (":root{--ink:#1f2430;--line:#e3e6ee;--soft:#f6f7fb;--cao:#b3261e;"
@@ -480,7 +539,8 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("rank", "gsc", "audit", "backlink", "aeo", "competitors", "airobots"):
+    for name in ("rank", "gsc", "audit", "backlink", "aeo", "competitors", "posts",
+                 "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")

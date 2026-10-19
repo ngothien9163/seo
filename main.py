@@ -81,6 +81,7 @@ def show_strategy():
     print("  python main.py --audit-actions    Bien finding audit thanh viec uu tien theo tu khoa")
     print("  python main.py --audit-diff       Loi moi phat hien vs da sua giua 2 lan audit gan nhat")
     print("  python main.py --plan-progress    Muc nao cua plan 30 ngay da co draft / da push WP")
+    print("  python main.py --post-report    Hieu qua tung bai da push WP: clicks/impr GSC + AEO + submit (T30)")
     print('  python main.py --wp-push <file.md> [--status draft]  Day 1 ban nhap .md len WordPress (CHI draft/pending)')
     print("  python main.py --doctor [--net]  Kiem tra moi truong: GSC/Telegram/Ollama/WP/keywords (khong mang tru --net)")
     print("  python main.py --setup-wizard    Cai dat lan dau — wizard cac buoc, con thieu gi + docs nao de lam")
@@ -265,6 +266,10 @@ if __name__ == "__main__":
     elif "--plan-progress" in sys.argv:
         from utils.plan_progress import run_plan_progress_cli
         sys.exit(run_plan_progress_cli())
+
+    elif "--post-report" in sys.argv:
+        from utils.post_report import run_post_report_cli
+        sys.exit(run_post_report_cli())
 
     elif "--wp-push" in sys.argv:
         from utils.wp_publisher import run_push_cli
