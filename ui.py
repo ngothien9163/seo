@@ -884,6 +884,8 @@ class TrafficBotUI(ctk.CTk):
         "refresh-diff": ("🔁  REFRESH DIFF", "--refresh-diff"),
         "content-brief": ("📰  CONTENT BRIEF", "--content-brief"),
         "daily-report": ("🌅  DAILY REPORT", "--daily-report"),
+        "post-report": ("📄  POST REPORT", "--post-report"),
+        "outreach": ("📣  SỔ OUTREACH", "--outreach-list"),
     }
     TOOLS_DESC = {
         "doctor-net": "Kiểm tra môi trường kèm ping Ollama (--doctor --net)",
@@ -892,6 +894,8 @@ class TrafficBotUI(ctk.CTk):
         "refresh-diff": "Bài nên refresh đã đến bước nào (--refresh-diff)",
         "content-brief": "Brief trộn dữ liệu cho 1 từ khóa dưới ô nhập (--content-brief)",
         "daily-report": "Báo cáo buổi sáng gộp 1 tin (--daily-report)",
+        "post-report": "Bài nào đang kéo, bài nào lẻo — GSC × WP × AEO (--post-report)",
+        "outreach": "Sổ xin đặt link: trạng thái từng lời đề xuất (--outreach-list)",
     }
 
     def _setup_tab_tools(self):
@@ -1745,7 +1749,16 @@ class TrafficBotUI(ctk.CTk):
         try:
             from utils.html_report import run_html_report_cli, _report_path
             run_html_report_cli()
-            print(f"[HTML] 💡 Mở bằng double-click file hoặc: start {_report_path()}")
+            path = _report_path()
+            print(f"[HTML] 💡 Mở bằng double-click file hoặc: start {path}")
+            # T40 — mở luôn report trong browser mặc định (chỉ nút bấm tay;
+            # CLI không tự mở, scheduler không tự mở)
+            try:
+                import webbrowser
+                webbrowser.open("file:///" + str(path).replace("\\", "/").lstrip("/"))
+                print("[HTML] → Đã mở trong browser mặc định.")
+            except Exception as e:
+                print(f"[HTML] ({type(e).__name__}: {e}) — double-click file thay")
         except Exception as e:
             print(f"[HTML] Lỗi: {type(e).__name__}: {e}")
         finally:

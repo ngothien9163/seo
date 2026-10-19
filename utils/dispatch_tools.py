@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """utils/dispatch_tools.py — cầu nối GUI tab 🧰 Phân Tích: gọi lệnh CLI đọc-only.
 
-GUI tab 🧰 có 6 nút; thay mỗi nút import module riêng (trùng cách CLI đã làm),
+GUI tab 🧰 có 8 nút; thay mỗi nút import module riêng (trùng cách CLI đã làm),
 worker chung của GUI chỉ gọi dispatch_tools(tag) — một nơi duy nhất map tag →
 lệnh thật. Chỉ các lệnh ĐỌC (0 request mới; doctor --net là exception, tự nuốt
 lỗi mạng). KHÔNG có lệnh ghi state nào trong file này.
@@ -21,4 +21,10 @@ def dispatch_tools(tag: str) -> int:
     if tag == "daily-report":
         from utils.daily_report import run_daily_cli
         return run_daily_cli()
+    if tag == "post-report":
+        from utils.post_report import run_post_report_cli
+        return run_post_report_cli("")
+    if tag == "outreach":
+        from utils.outreach import run_list_cli
+        return run_list_cli()
     raise ValueError(f"Unknown tool tag: {tag!r}")
