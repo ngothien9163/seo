@@ -1109,6 +1109,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_aeo_report,
         )
         self.btn_aeo_report.pack(side="left", padx=(12, 0))
+        self.btn_aeo_robots = ctk.CTkButton(
+            af, text="🤖  BOT AI BỊ CHẶN?",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=36, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_aeo_robots,
+        )
+        self.btn_aeo_robots.pack(side="left", padx=(12, 0))
 
         self.lbl_aeo_kw = ctk.CTkLabel(af, text="Từ khóa:",
                                        font=ctk.CTkFont(size=12), anchor="w")
@@ -1225,6 +1232,30 @@ class TrafficBotUI(ctk.CTk):
             self._aeo_running = False
             self.after(0, lambda: self.btn_aeo_report.configure(
                 state="normal", text="📄  IN BÁO CÁO AEO (CHI TIẾT)"))
+
+    def run_aeo_robots(self):
+        """🤖 BOT AI BỊ CHẶN: fetch robots.txt 1 lần rồi đổ kết quả vào matrix textbox.
+
+        Network ở thread (requests có thể chậm), vẽ về main thread bằng after().
+        Chặn bot AI là quyết định của owner — tool chỉ báo cáo, không đề nghị sửa.
+        """
+        if self._aeo_running:
+            return
+        self._aeo_running = True
+        self.btn_aeo_robots.configure(state="disabled", text="⏳ Đang đọc robots...")
+        threading.Thread(target=self._aeo_robots_worker, daemon=True).start()
+
+    def _aeo_robots_worker(self):
+        try:
+            from utils.ai_robots import run_ai_robots_gui
+            lines = run_ai_robots_gui().splitlines()
+        except Exception as e:
+            lines = [f"[AIRobots] Lỗi: {type(e).__name__}: {e}"]
+        finally:
+            self.after(0, lambda: self._aeo_draw(lines))
+            self._aeo_running = False
+            self.after(0, lambda: self.btn_aeo_robots.configure(
+                state="normal", text="🤖  BOT AI BỊ CHẶN?"))
 
     def run_aeo_analyze_now(self):
         """🔍 PHÂN TÍCH & LƯU: validate input trước, sau đó thread (ghi file history)."""

@@ -92,6 +92,7 @@ def show_strategy():
     print("  python main.py --rank-urls       Trang nao dang rank cho tu nao + canh bao doi trang")
     print("  python main.py --ctr-ops         Query duoc thay ma it nguoi click - goi y sua title/meta (tu GSC)")
     print('  python main.py --aeo-questions "kw"  Bien the cau hoi AEO de dan tay vao AI engine')
+    print("  python main.py --ai-robots     Bot AI nao bi robots.txt chan — AEO co doc duoc site khong (1 request, chi bao cao)")
     print("  python main.py --indexnow-key    Sinh key IndexNow (luu data/indexnow_key.txt)")
     print("  python main.py --indexnow [URL...] [--dry-run|--force]  Day URL moi vao Bing/Yandex/mach IndexNow (1 lan/ngay)")
     print("  python main.py --html-report     Xuat 1 file report.html (SERP+GSC+Audit+Backlink), mo bang browser")
@@ -311,6 +312,11 @@ if __name__ == "__main__":
     elif "--aeo-questions" in sys.argv:
         from utils.aeo_prompts import run_aeo_questions_cli
         sys.exit(run_aeo_questions_cli())
+
+    elif "--ai-robots" in sys.argv:
+        # T22 — AI crawler nào bị robots.txt chặn? (1 request, chỉ báo cáo)
+        from utils.ai_robots import run_ai_robots_cli
+        sys.exit(run_ai_robots_cli())
 
     elif "--weekly" in sys.argv:
         from utils.weekly_digest import run_weekly_cli
