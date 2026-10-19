@@ -81,8 +81,25 @@ def _gsc_section() -> dict:
         rows[kw] = {"clicks": r.get("clicks", 0), "impressions": r.get("impressions", 0),
                     "position": r.get("position", 0.0), "ctr": r.get("ctr", 0.0),
                     "ai": (f"✓{got}/{len(per)}" if per else "—"), "ai_asked": bool(per)}
-    return {"site": snap.get("site", ""), "range": f"{snap.get('start_date', '')} → "
-                                                     f"{snap.get('end_date', '')}", "rows": rows}
+    out = {"site": snap.get("site", ""), "range": f"{snap.get('start_date', '')} → "
+            f"{snap.get('end_date', '')}", "rows": rows}
+    # T35 — trang nào đang gánh traffic: G-1 pages snapshot (snapshot cũ không có
+    # field → ẩn khối, không nói dối "0 trang"). Gộp biến thể trailing slash sẵn.
+    try:
+        from utils.gsc_pages import _snapshot_pages
+        from utils.post_report import _page_agg
+        pages_raw, pg_stamp = _snapshot_pages()
+        agg = _page_agg(pages_raw)
+        if agg:
+            top = sorted(agg.items(), key=lambda kv: (-kv[1]["clicks"], -kv[1]["imps"],
+                                                      kv[0]))[:8]
+            out["pages"] = {"stamp": pg_stamp, "n": len(agg), "shown": len(top),
+                            "rows": [{"path": "/" + k.split("/", 1)[1] if "/" in k else "/",
+                                      "clicks": v["clicks"], "imps": v["imps"]}
+                                     for k, v in top]}
+    except Exception:
+        pass
+    return out
 
 
 def _audit_section() -> dict:
@@ -435,6 +452,24 @@ def _render_gsc(data: dict) -> str:
                    f'<td class="num">{r["clicks"]}</td><td class="num">{r["impressions"]}</td>'
                    f'<td class="num">{r["position"]:.1f}</td><td class="num">{r["ctr"] * 100:.1f}%</td></tr>')
     out.append("</tbody></table>")
+    # T35 — trang nào đang gánh traffic: nhiều query cùng đấm 1 trang hay service
+    # page nào thật sự được bấm — bảng path gọn, không in URL nguyên si dài
+    pg = data.get("pages") or {}
+    if pg.get("rows"):
+        out.append(f'<p class="meta">Trang nào đang gánh traffic — GSC snapshot '
+                   f'{escape(str(pg.get("stamp") or ""))}, gộp biến thể trailing slash; '
+                   "GSC không trả page cho query chưa ai phơi, số dưới có thể thấp hơn tổng lượt phơi.</p>")
+        out.append('<table><tr><th>Trang</th><th>Clicks</th><th>Hiện</th>'
+                   "<th>CTR</th></tr><tbody>")
+        for r in pg["rows"]:
+            ctr = (r["clicks"] / r["imps"] * 100) if r["imps"] else 0.0
+            out.append(f'<tr><td class="url">{escape(r["path"])}</td>'
+                       f'<td class="num">{r["clicks"]}</td><td class="num">{r["imps"]}</td>'
+                       f'<td class="num">{ctr:.1f}%</td></tr>')
+        out.append("</tbody></table>")
+        if (pg.get("n") or 0) > (pg.get("shown") or 0):
+            out.append(f'<p class="meta dim">…và {pg["n"] - pg["shown"]} trang nữa '
+                       "(clicks/imps thấp hơn) — đủ 8 hàng là đủ nhìn.</p>")
     return "\n".join(out)
 
 
