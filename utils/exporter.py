@@ -243,6 +243,34 @@ def export_plan() -> tuple[str, int]:
     return path, _write_csv(path, header, rows)
 
 
+# ─── SERIALIZE + EXPORT: sổ outreach (T50) ───────────────────────────────────
+
+OUTREACH_HEADER = ["URL", "Host", "Bài (từ khóa)", "Contact", "Note",
+                   "Trạng thái", "Cập nhật mốc", "Chờ (ngày)"]
+
+
+def outreach_rows(rows: list = None) -> tuple[list[str], list[list[str]]]:
+    """Sổ outreach → (header, rows) — đọc state qua `list_rows()` (0 request).
+    Thứ tự chú ý trước (proposed → dead) là thứ tự list_rows giữ nguyên."""
+    if rows is None:
+        from utils.outreach import list_rows
+        rows = list_rows()
+    out = []
+    for r in rows or []:
+        out.append([_clean(r.get("url", "")), _clean(r.get("host", "")),
+                    _clean(r.get("kw", "")), _clean(r.get("contact", "")),
+                    _clean(r.get("note", "")), _clean(r.get("status", "")),
+                    _clean(str(r.get("stage") or "")),
+                    str(r.get("days") if r.get("days") is not None else "")])
+    return list(OUTREACH_HEADER), out
+
+
+def export_outreach() -> tuple[str, int]:
+    header, rows = outreach_rows()
+    path = _unique_path("outreach")
+    return path, _write_csv(path, header, rows)
+
+
 def export_all() -> list[tuple[str, int]]:
     """Cả năm loại — mỗi loại một file CSV (kể cả khi một loại trống).
 
@@ -252,22 +280,24 @@ def export_all() -> list[tuple[str, int]]:
     không request nào. Rank + gsc vẫn là phần định kỳ scheduler tự lấy.
     """
     return [export_rank(), export_gsc(), export_audit(),
-            export_backlinks(), export_plan()]
+            export_backlinks(), export_plan(), export_outreach()]
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
-KINDS = ("rank", "gsc", "audit", "backlinks", "plan", "all")
+KINDS = ("rank", "gsc", "audit", "backlinks", "plan", "outreach", "all")
 
 _LABELS = {"rank": "xếp hạng", "gsc": "Search Console",
            "audit": "kết quả audit on-page", "backlinks": "kết quả check backlink",
-           "plan": "tiến độ content plan"}
+           "plan": "tiến độ content plan", "outreach": "sổ outreach"}
 # Lệnh lấy dữ liệu tương ứng — in ra khi file chỉ có tiêu đề
 _SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit",
-            "backlinks": "--backlink-check", "plan": "--plan-progress"}
+            "backlinks": "--backlink-check", "plan": "--plan-progress",
+            "outreach": "--outreach-add lần đầu (sổ trống là chưa đề xuất link nào)"}
 
 _EXPORTERS = {"rank": export_rank, "gsc": export_gsc, "audit": export_audit,
-              "backlinks": export_backlinks, "plan": export_plan}
+              "backlinks": export_backlinks, "plan": export_plan,
+              "outreach": export_outreach}
 
 
 def run_export_cli(kind: str = "all") -> int:
