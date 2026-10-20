@@ -570,7 +570,23 @@ class TrafficBotUI(ctk.CTk):
         )
         self.btn_generate.pack(side="left", padx=(10, 0))
 
-        ctk.CTkFrame(t, height=1, fg_color="#333").grid(row=6, column=0, columnspan=2, sticky="ew", padx=14, pady=8)
+        bf2 = ctk.CTkFrame(t, fg_color="transparent")
+        bf2.grid(row=6, column=0, sticky="w", padx=14, pady=(0, 10))
+        self.entry_gen_day = ctk.CTkEntry(bf2, width=70, placeholder_text="ngày")
+        self.entry_gen_day.pack(side="left")
+        self.btn_generate_day = ctk.CTkButton(
+            bf2, text="📅  SINH THEO NGÀY PLAN",
+            fg_color="#2a5a8a", hover_color="#3a7ab0",
+            height=32, command=self.run_generate_day,
+        )
+        self.btn_generate_day.pack(side="left", padx=(8, 0))
+        self.btn_draft_list = ctk.CTkButton(
+            bf2, text="📋  DRAFT CHỜ",
+            width=150, command=self.run_draft_list,
+        )
+        self.btn_draft_list.pack(side="left", padx=(8, 0))
+
+        ctk.CTkFrame(t, height=1, fg_color="#333").grid(row=7, column=0, columnspan=2, sticky="ew", padx=14, pady=8)
 
         info = (
             "AI Engine (Ollama) được dùng để:\n"
@@ -581,7 +597,7 @@ class TrafficBotUI(ctk.CTk):
             "  ⚠️  Cần Ollama đang chạy local và đã pull model trước khi bắt đầu."
         )
         ctk.CTkLabel(t, text=info, justify="left", text_color="gray",
-                     font=ctk.CTkFont(size=11)).grid(row=7, column=0, sticky="w", padx=14, pady=4)
+                     font=ctk.CTkFont(size=11)).grid(row=8, column=0, sticky="w", padx=14, pady=4)
 
     # ═══════════════════════════════════════════════════════════════
     # TAB: NUÔI NICK
@@ -1973,6 +1989,58 @@ class TrafficBotUI(ctk.CTk):
             self._generate_running = False
             self.after(0, lambda: self.btn_generate.configure(
                 state="normal", text="✍️  SINH BÀI"))
+
+    def run_generate_day(self):
+        """T48 — sinh bài từ một mục của content plan 30 ngày (thread nền)."""
+        if self.is_running:
+            print("[Content] ⚠️ Bot đang treo máy — đợi phiên traffic xong rồi sinh bài.")
+            return
+        if self._generate_running:
+            return
+        day = self.entry_gen_day.get().strip()   # đọc widget ở luồng chính
+        url = self.entry_ollama_url.get().strip()
+        try:
+            day = int(day)
+        except ValueError:
+            print("[Content] Điền số ngày plan (1..30) vào ô 'ngày' — xem "
+                  "python main.py --plan hoặc section Kế hoạch của report.html.")
+            return
+        self._generate_running = True
+        self.btn_generate_day.configure(state="disabled", text="⏳ Sinh ngày...")
+        threading.Thread(target=self._generate_day_worker,
+                         args=(day, url), daemon=True).start()
+
+    def _generate_day_worker(self, day, url):
+        try:
+            from content.generator import generate_article
+            if url:
+                cfg.OLLAMA_URL = url
+            path, msg = generate_article(day=day)
+            if path:
+                print(f"[Content] ✍️ Đã lưu bản nháp ngày {day}: {path}")
+            else:
+                print(f"[Content] {msg}")
+        except Exception as e:
+            print(f"[Content] Lỗi: {e}")
+        finally:
+            self._generate_running = False
+            self.after(0, lambda: self.btn_generate_day.configure(
+                state="normal", text="📅  SINH THEO NGÀY PLAN"))
+
+    def run_draft_list(self):
+        """T48 — liệt kê plan 30 ngày + trạng thái draft/push vào System Logs
+        (chỉ READ — sinh bài và đẩy WP vẫn qua CLI/manual như cũ)."""
+        if self._generate_running:
+            return
+        threading.Thread(target=self._draft_list_worker, daemon=True).start()
+
+    def _draft_list_worker(self):
+        try:
+            from utils.plan_progress import build_progress, report_text
+            text, _ = report_text(build_progress())
+            print("\n" + text)
+        except Exception as e:
+            print(f"[Content] Lỗi liệt kê draft: {e}")
 
     # ═══════════════════════════════════════════════════════════════
     # TỪ KHÓA ĐỀ XUẤT TỪ SEARCH CONSOLE (F2)
