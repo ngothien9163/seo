@@ -252,6 +252,7 @@ def collect() -> dict:
                      ("ctr", _ctr_section), ("audit", _audit_section),
                      ("backlink", _backlink_section), ("outreach", _outreach_section),
                      ("aeo", _aeo_section), ("competitors", _competitors_section),
+                     ("plan", _plan_section),
                      ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
@@ -273,6 +274,19 @@ def _ctr_section() -> dict:
     if not rows:
         return {}
     return {"rows": build_opportunities(rows)[:8], "avg": band_avg_ctr(rows)}
+
+
+def _plan_section() -> dict:
+    """T47 — tiến độ content plan 30 ngày: từng mục đã draft / đã push WP.
+    Reuse `build_progress` (P3-5), 0 request; plan trống tuỳ owner khai."""
+    try:
+        from utils.plan_progress import build_progress
+        rows = build_progress()
+    except Exception:
+        return {}
+    if not rows:
+        return {}
+    return {"rows": rows[:31]}
 
 
 def _summary_section() -> dict:
@@ -916,6 +930,35 @@ def _posts_section() -> dict:
     return {"rows": rows, "stamp": stamp, "counts": count_states(rows)}
 
 
+def _render_plan(data: dict) -> str:
+    """T47 — bảng 30 mục content plan. Trống data → ghi chú dòng, không hint
+    empty (plan mặc định luôn 30 mục; trống = định nghĩa chưa khai)."""
+    rows = list((data or {}).get("rows") or [])
+    if not data or not rows:
+        return ('<p class="meta dim">Chưa có mục plan nào — plan 30 ngày mặc định '
+                "trong content/planner.py hoặc chưa chạy --plan.</p>")
+    with_draft = [r for r in rows if r.get("has_draft")]
+    pushed = [r for r in rows if r.get("pushed")]
+    out = [f'<p class="meta">Draft {len(with_draft)}/{len(rows)} mục · '
+           f'đã push WP {len(pushed)} · tool chỉ đẩy draft/pending, publish tay.</p>',
+           '<table><tr><th>Ngày</th><th>Loại</th><th>Từ khóa</th><th>Trạng thái</th></tr>'
+           "<tbody>"]
+    for r in rows:
+        st = ("✓✓ đã push WP", "ok") if r.get("pushed") else (
+            ("✓ draft chờ duyệt", "warn") if r.get("has_draft")
+            else ("— chưa có", "dim"))
+        out.append(f'<tr><td class="num">{int(r.get("day") or 0)}</td>'
+                   f'<td>{escape(str(r.get("type") or ""))}</td>'
+                   f'<td>{escape(str(r.get("keyword") or ""))}</td>'
+                   f'<td class="{st[1]}">{escape(st[0])}</td></tr>')
+    out.append("</tbody></table>")
+    free = [r for r in rows if not r.get("has_draft")]
+    if free:
+        out.append(f'<p class="meta">Mục kế tiếp còn trống: ngày {int(free[0].get("day") or 0)}'
+                   f' — python main.py --generate --day {int(free[0].get("day") or 0)}</p>')
+    return "\n".join(out)
+
+
 def _render_posts(data: dict) -> str:
     """T30 — bảng bài viết: Clicks/Impr khớp URL GSC, AEO theo từ khóa, advice."""
     if not data:
@@ -961,6 +1004,7 @@ _RENDER = {"summary": _render_summary, "actions": _render_actions,
            "audit": _render_audit, "backlink": _render_backlink,
            "outreach": _render_outreach,
            "aeo": _render_aeo, "competitors": _render_competitors,
+           "plan": _render_plan,
            "posts": _render_posts, "airobots": _render_airobots}
 
 _TITLES = {"summary": "Tóm tắt — tình hình nhanh",
@@ -971,6 +1015,7 @@ _TITLES = {"summary": "Tóm tắt — tình hình nhanh",
            "outreach": "Sổ outreach — xin đặt link",
            "aeo": "AEO — AI trả lời có nhắc brand?",
            "competitors": "Domain đối thủ thường xuất hiện (SERP top-10)",
+           "plan": "Kế hoạch nội dung 30 ngày — tiến độ",
            "posts": "Hiệu quả từng bài viết (GSC × WP × AEO × IndexNow)",
            "airobots": "Bot AI có vào được site? (robots.txt)"}
 
@@ -1012,7 +1057,7 @@ def render(sections: dict) -> str:
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
     for name in ("summary", "actions", "rank", "gsc", "ctr", "audit", "backlink",
-                 "outreach", "aeo", "competitors", "posts", "airobots"):
+                 "outreach", "aeo", "competitors", "plan", "posts", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
     parts.append("</main></body></html>")
