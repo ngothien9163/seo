@@ -249,15 +249,30 @@ def collect() -> dict:
     sections = {}
     for name, fn in (("summary", _summary_section), ("actions", _actions_section),
                      ("rank", _rank_section), ("gsc", _gsc_section),
-                     ("audit", _audit_section), ("backlink", _backlink_section),
-                     ("outreach", _outreach_section), ("aeo", _aeo_section),
-                     ("competitors", _competitors_section),
+                     ("ctr", _ctr_section), ("audit", _audit_section),
+                     ("backlink", _backlink_section), ("outreach", _outreach_section),
+                     ("aeo", _aeo_section), ("competitors", _competitors_section),
                      ("posts", _posts_section), ("airobots", _airobots_section)):
         try:
             sections[name] = fn()
         except Exception:
             sections[name] = {}
     return sections
+
+
+def _ctr_section() -> dict:
+    """T46 — query đang phơi trên SERP (hạng ≤ 10) mà CTR thua bình quân của
+    nhóm cùng vị trí. Reuse engine G-1 (`build_opportunities`), 0 request mới:
+    cùng snapshot GSC gần nhất mà bảng GSC đang dùng."""
+    try:
+        from utils.gsc_client import latest_gsc_rows
+        from utils.ctr_opportunities import build_opportunities, band_avg_ctr
+    except Exception:
+        return {}
+    rows = latest_gsc_rows()
+    if not rows:
+        return {}
+    return {"rows": build_opportunities(rows)[:8], "avg": band_avg_ctr(rows)}
 
 
 def _summary_section() -> dict:
@@ -592,6 +607,40 @@ def _render_gsc(data: dict) -> str:
     return "\n".join(out)
 
 
+def _render_ctr(data: dict) -> str:
+    """T46 — bảng query cơ hội CTR (G-1). Rows rỗng → nhận xét 'title đang tốt',
+    không nói dối có cơ hội."""
+    if not data:
+        return _empty_hint("query cơ hội CTR",
+                           "python main.py --gsc (lấy snapshot 28 ngày) "
+                           "→ python main.py --ctr-ops")
+    rows = data.get("rows") or []
+    if not rows:
+        avg = data.get("avg", "0")
+        return (f'<p class="meta">Không query nào thua CTR bình quân của nhóm cùng '
+                f'vùng vị trí (TB {escape(str(avg))}%) — title đang đón khách tốt '
+                "hoặc chưa đủ dữ liệu (cần query ≥ 30 hiển thị, hạng ≤ 10).</p>")
+    out = ['<p class="meta">Query Google đang PHƠI (hạng ≤ 10) mà CTR thua bình quân '
+           'nhóm cùng vị trí — sửa <b>title + meta description</b> của trang tương '
+           "ứng (chi tiết: python main.py --ctr-ops).</p>",
+           "<table><tr><th>Query</th><th>Hạng</th><th>Hiển thị</th><th>Clicks</th>"
+           "<th>CTR</th><th>TB nhóm</th><th>Chênh</th></tr><tbody>"]
+    for r in rows:
+        gap = float(r.get("gap") or 0.0)
+        gap_cls = "bad" if gap >= 1.0 else "warn"
+        out.append(f'<tr><td>{escape(r.get("query", ""))}</td>'
+                   f'<td class="num">{float(r.get("position") or 0.0):.1f}</td>'
+                   f'<td class="num">{int(r.get("impressions") or 0)}</td>'
+                   f'<td class="num">{int(r.get("clicks") or 0)}</td>'
+                   f'<td class="num">{float(r.get("ctr_pct") or 0.0):.1f}%</td>'
+                   f'<td class="num">{float(r.get("avg_pct") or 0.0):.1f}%</td>'
+                   f'<td class="num"><span class="{gap_cls}">-{gap:.1f} pp</span></td></tr>')
+    out.append("</tbody></table>")
+    out.append('<p class="meta dim">TB nhóm = CTR bình quân các query cùng vùng vị trí '
+               "(hạng 1–10, ≥ 30 hiển thị). Chênh màu đỏ ≥ 1 điểm phần trăm.</p>")
+    return "\n".join(out)
+
+
 def _render_audit(data: dict) -> str:
     if not data:
         return _empty_hint("Audit on-page", "python main.py --audit")
@@ -908,7 +957,7 @@ def _render_posts(data: dict) -> str:
 
 
 _RENDER = {"summary": _render_summary, "actions": _render_actions,
-           "rank": _render_rank, "gsc": _render_gsc,
+           "rank": _render_rank, "gsc": _render_gsc, "ctr": _render_ctr,
            "audit": _render_audit, "backlink": _render_backlink,
            "outreach": _render_outreach,
            "aeo": _render_aeo, "competitors": _render_competitors,
@@ -917,6 +966,7 @@ _RENDER = {"summary": _render_summary, "actions": _render_actions,
 _TITLES = {"summary": "Tóm tắt — tình hình nhanh",
            "actions": "Việc nên làm trước",
            "rank": "Xếp hạng Google (SERP)", "gsc": "Search Console (28 ngày)",
+           "ctr": "CTR cơ hội — query phơi mà ít click",
            "audit": "Audit on-page — findings gần nhất", "backlink": "Backlink đã đặt",
            "outreach": "Sổ outreach — xin đặt link",
            "aeo": "AEO — AI trả lời có nhắc brand?",
@@ -961,7 +1011,7 @@ def render(sections: dict) -> str:
              "<header><h1>Báo cáo SEO — ", escape(domain or "(chưa cấu hình site)"),
              "</h1>", f'<p class="sub">Xuất {escape(stamp)} — python main.py --html-report</p>',
              "</header><main>"]
-    for name in ("summary", "actions", "rank", "gsc", "audit", "backlink",
+    for name in ("summary", "actions", "rank", "gsc", "ctr", "audit", "backlink",
                  "outreach", "aeo", "competitors", "posts", "airobots"):
         body = _RENDER[name](sections.get(name) or {})
         parts.append(f"<section><h2>{escape(_TITLES[name])}</h2><div>{body}</div></section>")
