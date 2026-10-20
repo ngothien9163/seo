@@ -354,6 +354,15 @@ def _summary_section() -> dict:
         from utils.pagespeed import posts_load, weak_posts
         out["pspeed"] = {"measured": len(posts_load()["urls"]),
                          "weak": len(weak_posts())}
+        # T53 — trend site từ history T51 (≥2 mốc mới có ý nghĩa)
+        try:
+            from utils.pagespeed import history_scores, trend_words
+            hist_s = history_scores(url=(getattr(cfg, "TARGET_URL", "") or "").strip())
+            if len(hist_s) >= 2:
+                out["pspeed"]["site_trend"] = (f"{len(hist_s)} lần đo site: "
+                                               + trend_words(hist_s))
+        except Exception:
+            pass
     except Exception:
         pass
     # Backlink — sống / tổng
@@ -444,9 +453,13 @@ def _render_summary(data: dict) -> str:
     pspeed = data.get("pspeed") or {}
     if pspeed.get("measured"):
         weak = pspeed.get("weak") or 0
+        trend_html = ""
+        if pspeed.get("site_trend"):
+            trend_html = (f'<br><span class="dim">{escape(str(pspeed["site_trend"]))}'
+                          "</span>")
         row("PageSpeed (T33)",
             f'{pspeed["measured"]} bài đã đo, {weak} bài dưới ngưỡng'
-            f'<span class="dim"> (--pagespeed-posts)</span>',
+            f'<span class="dim"> (--pagespeed-posts)</span>{trend_html}',
             "warn" if weak else "ok")
     else:
         row("PageSpeed (T33)", "", "dim")
