@@ -62,6 +62,7 @@ class TrafficBotUI(ctk.CTk):
         self._generate_running = False
         self._alert_running = False
         self._htmlreport_running = False
+        self._schtasks_running = False
         self._intlinks_running = False
         self._actions_running = False
         self._doctor_running = False
@@ -836,6 +837,13 @@ class TrafficBotUI(ctk.CTk):
             command=self.show_scheduler_commands,
         )
         self.btn_scheduler_commands.pack(side="right", padx=(0, 6))
+        self.btn_schtasks_check = ctk.CTkButton(
+            sch_head, text="🪟  TASK ĐÃ ĐĂNG KÝ?", width=170, height=28,
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_schtasks_check,
+        )
+        self.btn_schtasks_check.pack(side="right", padx=(0, 6))
         self.txt_scheduler = ctk.CTkTextbox(
             sch, height=140, font=ctk.CTkFont(family="Consolas", size=11))
         self.txt_scheduler.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -854,6 +862,40 @@ class TrafficBotUI(ctk.CTk):
             lines = [f"[Scheduler] Không đọc được trạng thái: {type(e).__name__}: {e}"]
         self.txt_scheduler.delete("0.0", "end")
         self.txt_scheduler.insert("0.0", "\n".join(lines))
+
+    def run_schtasks_check(self):
+        """T49 — mỗi job có giờ, hỏi Windows thật `schtasks /Query /TN` đã đăng
+        ký chưa. Chỉ ĐỌC — không Create/Delete sửa task nào."""
+        if self._schtasks_running:
+            return
+        self._schtasks_running = True
+        self.btn_schtasks_check.configure(state="disabled", text="⏳ Hỏi Windows...")
+        threading.Thread(target=self._schtasks_check_worker, daemon=True).start()
+
+    def _schtasks_check_worker(self):
+        try:
+            from utils.scheduler import JOBS, TASK_PREFIX
+            from utils.doctor import _schtasks_registered
+            rows = []
+            for name, job in JOBS.items():
+                for hour in job["hours"]:
+                    hhmm = f"{int(hour):02d}:00"
+                    tn = f"{TASK_PREFIX}-{name.capitalize()}-{hhmm.replace(':', '')}"
+                    rows.append((tn, hour, _schtasks_registered(tn)))
+            reg = sum(1 for _, _, okr in rows if okr)
+            lines = [f"── TASK WINDOWS ĐÃ ĐĂNG KÝ: {reg}/{len(rows)} (schtasks /Query, chỉ đọc)"]
+            lines += [f"  {'✓' if okr else '✗'}  {tn:<26} {hh}h"
+                      for tn, hh, okr in rows]
+            if reg < len(rows):
+                lines.append("  ↳ Bấm 📋 SINH LỆNH SCHEDULER → paste vào Command "
+                             "Prompt (admin). Chi tiết: docs/SETUP_SCHEDULER.md")
+            text = "\n".join(lines)
+        except Exception as e:
+            text = f"[Scheduler] Không hỏi được Windows: {type(e).__name__}: {e}"
+        self.after(0, lambda: self.txt_scheduler.insert("end", "\n\n" + text))
+        self._schtasks_running = False
+        self.after(0, lambda: self.btn_schtasks_check.configure(
+            state="normal", text="🪟  TASK ĐÃ ĐĂNG KÝ?"))
 
     def show_scheduler_commands(self):
         """📋 SINH LỆNH: in các lệnh schtasks /Create vào khung + COPY vào clipboard.
