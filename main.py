@@ -78,6 +78,7 @@ def show_strategy():
     print("  python main.py --audit-diff       Loi moi phat hien vs da sua giua 2 lan audit gan nhat")
     print("  python main.py --audit-trend      Tung loai loi qua cac lan audit — giam la tot (T41)")
     print("  python main.py --export audit     Xuat ket qua audit lan gan nhat ra CSV")
+    print("  python main.py --export pagespeed Xuat lich su diem PageSpeed cac lan do ra CSV (T57)")
     print("  python main.py --pagespeed [URL]  Core Web Vitals tu PageSpeed Insights (so LAB)")
     print("  python main.py --pagespeed-posts [URL]  Diem PageSpeed tung bai da push (T33); URL = do lai bai do")
     print("  ── PHAN TICH CO HOI ──")

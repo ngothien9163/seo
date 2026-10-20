@@ -7,6 +7,8 @@ utils/exporter.py — F1: xuất dữ liệu SEO đã thu ra CSV mở bằng Exc
 - audit_last.json    → các finding của lần `--audit` gần nhất
 - backlink_status.json → kết quả `--backlink-check` gần nhất (link chết/nofollow đầu bảng)
 - content plan 30 ngày + drafts + wp_pushed.json → tiến độ từng mục (H-C2)
+- outreach_state.json → sổ outreach đã đề xuất (T50)
+- pagespeed.json → lịch sử điểm Core Web Vitals từng lần đo (T51/T57)
 
 File ghi vào `reports/export_<YYYYMMDD>_<HHMMSS>_<kind>.csv` (multi-site thì thêm tiền
 tố slug: `<slug>_export_...`), mã UTF-8 có BOM (Excel bản tiếng Việt cần BOM để không
@@ -19,7 +21,9 @@ Chạy:
     python main.py --export audit      # kết quả --audit lần gần nhất (data/audit_last.json)
     python main.py --export backlinks  # kết quả --backlink-check (data/backlink_status.json)
     python main.py --export plan       # 30 mục content plan: draft chưa / đã push WP
-    python main.py --export all        # cả 5 loại, mỗi loại một file (kể cả khi trống)
+    python main.py --export outreach   # sổ outreach: link đã đề xuất + trạng thái
+    python main.py --export pagespeed  # lịch sử điểm Core Web Vitals các lần đo (T57)
+    python main.py --export all        # cả 7 loại, mỗi loại một file (kể cả khi trống)
     GUI: tab "📈 Xếp Hạng" → nút "📤 XUẤT CSV"
 
 Ghi chú:
@@ -271,6 +275,35 @@ def export_outreach() -> tuple[str, int]:
     return path, _write_csv(path, header, rows)
 
 
+# ─── SERIALIZE + EXPORT: lịch sử PageSpeed (T57) ─────────────────────────────
+
+PAGESPEED_HEADER = ["Lần đo", "URL", "Mobile", "Desktop"]
+
+
+def pagespeed_rows(hist: list = None) -> tuple[list[str], list[list[str]]]:
+    """Lịch sử đo PSI (T51: data/pagespeed.json → key 'history') → (header, rows).
+    1 dòng mỗi mốc, giữ thứ tự cũ → mới như file lưu; điểm thiếu (lần đo lỗi
+    1 strategy) để ô trống chứ không điền 0 — 0 là điểm thật, trống là không có."""
+    if hist is None:
+        from utils.pagespeed import load_saved
+        hist = (load_saved() or {}).get("history") or []
+    out = []
+    for e in hist or []:
+        if not isinstance(e, dict) or not (e.get("at") or e.get("url")):
+            continue
+        sc = e.get("scores") or {}
+        out.append([_clean(str(e.get("at") or "")), _clean(str(e.get("url") or "")),
+                    str(sc["mobile"]) if isinstance(sc.get("mobile"), int) else "",
+                    str(sc["desktop"]) if isinstance(sc.get("desktop"), int) else ""])
+    return list(PAGESPEED_HEADER), out
+
+
+def export_pagespeed() -> tuple[str, int]:
+    header, rows = pagespeed_rows()
+    path = _unique_path("pagespeed")
+    return path, _write_csv(path, header, rows)
+
+
 def export_all() -> list[tuple[str, int]]:
     """Cả năm loại — mỗi loại một file CSV (kể cả khi một loại trống).
 
@@ -279,25 +312,27 @@ def export_all() -> list[tuple[str, int]]:
     chứ không phải đống số liệu mồ môi; plan là hằng số 30 mục + tiến độ đã có,
     không request nào. Rank + gsc vẫn là phần định kỳ scheduler tự lấy.
     """
-    return [export_rank(), export_gsc(), export_audit(),
-            export_backlinks(), export_plan(), export_outreach()]
+    return [export_rank(), export_gsc(), export_audit(), export_backlinks(),
+            export_plan(), export_outreach(), export_pagespeed()]
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
-KINDS = ("rank", "gsc", "audit", "backlinks", "plan", "outreach", "all")
+KINDS = ("rank", "gsc", "audit", "backlinks", "plan", "outreach", "pagespeed", "all")
 
 _LABELS = {"rank": "xếp hạng", "gsc": "Search Console",
            "audit": "kết quả audit on-page", "backlinks": "kết quả check backlink",
-           "plan": "tiến độ content plan", "outreach": "sổ outreach"}
+           "plan": "tiến độ content plan", "outreach": "sổ outreach",
+           "pagespeed": "lịch sử PageSpeed"}
 # Lệnh lấy dữ liệu tương ứng — in ra khi file chỉ có tiêu đề
 _SOURCES = {"rank": "--rank", "gsc": "--gsc", "audit": "--audit",
             "backlinks": "--backlink-check", "plan": "--plan-progress",
-            "outreach": "--outreach-add lần đầu (sổ trống là chưa đề xuất link nào)"}
+            "outreach": "--outreach-add lần đầu (sổ trống là chưa đề xuất link nào)",
+            "pagespeed": "--pagespeed (chưa đo lần nào thì chưa có lịch sử)"}
 
 _EXPORTERS = {"rank": export_rank, "gsc": export_gsc, "audit": export_audit,
               "backlinks": export_backlinks, "plan": export_plan,
-              "outreach": export_outreach}
+              "outreach": export_outreach, "pagespeed": export_pagespeed}
 
 
 def run_export_cli(kind: str = "all") -> int:
