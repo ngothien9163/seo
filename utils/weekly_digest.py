@@ -177,6 +177,19 @@ def build_digest() -> str:
     except Exception:
         pass                    # như các phần tốt thêm khác — thiếu thì bỏ, không chết digest
 
+    # T56 — TREND PAGESPEED: điểm site qua các lần đo (reuse T51, ≥2 mốc mới hiện)
+    try:
+        from utils.pagespeed import history_scores, trend_words
+        target = (getattr(cfg, "TARGET_URL", "") or "").strip()
+        hist = history_scores(url=target)
+        if len(hist) >= 2:
+            sections.append(_section(
+                "TREND PAGESPEED",
+                f"Site {target} ({len(hist)} lần đo): {trend_words(hist)}. "
+                "Đo lại: python main.py --pagespeed."))
+    except Exception:
+        pass                    # như các phần tốt thêm khác — thiếu thì bỏ, không chết digest
+
     try:
         from utils.actions import priority_lines
         weekly_actions = priority_lines(n=3)
