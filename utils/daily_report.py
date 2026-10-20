@@ -64,7 +64,7 @@ def build_todo_lines(plan_rows: list, n_backlinks: int = -1,
 def build_report(rank_text: str = None, gsc_text: str = None,
                  plan_rows: list = None, n_backlinks: int = -1,
                  outreach_lines: list = None, pspeed_lines: list = None,
-                 actions_lines: list = None) -> str:
+                 actions_lines: list = None, trend_lines: list = None) -> str:
     """Báo cáo gộp hàng ngày. Nguồn trống/hỏng → phần đó tự nói "chưa có dữ liệu"."""
     from datetime import datetime as _dt
 
@@ -76,6 +76,12 @@ def build_report(rank_text: str = None, gsc_text: str = None,
             lines.append("")
             lines.append(title)
             lines.extend(tail)
+
+    # T52 — mục TREND (PSI site + tổng lỗi audit): nguồn nào có mới hiện
+    if trend_lines:
+        lines.append("")
+        lines.append("── TREND ──")
+        lines.extend(trend_lines)
 
     todo = build_todo_lines(plan_rows, n_backlinks, outreach_lines, pspeed_lines,
                             actions_lines)
@@ -165,8 +171,32 @@ def run_daily_cli(save_to_disk: bool = False) -> int:
     except Exception as e:
         _log(f"[Daily] phần việc gấp bỏ qua: {type(e).__name__}: {e}")
 
+    # T52 — trend gọn: PSI site (≥2 mốc mới hiện) + tổng lỗi audit (≥2 lần audit)
+    trend_lines = []
+    try:
+        import config.settings as _cfg
+        from utils.pagespeed import history_scores, trend_words
+        target = (getattr(_cfg, "TARGET_URL", "") or "").strip()
+        hist = history_scores(url=target)
+        if len(hist) >= 2:
+            trend_lines.append(f"PageSpeed site ({len(hist)} lần đo): {trend_words(hist)}")
+    except Exception as e:
+        _log(f"[Daily] trend PageSpeed bỏ qua: {type(e).__name__}: {e}")
+    try:
+        from utils.audit_trend import trend_summary_for_html
+        t = trend_summary_for_html()
+        if t and t.get("rules"):
+            mark = ("↓ tốt" if t["total_last"] < t["total_first"]
+                    else ("↑ xấu" if t["total_last"] > t["total_first"] else "không đổi"))
+            trend_lines.append(f"Audit: tổng lỗi {t['total_first']} → {t['total_last']} "
+                               f"qua {t['n_checks']} lần audit ({mark}) — "
+                               "chi tiết: --audit-trend")
+    except Exception as e:
+        _log(f"[Daily] trend audit bỏ qua: {type(e).__name__}: {e}")
+
     text = _clip(build_report(rank_text, gsc_text, plan_rows, n_backlinks,
-                              outreach_lines, pspeed_lines, actions_lines))
+                              outreach_lines, pspeed_lines, actions_lines,
+                              trend_lines=trend_lines))
     ok = send(text)
     mode = delivery_mode()
     if ok:
