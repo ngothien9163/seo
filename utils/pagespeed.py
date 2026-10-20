@@ -139,11 +139,18 @@ def _score(result: dict, audits: dict):
 
 # ─── file (chỉ số gọn, không bao giờ là response thô) ────────────────────────
 
-def save(report: dict) -> str:
+def save(report: dict, append_history: bool = True) -> str:
     path = _state_path()
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
+    if append_history:
+        # T51 — mỗi lần lưu report là 1 mốc lịch sử: điểm đo của lần này cùng
+        # với tối đa PAGESPEED_HISTORY_KEEP mốc trước. File cũ không có field
+        # 'history' → list mới, không migrate.
+        old_hist = ((load_saved() or {}).get("history") or [])
+        old_hist = [h for h in old_hist if isinstance(h, dict)][-(PAGESPEED_HISTORY_KEEP - 1):]
+        report.setdefault("history", old_hist + [history_entry(report)])
     # Ghi qua .tmp rồi os.replace: chết giữa chừng (Ctrl-C, scheduler kill) không để lại
     # JSON cụt — load_saved() gặp file hỏng là trả None im lặng nên báo cáo cũ sẽ mất sạch.
     tmp = path + ".tmp"
@@ -169,6 +176,55 @@ def load_saved():
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) and data.get("url") else None
+
+
+# ─── T51: lịch sử các lần đo — điểm theo từng lượt, đỡ chỉ có 1 mốc ──────────
+
+PAGESPEED_HISTORY_KEEP = 30     # mốc tối đa — mỗi lần --pagespeed thành công 1 mốc
+
+
+def history_entry(report: dict) -> dict:
+    """1 mốc gọn từ report {fetched_at, url, strategy: {...}}: chỉ số điểm."""
+    entry = {"at": str(report.get("fetched_at") or ""),
+             "url": str(report.get("url") or ""), "scores": {}}
+    for strategy in STRATEGIES:
+        r = report.get(strategy) or {}
+        if isinstance(r, dict) and not r.get("error"):
+            entry["scores"][strategy] = r.get("score")
+    return entry
+
+
+def history_scores(url: str = "", report: dict = None) -> list:
+    """[(at, {strategy: score})] mốc cũ → mới, chỉ theo `url` (rỗng = hết mệnh
+    — ai đo URL nào lịch sử đó). Đọc từ report đang tạo nếu truyền."""
+    data = report if report is not None else load_saved()
+    hist = (data or {}).get("history") or []
+    out = []
+    for e in hist:
+        if not isinstance(e, dict):
+            continue
+        if url and str(e.get("url") or "") != url:
+            continue
+        out.append((str(e.get("at") or ""), dict(e.get("scores") or {})))
+    return out
+
+
+def trend_words(hist: list) -> str:
+    """Mốc cũ → mới: 'mobile 84 87 85 (↓ 3) · desktop ...' — dùng chung format."""
+    strategies = []
+    for _, scores in hist:
+        for k, v in (scores or {}).items():
+            if isinstance(v, int):
+                strategies.append(k)
+    lines = []
+    for s in strategies:
+        vals = [sc.get(s) for _, sc in hist if isinstance((sc or {}).get(s), int)]
+        if len(vals) < 2:
+            continue
+        d = vals[-1] - vals[0]
+        mark = "↓" if d < 0 else ("↑" if d > 0 else "=")
+        lines.append(f"{s} {' '.join(str(v) for v in vals)} ({mark} {abs(d) if d else 0})")
+    return " · ".join(lines)
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
@@ -207,6 +263,9 @@ def run_pagespeed_cli(url: str = "") -> int:
     path = save(report)
     shown = os.path.relpath(path, ROOT)
     print(f"[PageSpeed] ✅ Đã lưu {shown} — {'/'.join(ok)} thành công.")
+    hist = history_scores(url=target, report=report)
+    if len(hist) >= 2:
+        print(f"[PageSpeed] 📈 Mốc URL này ({len(hist)} lần đo): {trend_words(hist)}")
     for strategy in STRATEGIES:
         if results[strategy]["error"]:
             print(f"[PageSpeed] ⚠️ {strategy} thiếu: {results[strategy]['error']}")
