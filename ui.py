@@ -77,6 +77,8 @@ class TrafficBotUI(ctk.CTk):
                                 "refresh-diff", "content-brief", "daily-report")}
         self._chart_running = False
         self._chart_visible = False
+        self._psi_chart_running = False      # T59
+        self._psi_chart_visible = False
         self._aeo_chart_running = False
         self._aeo_chart_visible = False
         self._wizard_running = False
@@ -783,6 +785,14 @@ class TrafficBotUI(ctk.CTk):
             command=self.run_chart_now,
         )
         self.btn_chart.pack(side="left", padx=(16, 0))
+        # T59 — PSI: điểm Core Web Vitals site qua các lần đo (canvas Cao=tốt)
+        self.btn_psi = ctk.CTkButton(
+            rf2, text="⚡  PSI",
+            fg_color="#1a5a7a", hover_color="#2478a8",
+            height=32, font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.run_psi_chart_now,
+        )
+        self.btn_psi.pack(side="left", padx=(16, 0))
         self.lbl_rank_last = ctk.CTkLabel(rf, text="", text_color="gray")
         self.lbl_rank_last.pack(side="left", padx=16)
         self.lbl_alert_mode = ctk.CTkLabel(rf, text="", text_color="gray")
@@ -799,6 +809,11 @@ class TrafficBotUI(ctk.CTk):
                                       highlightthickness=0)
         self.canvas_chart.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
         self.canvas_chart.grid_remove()  # mặc định ẩn — texttrước
+        # T59 — PSI canvas: cùng hàng 2, hai nút CHART/PSI tự giấu canvas của nhau
+        self.canvas_psi = tk.Canvas(t, height=220, bg="#181820",
+                                    highlightthickness=0)
+        self.canvas_psi.grid(row=2, column=0, sticky="nsew", padx=20, pady=(4, 4))
+        self.canvas_psi.grid_remove()
 
         sf = ctk.CTkFrame(t)
         sf.grid(row=3, column=0, sticky="nsew", padx=20, pady=(4, 4))
@@ -1509,6 +1524,9 @@ class TrafficBotUI(ctk.CTk):
         """Chạy trong main thread — dịch items → create_* trên canvas."""
         self._chart_visible = True
         try:
+            if self._psi_chart_visible:           # T59: PSI đang chiếm canvas → nhường
+                self._psi_chart_visible = False
+                self.canvas_psi.grid_remove()
             self.txt_rank.grid_remove()
             self.canvas_chart.grid()
         except Exception:
@@ -1544,6 +1562,90 @@ class TrafficBotUI(ctk.CTk):
                     x, y, txt, anchor = it[1], it[2], it[3], "start"
                     cvs.create_text(x, y, text=txt, fill="#cfcfd8", anchor=anchor,
                                     font=("Consolas", 9))
+
+    # ── T59 — PSI TREND: điểm Core Web Vitals site qua các lần đo (canvas, cao = tốt) ──
+    def run_psi_chart_now(self):
+        """⚡ PSI: vẽ điểm mobile/desktop 8 mốc gần nhất — toggle hiện/ẩn
+        (cùng hàng canvas 2 với 📈 CHART, hai nút tự giấu canvas của nhau)."""
+        if self._psi_chart_running:
+            return
+        if self._psi_chart_visible:
+            self._psi_chart_visible = False
+            self.canvas_psi.grid_remove()
+            self.txt_rank.grid()
+            self.btn_psi.configure(text="⚡  PSI")
+            return
+        self._psi_chart_running = True
+        self.btn_psi.configure(state="disabled", text="⏳ Đang vẽ...")
+        threading.Thread(target=self._psi_chart_worker, daemon=True).start()
+
+    def _psi_chart_worker(self):
+        try:
+            import config.settings as cfg
+            from utils.pagespeed import history_scores
+            from utils.gui_charts import psi_trend_series
+            trend = psi_trend_series(
+                history_scores(url=(cfg.TARGET_URL or "").strip()))
+            self.after(0, lambda: self._psi_chart_render(trend))
+        except Exception as e:
+            print(f"[PSI Trend] Lỗi: {type(e).__name__}: {e}")
+        finally:
+            self._psi_chart_running = False
+            self.after(0, lambda: self.btn_psi.configure(
+                state="normal", text="⚡  PSI"))
+
+    def _psi_chart_render(self, trend: dict):
+        """Main thread — dịch items → create_* (điểm CAO = tốt, không đảo trục)."""
+        self._psi_chart_visible = True
+        try:
+            if self._chart_visible:               # CHART đang chiếm canvas → nhường
+                self._chart_visible = False
+                self.canvas_chart.grid_remove()
+            self.txt_rank.grid_remove()
+            self.canvas_psi.grid()
+        except Exception:
+            pass
+        cvs = self.canvas_psi
+        cvs.delete("all")
+        w = max(cvs.winfo_width() or 700, 400)
+        h = max(cvs.winfo_height() or 220, 160)
+        labels = (trend or {}).get("labels") or []
+        series = (trend or {}).get("series") or {}
+        if len(labels) < 2 or not any(isinstance(v, (int, float))
+                                      for vals in series.values()
+                                      for v in (vals or [])):
+            cvs.create_text(w // 2, h // 2, fill="#8a8a96",
+                            font=("Consolas", 11),
+                            text="Chưa đủ mốc PageSpeed — chạy python main.py --pagespeed "
+                                 "từ 2 lần (mốc nào cũng URL site chính)")
+            return
+        from utils.gui_charts import chart_items
+        items = chart_items(series, w, h, invert_y=False, x_labels=labels)
+        seen_grid = set()
+        for it in items:
+            kind = it[0]
+            if kind == "grid":
+                _, y, txt = it
+                if y not in seen_grid:
+                    seen_grid.add(y)
+                    cvs.create_line(20, y, w - 12, y, fill="#3a3a44")
+                    cvs.create_text(8, y, text=txt, fill="#cfcfd8", anchor="e",
+                                    font=("Consolas", 9))
+            elif kind == "line":
+                cvs.create_line(it[2], it[3], it[4], it[5],
+                                fill=it[1], width=2, smooth=True)
+            elif kind == "dot":
+                x, y, r = it[1], it[2], 3
+                cvs.create_oval(x - r, y - r, x + r, y + r, fill=it[1], outline="")
+            elif kind == "label":
+                if len(it) >= 5:
+                    x, y, txt, anchor = it[1], it[2], it[3], "start"
+                    cvs.create_text(x, y, text=txt, fill="#cfcfd8", anchor=anchor,
+                                    font=("Consolas", 9))
+            elif kind == "xlab":
+                x, y, txt, anchor = it[1], it[2], it[3], it[4]
+                cvs.create_text(x, y, text=txt, fill="#8a8a96", anchor=anchor,
+                                font=("Consolas", 8))
 
     def _refresh_alert_mode_label(self):
         from utils.alerts import delivery_mode

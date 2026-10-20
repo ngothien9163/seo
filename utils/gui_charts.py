@@ -232,3 +232,27 @@ def gsc_trend_series(history: dict, last: int = 8) -> dict:
         imps.append(sum(int((r or {}).get("impressions") or 0)
                         for r in rows.values()))
     return {"labels": labels, "clicks": clicks, "imps": imps}
+
+
+# ─── T59: PSI trend — điểm Core Web Vitals site qua các lần đo (0-100, cao = tốt) ──
+
+def psi_trend_series(hist: list, width: int = CHART_WIDTH) -> dict:
+    """T59 — từ lịch sử PSI (pagespeed.history_scores: [(at, {strategy: score})])
+    → {"labels": [ngày 'MM-DD'], "series": {"mobile": [...], "desktop": [...]}}.
+    Lấy `width` mốc gần nhất; strategy thiếu ở mốc nào là None (đường đứt — y như
+    hole T31). Không đảo trục (invert_y=False ở caller) — điểm CAO = tốt.
+    Caller tự kiểm ≥ 2 mốc; 0 request mới — chỉ đọc state đã lưu."""
+    entries = (hist or [])[-width:]
+    labels = []
+    for at, _ in entries:
+        s = str(at or "")
+        labels.append(s[5:10] if len(s) >= 10 else (s or "?"))
+    strategies = []
+    for _, sc in entries:
+        for k, v in (sc or {}).items():
+            if isinstance(v, int) and k not in strategies:
+                strategies.append(k)
+    series = {s: [sc.get(s) if isinstance((sc or {}).get(s), int) else None
+                  for _, sc in entries]
+              for s in strategies}
+    return {"labels": labels, "series": series}
